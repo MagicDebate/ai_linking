@@ -27,6 +27,7 @@ import {
   Lightbulb
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import ImportWizard from "./import-wizard";
 
 interface Project {
   id: string;
@@ -55,6 +56,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const [notificationDismissed, setNotificationDismissed] = useState(false);
+  const [selectedProjectForImport, setSelectedProjectForImport] = useState<string | null>(null);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateProjectForm>();
 
@@ -165,10 +167,6 @@ export default function Dashboard() {
                   <Settings className="h-4 w-4 mr-2" />
                   Настройки
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Сменить пароль
-                </DropdownMenuItem>
                 <Separator className="my-1" />
                 <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                   <LogOut className="h-4 w-4 mr-2" />
@@ -239,6 +237,7 @@ export default function Dashboard() {
                   <DialogHeader>
                     <DialogTitle>Создать новый проект</DialogTitle>
                   </DialogHeader>
+                  <p className="sr-only">Форма для создания нового SEO проекта с указанием названия и домена</p>
                   <form onSubmit={handleSubmit(onCreateProject)} className="space-y-4">
                     <div>
                       <Label htmlFor="name">Название проекта</Label>
@@ -420,10 +419,17 @@ export default function Dashboard() {
                     ) : (
                       <Circle className="h-5 w-5 text-gray-400" />
                     )}
-                    <span className={
-                      progress?.uploadTexts ? "text-green-600" : 
-                      !progress?.createProject ? "text-gray-400" : "text-gray-700"
-                    }>
+                    <span 
+                      className={
+                        progress?.uploadTexts ? "text-green-600" : 
+                        !progress?.createProject ? "text-gray-400" : "text-gray-700 cursor-pointer hover:text-blue-600"
+                      }
+                      onClick={() => {
+                        if (progress?.createProject && projects.length > 0) {
+                          setSelectedProjectForImport(projects[0].id);
+                        }
+                      }}
+                    >
                       Загрузить тексты
                     </span>
                   </div>
@@ -461,6 +467,14 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+      
+      {/* Import Wizard */}
+      {selectedProjectForImport && (
+        <ImportWizard 
+          projectId={selectedProjectForImport}
+          onClose={() => setSelectedProjectForImport(null)}
+        />
+      )}
     </div>
   );
 }

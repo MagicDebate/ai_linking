@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { type Express } from "express";
 import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
@@ -13,7 +13,12 @@ import {
   clearTokenCookies, 
   authenticateToken 
 } from "./auth";
-import { registerUserSchema, loginUserSchema, insertProjectSchema } from "@shared/schema";
+import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema } from "@shared/schema";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import crypto from "crypto";
 import type { AuthRequest } from "./auth";
 
 // Rate limiting for auth endpoints
@@ -28,6 +33,9 @@ const authLimiter = rateLimit({
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cookieParser());
   app.use(passport.initialize());
+  
+  // Serve static files from public directory
+  app.use("/static", express.static("public/static"));
 
   // Setup Google OAuth
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
@@ -302,6 +310,164 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       console.error("Dismiss notification error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Configure multer for file uploads
+  const upload = multer({
+    dest: "./uploads",
+    limits: {
+      fileSize: 250 * 1024 * 1024, // 250MB
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = ['.csv', '.json'];
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (allowedTypes.includes(ext)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only CSV and JSON files are allowed'));
+      }
+    }
+  });
+
+  // In-memory store for import data
+  const importStore = new Map<string, {
+    headers: string[];
+    rows: string[][];
+    fileName: string;
+    fileSize: number;
+  }>();
+
+  // Import endpoints
+  
+  // Upload file
+  app.post("/api/import/upload", authenticateToken, upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const uploadId = crypto.randomUUID();
+      const filePath = req.file.path;
+      const fileName = req.file.originalname;
+      const fileSize = req.file.size;
+
+      // Parse CSV file
+      const fileContent = fs.readFileSync(filePath, 'utf-8');
+      const lines = fileContent.split('\n').filter(line => line.trim());
+      
+      if (lines.length === 0) {
+        return res.status(400).json({ message: "File is empty" });
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      const rows = lines.slice(1, 4).map(line => 
+        line.split(',').map(cell => cell.trim().replace(/"/g, ''))
+      );
+
+      // Store in memory
+      importStore.set(uploadId, {
+        headers,
+        rows,
+        fileName,
+        fileSize
+      });
+
+      // Clean up uploaded file
+      fs.unlinkSync(filePath);
+
+      // Simulate processing delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      res.json({ uploadId });
+    } catch (error) {
+      console.error("Upload error:", error);
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  // Get preview
+  app.get("/api/import/preview", authenticateToken, async (req: any, res) => {
+    try {
+      const { uploadId } = req.query;
+      
+      if (!uploadId) {
+        return res.status(400).json({ message: "uploadId is required" });
+      }
+
+      const importData = importStore.get(uploadId);
+      if (!importData) {
+        return res.status(404).json({ message: "Import data not found" });
+      }
+
+      res.json({
+        headers: importData.headers,
+        rows: importData.rows
+      });
+    } catch (error) {
+      console.error("Preview error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Save field mapping
+  app.post("/api/import/field-map", authenticateToken, async (req: any, res) => {
+    try {
+      const validation = fieldMappingSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: validation.error.errors 
+        });
+      }
+
+      const { uploadId, mapping } = validation.data;
+      
+      const importData = importStore.get(uploadId);
+      if (!importData) {
+        return res.status(404).json({ message: "Import data not found" });
+      }
+
+      // Simulate processing delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Field mapping error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get project API key
+  app.get("/api/projects/:id/api-key", authenticateToken, async (req: any, res) => {
+    try {
+      const projectId = req.params.id;
+      const apiKey = await storage.getProjectApiKey(projectId);
+      
+      if (!apiKey) {
+        return res.status(404).json({ message: "API key not found" });
+      }
+
+      res.json({ apiKey: apiKey.apiKey });
+    } catch (error) {
+      console.error("Get API key error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Create project API key
+  app.post("/api/projects/:id/api-key", authenticateToken, async (req: any, res) => {
+    try {
+      const projectId = req.params.id;
+      const apiKey = `pk_${crypto.randomBytes(32).toString('hex')}`;
+      
+      const newApiKey = await storage.createProjectApiKey(projectId, apiKey);
+      
+      res.json({ apiKey: newApiKey.apiKey });
+    } catch (error) {
+      console.error("Create API key error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });

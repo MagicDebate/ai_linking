@@ -45,6 +45,24 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const projectApiKeys = pgTable("project_api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  apiKey: text("api_key").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const imports = pgTable("imports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  uploadId: text("upload_id").notNull().unique(),
+  fileName: text("file_name").notNull(),
+  fileSize: text("file_size").notNull(),
+  status: text("status").notNull().default("uploaded"), // uploaded, mapped, processed
+  fieldMapping: text("field_mapping"), // JSON string
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -76,6 +94,21 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
   createdAt: true,
 });
 
+export const insertApiKeySchema = createInsertSchema(projectApiKeys).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertImportSchema = createInsertSchema(imports).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const fieldMappingSchema = z.object({
+  uploadId: z.string(),
+  mapping: z.record(z.string(), z.string()),
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type RegisterUser = z.infer<typeof registerUserSchema>;
@@ -86,3 +119,8 @@ export type UserProgress = typeof userProgress.$inferSelect;
 export type InsertProgress = z.infer<typeof insertProgressSchema>;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type ProjectApiKey = typeof projectApiKeys.$inferSelect;
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+export type Import = typeof imports.$inferSelect;
+export type InsertImport = z.infer<typeof insertImportSchema>;
+export type FieldMapping = z.infer<typeof fieldMappingSchema>;

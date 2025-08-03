@@ -1,0 +1,48 @@
+Шаг 0 (авторизация) и Шаг 1 (экран «Мои проекты» + wizard, Step 1 “Основное”) уже работают.
+
+Нужно сделать **Step 2** мастера:  
+• 2-a «Источник контента» (выбор CSV/JSON или WordPress-плагина)  
+• 2-b «Сопоставление полей» (только если выбран CSV/JSON)
+
+# UI – Step 2-a «Источник контента»
+Radio-switch (обязательно выбрать):
+
+1️⃣  CSV / JSON (рекомендуемый путь)  
+   • Кнопка “Скачать пример CSV” → /static/sample.csv  
+   • Drag-and-drop + fallback “Выбрать файл”  
+   • Валидируем: .csv или .json, ≤ 250 MB  
+   • Пока файл не выбран — кнопка «Далее» disabled  
+
+2️⃣  WordPress-плагин  
+   • Кнопка “Скачать плагин (.zip)” → /static/perlinker-wp.zip  
+   • Read-only API-ключ + иконка copy  
+       – GET /api/projects/:id/api-key  (если нет → POST для генерации)  
+   • Подсказка: «Установите плагин, вставьте ключ, нажмите “Send all content”»  
+   • При выборе WP путь кнопка «Далее» активна сразу  
+
+Navigation в модалке: ‹ Назад | Далее ›  
+(после CSV-upload «Далее» ведёт на step 2-b ; после WP – сразу на Step 3 «Лимиты»)
+
+# UI – Step 2-b «Сопоставление полей» (показывается ТОЛЬКО для CSV/JSON)
+• Таблица-превью: заголовки + первые 3 строки файла  
+• Для каждой колонки заголовка – выпадающий список системных полей:  
+  url, html/markdown, meta_title, meta_description, h1, lang, pub_date, page_type, «Не импортировать»  
+• Авто-предсказание:  
+  - url → `url|link|address`  
+  - html → `html|body|content|markdown`  
+  - meta_title → `title`  
+  - meta_description → `description|descr|meta_description`  
+• Обязательные поля: url, html/markdown, meta_title, meta_description  
+  – пока не выбраны → «Сохранить и далее» disabled + сообщение «Выберите поле …»  
+• Кнопки: ‹ Назад | Сохранить и далее ›
+
+# BACKEND STUBS (добавь к существующему мини-серверу)
+POST /api/import/upload              // multipart file; returns { uploadId }  
+GET  /api/import/preview?uploadId    // { headers:[…], rows:[ […], […], […]] } – первые 3 строки  
+POST /api/import/field-map           // { uploadId, map:{ systemField: csvColumnName } } → { ok:true }  
+GET  /api/projects/:id/api-key       // { apiKey }  (404 if none)  
+POST /api/projects/:id/api-key       // создаёт и возвращает { apiKey }  
+
+— все данные можно держать in-memory (Map/Obj).  
+— upload хранить в ./uploads, preview читать из файла.  
+— random delay 2 s имитирует реальную обработку.

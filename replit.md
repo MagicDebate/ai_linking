@@ -1,6 +1,13 @@
 # Overview
 
-This is a full-stack authentication application built with Express.js backend and React frontend. The application provides comprehensive user authentication including email/password registration and login, Google OAuth integration, JWT-based session management, and user profile management. It features a modern UI built with shadcn/ui components and TailwindCSS, uses PostgreSQL with Drizzle ORM for data persistence, and implements security best practices including rate limiting and httpOnly cookies.
+This is a comprehensive SaaS SEO service platform that automates internal linking for SEO specialists. The application provides full user authentication (email/password and Google OAuth), project management, content import functionality, and progress tracking. Built with Express.js backend and React frontend, it features a modern dashboard with project creation, CSV/JSON import wizard, WordPress plugin integration, and comprehensive onboarding flow. The system uses PostgreSQL with Drizzle ORM and implements security best practices.
+
+## Recent Changes (January 2025)
+- **Transformed from auth app to SEO SaaS platform** - Complete UI overhaul with SEO LinkBuilder branding
+- **Added project management** - Users can create, manage, and delete SEO projects  
+- **Implemented Step 2 import wizard** - CSV/JSON upload with field mapping and WordPress plugin option
+- **Enhanced database schema** - Added projects, user progress, notifications, API keys, and imports tables
+- **Created comprehensive dashboard** - Project list, progress sidebar, FAQ section, notification banner
 
 # User Preferences
 
@@ -28,10 +35,13 @@ Preferred communication style: Simple, everyday language.
 ## Database Schema
 - **ORM**: Drizzle ORM for type-safe database operations
 - **Database**: PostgreSQL (configured for Neon serverless)
-- **User Entity**: 
-  - Primary key: UUID
-  - Fields: email (unique), passwordHash (optional), provider (LOCAL/GOOGLE), googleId (optional), createdAt
-  - Supports both local and OAuth users in a unified schema
+- **Core Entities**:
+  - **Users**: UUID primary key, email (unique), passwordHash (optional), provider (LOCAL/GOOGLE), googleId (optional), createdAt
+  - **Projects**: UUID primary key, userId (foreign key), name, domain, status (QUEUED/READY), createdAt, updatedAt
+  - **UserProgress**: Tracks onboarding steps (createProject, uploadTexts, setPriorities, generateDraft)
+  - **Notifications**: System notifications with dismiss functionality
+  - **ProjectApiKeys**: API keys for WordPress plugin integration
+  - **Imports**: File upload tracking with field mapping and processing status
 
 ## Authentication Flow
 - **Local Auth**: Email/password with bcrypt hashing (10 rounds)

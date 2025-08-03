@@ -3,6 +3,8 @@ import {
   projects, 
   userProgress, 
   notifications,
+  projectApiKeys,
+  imports,
   type User, 
   type InsertUser,
   type Project,
@@ -10,7 +12,11 @@ import {
   type UserProgress,
   type InsertProgress,
   type Notification,
-  type InsertNotification
+  type InsertNotification,
+  type ProjectApiKey,
+  type InsertApiKey,
+  type Import,
+  type InsertImport
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -34,6 +40,15 @@ export interface IStorage {
   // Notifications
   getNotifications(userId: string): Promise<Notification[]>;
   dismissNotification(id: string, userId: string): Promise<void>;
+  
+  // API Keys
+  getProjectApiKey(projectId: string): Promise<ProjectApiKey | undefined>;
+  createProjectApiKey(projectId: string, apiKey: string): Promise<ProjectApiKey>;
+  
+  // Imports
+  createImport(importData: InsertImport): Promise<Import>;
+  getImportByUploadId(uploadId: string): Promise<Import | undefined>;
+  updateImportFieldMapping(uploadId: string, fieldMapping: string): Promise<Import | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -130,6 +145,49 @@ export class DatabaseStorage implements IStorage {
       .update(notifications)
       .set({ dismissed: "true" })
       .where(eq(notifications.id, id));
+  }
+
+  // API Keys
+  async getProjectApiKey(projectId: string): Promise<ProjectApiKey | undefined> {
+    const [apiKey] = await db
+      .select()
+      .from(projectApiKeys)
+      .where(eq(projectApiKeys.projectId, projectId));
+    return apiKey || undefined;
+  }
+
+  async createProjectApiKey(projectId: string, apiKey: string): Promise<ProjectApiKey> {
+    const [newApiKey] = await db
+      .insert(projectApiKeys)
+      .values({ projectId, apiKey })
+      .returning();
+    return newApiKey;
+  }
+
+  // Imports
+  async createImport(importData: InsertImport): Promise<Import> {
+    const [newImport] = await db
+      .insert(imports)
+      .values(importData)
+      .returning();
+    return newImport;
+  }
+
+  async getImportByUploadId(uploadId: string): Promise<Import | undefined> {
+    const [importRecord] = await db
+      .select()
+      .from(imports)
+      .where(eq(imports.uploadId, uploadId));
+    return importRecord || undefined;
+  }
+
+  async updateImportFieldMapping(uploadId: string, fieldMapping: string): Promise<Import | undefined> {
+    const [updatedImport] = await db
+      .update(imports)
+      .set({ fieldMapping, status: "mapped" })
+      .where(eq(imports.uploadId, uploadId))
+      .returning();
+    return updatedImport || undefined;
   }
 }
 
