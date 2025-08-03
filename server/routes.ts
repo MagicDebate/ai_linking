@@ -30,15 +30,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(passport.initialize());
 
   // Setup Google OAuth
-  const googleClientId = process.env.GOOGLE_CLIENT_ID || "your-google-client-id";
-  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || "your-google-client-secret";
+  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
   
   if (googleClientId && googleClientSecret) {
     passport.use(new GoogleStrategy({
-      clientId: googleClientId,
+      clientID: googleClientId,
       clientSecret: googleClientSecret,
       callbackURL: "/auth/google/callback"
-    }, async (accessToken, refreshToken, profile, done) => {
+    }, async (accessToken: string, refreshToken: string, profile: any, done: any) => {
       try {
         const email = profile.emails?.[0]?.value;
         if (!email) {
@@ -181,7 +181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Get current user endpoint
-  app.get("/auth/me", authenticateToken, async (req: AuthRequest, res) => {
+  app.get("/auth/me", authenticateToken, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.user!.id);
       if (!user) {
