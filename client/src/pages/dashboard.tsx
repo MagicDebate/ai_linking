@@ -24,7 +24,8 @@ import {
   Circle,
   X,
   ExternalLink,
-  Lightbulb
+  Lightbulb,
+  Upload
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import ImportWizard from "./import-wizard";
@@ -432,18 +433,9 @@ export default function Dashboard() {
                     ) : (
                       <Circle className="h-5 w-5 text-gray-400" />
                     )}
-                    {progress?.createProject && !progress?.uploadTexts && projects.length > 0 ? (
-                      <button
-                        className="text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
-                        onClick={() => setSelectedProjectForImport(projects[0].id)}
-                      >
-                        Загрузить тексты
-                      </button>
-                    ) : (
-                      <span className={progress?.uploadTexts ? "text-green-600" : "text-gray-400"}>
-                        Загрузить тексты
-                      </span>
-                    )}
+                    <span className={progress?.uploadTexts ? "text-green-600" : "text-gray-400"}>
+                      Загрузить тексты
+                    </span>
                   </div>
                   
                   <div className="flex items-center gap-3">
