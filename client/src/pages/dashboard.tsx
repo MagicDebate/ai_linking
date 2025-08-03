@@ -212,8 +212,21 @@ export default function Dashboard() {
           <div className="flex-1">
             {/* Title Section */}
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Ваши проекты</h1>
-              <p className="text-gray-600">Управляйте внутренними ссылками в один клик</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">Ваши проекты</h1>
+                  <p className="text-gray-600">Управляйте внутренними ссылками в один клик</p>
+                </div>
+                {projects.length > 0 && !progress?.uploadTexts && (
+                  <Button 
+                    onClick={() => setSelectedProjectForImport(projects[0].id)}
+                    className="flex items-center gap-2"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Импорт контента
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Content Area */}
@@ -419,19 +432,18 @@ export default function Dashboard() {
                     ) : (
                       <Circle className="h-5 w-5 text-gray-400" />
                     )}
-                    <span 
-                      className={
-                        progress?.uploadTexts ? "text-green-600" : 
-                        !progress?.createProject ? "text-gray-400" : "text-gray-700 cursor-pointer hover:text-blue-600"
-                      }
-                      onClick={() => {
-                        if (progress?.createProject && projects.length > 0) {
-                          setSelectedProjectForImport(projects[0].id);
-                        }
-                      }}
-                    >
-                      Загрузить тексты
-                    </span>
+                    {progress?.createProject && !progress?.uploadTexts && projects.length > 0 ? (
+                      <button
+                        className="text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+                        onClick={() => setSelectedProjectForImport(projects[0].id)}
+                      >
+                        Загрузить тексты
+                      </button>
+                    ) : (
+                      <span className={progress?.uploadTexts ? "text-green-600" : "text-gray-400"}>
+                        Загрузить тексты
+                      </span>
+                    )}
                   </div>
                   
                   <div className="flex items-center gap-3">
