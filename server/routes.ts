@@ -13,7 +13,7 @@ import {
   clearTokenCookies, 
   authenticateToken 
 } from "./auth";
-import { registerUserSchema, loginUserSchema } from "@shared/schema";
+import { registerUserSchema, loginUserSchema, insertProjectSchema } from "@shared/schema";
 import type { AuthRequest } from "./auth";
 
 // Rate limiting for auth endpoints
@@ -204,6 +204,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/auth/logout", (req, res) => {
     clearTokenCookies(res);
     res.json({ message: "Logout successful" });
+  });
+
+  // API routes for dashboard
+  
+  // Get projects
+  app.get("/api/projects", authenticateToken, async (req: any, res) => {
+    try {
+      const projects = await storage.getProjects(req.user.id);
+      res.json(projects);
+    } catch (error) {
+      console.error("Get projects error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Create project
+  app.post("/api/projects", authenticateToken, async (req: any, res) => {
+    try {
+      const validation = insertProjectSchema.safeParse({
+        ...req.body,
+        userId: req.user.id
+      });
+      
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: validation.error.errors 
+        });
+      }
+
+      const project = await storage.createProject(validation.data);
+      
+      // Update user progress
+      await storage.updateUserProgress(req.user.id, { createProject: "true" });
+      
+      res.status(201).json(project);
+    } catch (error) {
+      console.error("Create project error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Delete project
+  app.delete("/api/projects/:id", authenticateToken, async (req: any, res) => {
+    try {
+      await storage.deleteProject(req.params.id, req.user.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete project error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get user progress
+  app.get("/api/progress", authenticateToken, async (req: any, res) => {
+    try {
+      const progress = await storage.getUserProgress(req.user.id);
+      
+      if (!progress) {
+        // Return default progress
+        res.json({
+          createProject: false,
+          uploadTexts: false,
+          setPriorities: false,
+          generateDraft: false
+        });
+      } else {
+        res.json({
+          createProject: progress.createProject === "true",
+          uploadTexts: progress.uploadTexts === "true",
+          setPriorities: progress.setPriorities === "true",
+          generateDraft: progress.generateDraft === "true"
+        });
+      }
+    } catch (error) {
+      console.error("Get progress error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get notifications
+  app.get("/api/notifications", authenticateToken, async (req: any, res) => {
+    try {
+      const notifications = await storage.getNotifications(req.user.id);
+      res.json(notifications.filter(n => n.dismissed === "false"));
+    } catch (error) {
+      console.error("Get notifications error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Dismiss notification
+  app.post("/api/notifications/:id/dismiss", authenticateToken, async (req: any, res) => {
+    try {
+      await storage.dismissNotification(req.params.id, req.user.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Dismiss notification error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
   });
 
   const httpServer = createServer(app);
