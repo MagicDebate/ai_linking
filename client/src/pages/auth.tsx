@@ -133,6 +133,8 @@ export default function AuthPage() {
                                 placeholder="Enter your email" 
                                 type="email" 
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                disabled={loginMutation.isPending}
+                                autoComplete="email"
                                 {...field} 
                               />
                             </FormControl>
@@ -153,6 +155,8 @@ export default function AuthPage() {
                                   placeholder="Enter your password" 
                                   type={showPassword ? "text" : "password"}
                                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors pr-12"
+                                  disabled={loginMutation.isPending}
+                                  autoComplete="current-password"
                                   {...field} 
                                 />
                                 <Button
@@ -258,6 +262,8 @@ export default function AuthPage() {
                                 placeholder="Enter your email" 
                                 type="email" 
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                disabled={registerMutation.isPending}
+                                autoComplete="email"
                                 {...field} 
                               />
                             </FormControl>
@@ -277,6 +283,8 @@ export default function AuthPage() {
                                 placeholder="Create a strong password" 
                                 type="password"
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                disabled={registerMutation.isPending}
+                                autoComplete="new-password"
                                 {...field} 
                               />
                             </FormControl>
@@ -300,6 +308,8 @@ export default function AuthPage() {
                                 placeholder="Confirm your password" 
                                 type="password"
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                disabled={registerMutation.isPending}
+                                autoComplete="new-password"
                                 {...field} 
                               />
                             </FormControl>
