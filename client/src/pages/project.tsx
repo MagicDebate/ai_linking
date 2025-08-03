@@ -167,9 +167,12 @@ export default function ProjectPage() {
   // Rules saving mutation
   const rulesMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("/api/rules", {
+      const response = await fetch("/api/rules", {
         method: "POST",
-        body: {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           projectId,
           limits: {
             maxLinks: rules.maxLinks,
@@ -182,7 +185,8 @@ export default function ProjectPage() {
           brokenLinksPolicy: rules.brokenLinksPolicy,
           stopAnchors: rules.stopAnchors,
           moneyPages: rules.moneyPages,
-        }
+        }),
+        credentials: "include",
       });
       
       if (!response.ok) {
@@ -204,9 +208,13 @@ export default function ProjectPage() {
   // Import start mutation
   const importMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("/api/import/start", {
+      const response = await fetch("/api/import/start", {
         method: "POST",
-        body: { projectId }
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ projectId }),
+        credentials: "include",
       });
       
       if (!response.ok) {
@@ -607,13 +615,10 @@ export default function ProjectPage() {
                 </div>
 
                 {/* A. Лимиты ссылок */}
-                <div className="space-y-6">
-                  <div className="border-b border-gray-200 pb-6">
-                    <div className="flex items-center gap-4 mb-4">
+                <div className="space-y-4">
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
                       <h4 className="text-md font-medium text-gray-900">Лимиты ссылок</h4>
-                      <div className="helper-thumb w-40 h-[90px] bg-gray-200 rounded flex items-center justify-center">
-                        <LinkIcon className="h-6 w-6 text-gray-400" />
-                      </div>
                       <Button variant="link" size="sm" className="text-blue-600 p-0">
                         <Info className="h-4 w-4 mr-1" />
                         Подробнее
@@ -623,7 +628,7 @@ export default function ProjectPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                          Max links / страницу: {rules.maxLinks}
+                          Макс. ссылок на страницу: {rules.maxLinks}
                         </Label>
                         <Slider
                           value={[rules.maxLinks]}
@@ -641,7 +646,7 @@ export default function ProjectPage() {
 
                       <div>
                         <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                          Min distance, px: {rules.minDistance}
+                          Мин. расстояние, px: {rules.minDistance}
                         </Label>
                         <Slider
                           value={[rules.minDistance]}
@@ -660,12 +665,9 @@ export default function ProjectPage() {
                   </div>
 
                   {/* B. Доля точных анкоров */}
-                  <div className="border-b border-gray-200 pb-6">
-                    <div className="flex items-center gap-4 mb-4">
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
                       <h4 className="text-md font-medium text-gray-900">Доля точных анкоров</h4>
-                      <div className="helper-thumb w-40 h-[90px] bg-gray-200 rounded flex items-center justify-center">
-                        <FileText className="h-6 w-6 text-gray-400" />
-                      </div>
                       <Button variant="link" size="sm" className="text-blue-600 p-0">
                         <Info className="h-4 w-4 mr-1" />
                         Подробнее
@@ -674,7 +676,7 @@ export default function ProjectPage() {
                     
                     <div className="max-w-md">
                       <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                        Exact-анкоры ≤ {rules.exactPercent}%
+                        Точные анкоры ≤ {rules.exactPercent}%
                       </Label>
                       <Slider
                         value={[rules.exactPercent]}
@@ -692,12 +694,9 @@ export default function ProjectPage() {
                   </div>
 
                   {/* C. Сценарии перелинковки */}
-                  <div className="border-b border-gray-200 pb-6">
-                    <div className="flex items-center gap-4 mb-4">
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
                       <h4 className="text-md font-medium text-gray-900">Сценарии перелинковки</h4>
-                      <div className="helper-thumb w-40 h-[90px] bg-gray-200 rounded flex items-center justify-center">
-                        <Settings className="h-6 w-6 text-gray-400" />
-                      </div>
                       <Button variant="link" size="sm" className="text-blue-600 p-0">
                         <Info className="h-4 w-4 mr-1" />
                         Подробнее
@@ -707,7 +706,7 @@ export default function ProjectPage() {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="head-consolidation" className="text-sm text-gray-700">
-                          Head-Consolidation
+                          Консолидация заголовков
                         </Label>
                         <Switch
                           id="head-consolidation"
@@ -721,7 +720,7 @@ export default function ProjectPage() {
                       
                       <div className="flex items-center justify-between">
                         <Label htmlFor="cluster-cross-link" className="text-sm text-gray-700">
-                          Cluster Cross-Link
+                          Кросс-линковка кластеров
                         </Label>
                         <Switch
                           id="cluster-cross-link"
@@ -735,7 +734,7 @@ export default function ProjectPage() {
                       
                       <div className="flex items-center justify-between">
                         <Label htmlFor="commercial-routing" className="text-sm text-gray-700">
-                          Commercial Routing
+                          Коммерческая маршрутизация
                         </Label>
                         <Switch
                           id="commercial-routing"
@@ -749,7 +748,7 @@ export default function ProjectPage() {
                       
                       <div className="flex items-center justify-between">
                         <Label htmlFor="orphan-fix" className="text-sm text-gray-700">
-                          Orphan Fix
+                          Исправление сирот
                         </Label>
                         <Switch
                           id="orphan-fix"
@@ -764,97 +763,80 @@ export default function ProjectPage() {
                   </div>
 
                   {/* D. Старые ссылки */}
-                  <div className="border-b border-gray-200 pb-6">
-                    <div className="flex items-center gap-4 mb-4">
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
                       <h4 className="text-md font-medium text-gray-900">Старые ссылки</h4>
-                      <div className="helper-thumb w-40 h-[90px] bg-gray-200 rounded flex items-center justify-center">
-                        <ArrowRight className="h-6 w-6 text-gray-400" />
-                      </div>
                       <Button variant="link" size="sm" className="text-blue-600 p-0">
                         <Info className="h-4 w-4 mr-1" />
                         Подробнее
                       </Button>
                     </div>
                     
-                    <RadioGroup
-                      value={rules.oldLinksPolicy}
-                      onValueChange={(value: 'enrich' | 'regenerate' | 'audit') => 
-                        setRules(prev => ({ ...prev, oldLinksPolicy: value }))}
-                      className="space-y-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="enrich" id="enrich" />
-                        <Label htmlFor="enrich" className="text-sm text-gray-700">
-                          Enrich (existing + new)
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-sm text-gray-700 mb-2 block">Политика обработки</Label>
+                        <Select 
+                          value={rules.oldLinksPolicy} 
+                          onValueChange={(value: 'enrich' | 'regenerate' | 'audit') => 
+                            setRules(prev => ({ ...prev, oldLinksPolicy: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="enrich">Дополнить (существующие + новые)</SelectItem>
+                            <SelectItem value="regenerate">Пересоздать все</SelectItem>
+                            <SelectItem value="audit">Только аудит</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="dedupe-links" className="text-sm text-gray-700">
+                          Удалять дубли ссылок на один URL
                         </Label>
+                        <Switch
+                          id="dedupe-links"
+                          checked={rules.dedupeLinks}
+                          onCheckedChange={(checked) => setRules(prev => ({ ...prev, dedupeLinks: checked }))}
+                        />
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="regenerate" id="regenerate" />
-                        <Label htmlFor="regenerate" className="text-sm text-gray-700">
-                          Regenerate all
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="audit" id="audit" />
-                        <Label htmlFor="audit" className="text-sm text-gray-700">
-                          Audit only
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                    
-                    <div className="flex items-center justify-between mt-4">
-                      <Label htmlFor="dedupe-links" className="text-sm text-gray-700">
-                        Удалять дубли ссылок на один URL
-                      </Label>
-                      <Switch
-                        id="dedupe-links"
-                        checked={rules.dedupeLinks}
-                        onCheckedChange={(checked) => setRules(prev => ({ ...prev, dedupeLinks: checked }))}
-                      />
                     </div>
                   </div>
 
                   {/* E. Битые ссылки */}
-                  <div className="border-b border-gray-200 pb-6">
-                    <div className="flex items-center gap-4 mb-4">
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
                       <h4 className="text-md font-medium text-gray-900">Битые (404) ссылки</h4>
-                      <div className="helper-thumb w-40 h-[90px] bg-gray-200 rounded flex items-center justify-center">
-                        <X className="h-6 w-6 text-gray-400" />
-                      </div>
                       <Button variant="link" size="sm" className="text-blue-600 p-0">
                         <Info className="h-4 w-4 mr-1" />
                         Подробнее
                       </Button>
                     </div>
                     
-                    <RadioGroup
-                      value={rules.brokenLinksPolicy}
-                      onValueChange={(value: 'delete' | 'replace' | 'ignore') => 
-                        setRules(prev => ({ ...prev, brokenLinksPolicy: value }))}
-                      className="space-y-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="delete" id="delete" />
-                        <Label htmlFor="delete" className="text-sm text-gray-700">Delete</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="replace" id="replace" />
-                        <Label htmlFor="replace" className="text-sm text-gray-700">Replace</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="ignore" id="ignore" />
-                        <Label htmlFor="ignore" className="text-sm text-gray-700">Ignore</Label>
-                      </div>
-                    </RadioGroup>
+                    <div>
+                      <Label className="text-sm text-gray-700 mb-2 block">Действие с битыми ссылками</Label>
+                      <Select 
+                        value={rules.brokenLinksPolicy} 
+                        onValueChange={(value: 'delete' | 'replace' | 'ignore') => 
+                          setRules(prev => ({ ...prev, brokenLinksPolicy: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="delete">Удалить</SelectItem>
+                          <SelectItem value="replace">Заменить</SelectItem>
+                          <SelectItem value="ignore">Игнорировать</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   {/* F. Stop-лист анкор-фраз */}
-                  <div className="border-b border-gray-200 pb-6">
-                    <div className="flex items-center gap-4 mb-4">
-                      <h4 className="text-md font-medium text-gray-900">Stop-лист анкор-фраз</h4>
-                      <div className="helper-thumb w-40 h-[90px] bg-gray-200 rounded flex items-center justify-center">
-                        <AlertCircle className="h-6 w-6 text-gray-400" />
-                      </div>
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Запрещенные анкоры</h4>
                       <Button variant="link" size="sm" className="text-blue-600 p-0">
                         <Info className="h-4 w-4 mr-1" />
                         Подробнее
@@ -868,17 +850,14 @@ export default function ProjectPage() {
                         ...prev, 
                         stopAnchors: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
                       }))}
-                      className="min-h-[100px]"
+                      className="min-h-[80px]"
                     />
                   </div>
 
                   {/* G. Приоритетные URL */}
-                  <div className="pb-6">
-                    <div className="flex items-center gap-4 mb-4">
-                      <h4 className="text-md font-medium text-gray-900">Приоритетные (money)-URL</h4>
-                      <div className="helper-thumb w-40 h-[90px] bg-gray-200 rounded flex items-center justify-center">
-                        <Globe className="h-6 w-6 text-gray-400" />
-                      </div>
+                  <div className="pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Приоритетные страницы</h4>
                       <Button variant="link" size="sm" className="text-blue-600 p-0">
                         <Info className="h-4 w-4 mr-1" />
                         Подробнее
@@ -892,7 +871,7 @@ export default function ProjectPage() {
                         const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
                         setRules(prev => ({ ...prev, moneyPages: urls }));
                       }}
-                      className="min-h-[100px]"
+                      className="min-h-[80px]"
                     />
                   </div>
                 </div>
