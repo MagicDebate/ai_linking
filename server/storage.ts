@@ -186,7 +186,7 @@ export class DatabaseStorage implements IStorage {
     const [importRecord] = await db
       .select()
       .from(imports)
-      .where(eq(imports.uploadId, uploadId));
+      .where(eq(imports.id, uploadId));
     return importRecord || undefined;
   }
 
@@ -194,7 +194,7 @@ export class DatabaseStorage implements IStorage {
     const [updatedImport] = await db
       .update(imports)
       .set({ fieldMapping, status: "mapped" })
-      .where(eq(imports.uploadId, uploadId))
+      .where(eq(imports.id, uploadId))
       .returning();
     return updatedImport || undefined;
   }

@@ -55,11 +55,11 @@ export const projectApiKeys = pgTable("project_api_keys", {
 export const imports = pgTable("imports", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  uploadId: text("upload_id").notNull().unique(),
   fileName: text("file_name").notNull(),
-  fileSize: text("file_size").notNull(),
-  status: text("status").notNull().default("uploaded"), // uploaded, mapped, processed
+  filePath: text("file_path"),
+  status: text("status").notNull().default("PENDING"), // PENDING, MAPPED, PROCESSED
   fieldMapping: text("field_mapping"), // JSON string
+  processedAt: timestamp("processed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -106,7 +106,7 @@ export const insertImportSchema = createInsertSchema(imports).omit({
 
 export const fieldMappingSchema = z.object({
   uploadId: z.string(),
-  mapping: z.record(z.string(), z.string()),
+  fieldMapping: z.record(z.string(), z.string()),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

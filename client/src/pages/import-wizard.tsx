@@ -128,6 +128,8 @@ export default function ImportWizard({ projectId, onClose }: ImportWizardProps) 
     }
 
     setUploadedFile(file);
+    setCsvPreview(null); // Очистить предыдущий превью
+    setFieldMapping({}); // Очистить предыдущее сопоставление
     uploadMutation.mutate(file);
   };
 
@@ -138,20 +140,7 @@ export default function ImportWizard({ projectId, onClose }: ImportWizardProps) 
     }));
   };
 
-  const downloadSampleCsv = () => {
-    const csvContent = `title,url,content,meta_description
-"Как выбрать SEO агентство","/blog/seo-agency","Полное руководство по выбору SEO агентства...","Узнайте как правильно выбрать SEO агентство"
-"Внутренние ссылки в SEO","/blog/internal-links","Внутренние ссылки играют важную роль...","Все о внутренних ссылках для SEO"
-"Анализ конкурентов","/services/competitor-analysis","Проводим глубокий анализ конкурентов...","Анализ конкурентов для успешного SEO"`;
-    
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'sample_content.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
+
 
   const downloadWordPressPlugin = () => {
     // In a real implementation, this would download the actual plugin file
@@ -232,8 +221,14 @@ Version: 1.0
                     Загрузите CSV или JSON файл с контентом вашего сайта
                   </p>
                   
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                    <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                    uploadMutation.isPending ? 'border-blue-300 bg-blue-50' : 'border-gray-300'
+                  }`}>
+                    {uploadMutation.isPending ? (
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    ) : (
+                      <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                    )}
                     <Button
                       onClick={() => fileRef.current?.click()}
                       disabled={uploadMutation.isPending}
@@ -241,13 +236,16 @@ Version: 1.0
                     >
                       {uploadMutation.isPending ? "Загружаем..." : "Выбрать файл"}
                     </Button>
-                    <p className="text-xs text-gray-500">CSV, JSON до 10MB</p>
+                    <p className="text-xs text-gray-500">
+                      {uploadMutation.isPending ? "Обрабатываем файл..." : "CSV, JSON до 10MB"}
+                    </p>
                     <input
                       ref={fileRef}
                       type="file"
                       accept=".csv,.json"
                       onChange={handleFileSelect}
                       className="hidden"
+                      disabled={uploadMutation.isPending}
                     />
                   </div>
 
@@ -258,15 +256,14 @@ Version: 1.0
                     </div>
                   )}
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={downloadSampleCsv}
-                    className="flex items-center gap-2"
+                  <a
+                    href="data:text/csv;charset=utf-8,title%2Curl%2Ccontent%2Cmeta_description%0A%22%D0%9A%D0%B0%D0%BA%20%D0%B2%D1%8B%D0%B1%D1%80%D0%B0%D1%82%D1%8C%20SEO%20%D0%B0%D0%B3%D0%B5%D0%BD%D1%82%D1%81%D1%82%D0%B2%D0%BE%22%2C%22%2Fblog%2Fseo-agency%22%2C%22%D0%9F%D0%BE%D0%BB%D0%BD%D0%BE%D0%B5%20%D1%80%D1%83%D0%BA%D0%BE%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%BE%20%D0%BF%D0%BE%20%D0%B2%D1%8B%D0%B1%D0%BE%D1%80%D1%83%20SEO%20%D0%B0%D0%B3%D0%B5%D0%BD%D1%82%D1%81%D1%82%D0%B2%D0%B0...%22%2C%22%D0%A3%D0%B7%D0%BD%D0%B0%D0%B9%D1%82%D0%B5%20%D0%BA%D0%B0%D0%BA%20%D0%BF%D1%80%D0%B0%D0%B2%D0%B8%D0%BB%D1%8C%D0%BD%D0%BE%20%D0%B2%D1%8B%D0%B1%D1%80%D0%B0%D1%82%D1%8C%20SEO%20%D0%B0%D0%B3%D0%B5%D0%BD%D1%82%D1%81%D1%82%D0%B2%D0%BE%22%0A%22%D0%92%D0%BD%D1%83%D1%82%D1%80%D0%B5%D0%BD%D0%BD%D0%B8%D0%B5%20%D1%81%D1%81%D1%8B%D0%BB%D0%BA%D0%B8%20%D0%B2%20SEO%22%2C%22%2Fblog%2Finternal-links%22%2C%22%D0%92%D0%BD%D1%83%D1%82%D1%80%D0%B5%D0%BD%D0%BD%D0%B8%D0%B5%20%D1%81%D1%81%D1%8B%D0%BB%D0%BA%D0%B8%20%D0%B8%D0%B3%D1%80%D0%B0%D1%8E%D1%82%20%D0%B2%D0%B0%D0%B6%D0%BD%D1%83%D1%8E%20%D1%80%D0%BE%D0%BB%D1%8C...%22%2C%22%D0%92%D1%81%D0%B5%20%D0%BE%20%D0%B2%D0%BD%D1%83%D1%82%D1%80%D0%B5%D0%BD%D0%BD%D0%B8%D1%85%20%D1%81%D1%81%D1%8B%D0%BB%D0%BA%D0%B0%D1%85%20%D0%B4%D0%BB%D1%8F%20SEO%22%0A%22%D0%90%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7%20%D0%BA%D0%BE%D0%BD%D0%BA%D1%83%D1%80%D0%B5%D0%BD%D1%82%D0%BE%D0%B2%22%2C%22%2Fservices%2Fcompetitor-analysis%22%2C%22%D0%9F%D1%80%D0%BE%D0%B2%D0%BE%D0%B4%D0%B8%D0%BC%20%D0%B3%D0%BB%D1%83%D0%B1%D0%BE%D0%BA%D0%B8%D0%B9%20%D0%B0%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7%20%D0%BA%D0%BE%D0%BD%D0%BA%D1%83%D1%80%D0%B5%D0%BD%D1%82%D0%BE%D0%B2...%22%2C%22%D0%90%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7%20%D0%BA%D0%BE%D0%BD%D0%BA%D1%83%D1%80%D0%B5%D0%BD%D1%82%D0%BE%D0%B2%20%D0%B4%D0%BB%D1%8F%20%D1%83%D1%81%D0%BF%D0%B5%D1%88%D0%BD%D0%BE%D0%B3%D0%BE%20SEO%22"
+                    download="sample_content.csv"
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
                     <Download className="h-4 w-4" />
                     Скачать пример CSV
-                  </Button>
+                  </a>
                 </CardContent>
               </Card>
 

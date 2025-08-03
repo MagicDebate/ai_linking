@@ -393,7 +393,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Save import record
       await storage.createImport({
-        id: uploadId,
         projectId,
         fileName,
         filePath,
@@ -463,7 +462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateImportFieldMapping(uploadId, JSON.stringify(fieldMapping));
       
       // Update user progress
-      await storage.updateUserProgress(req.user.id, { uploadTexts: true });
+      await storage.updateUserProgress(req.user.id, { uploadTexts: "true" });
 
       res.json({ success: true });
     } catch (error) {
