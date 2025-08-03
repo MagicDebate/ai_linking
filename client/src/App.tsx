@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
+import ProjectPage from "@/pages/project";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -31,6 +32,9 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/dashboard" component={Dashboard} />
+          <Route path="/project/:id">
+            {(params) => <ProjectPage projectId={params.id} />}
+          </Route>
         </>
       ) : (
         <>

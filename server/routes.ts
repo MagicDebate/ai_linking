@@ -227,6 +227,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get single project
+  app.get("/api/projects/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const project = await storage.getProjectById(req.params.id);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      res.json(project);
+    } catch (error) {
+      console.error("Get project error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Create project
   app.post("/api/projects", authenticateToken, async (req: any, res) => {
     try {
@@ -342,7 +356,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Import endpoints
   
   // Upload file
-  app.post("/api/import/upload", authenticateToken, upload.single('file'), async (req: any, res) => {
+  app.post("/api/upload", authenticateToken, upload.single('file'), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -366,21 +380,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         line.split(',').map(cell => cell.trim().replace(/"/g, ''))
       );
 
-      // Store in memory
-      importStore.set(uploadId, {
-        headers,
-        rows,
+      const projectId = req.body.projectId;
+      if (!projectId) {
+        return res.status(400).json({ message: "Project ID is required" });
+      }
+
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Save import record
+      await storage.createImport({
+        id: uploadId,
+        projectId,
         fileName,
-        fileSize
+        filePath,
+        status: "PENDING",
+        fieldMapping: null,
+        processedAt: null,
       });
 
-      // Clean up uploaded file
-      fs.unlinkSync(filePath);
-
-      // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      res.json({ uploadId });
+      res.json({ uploadId, preview: { headers, rows } });
     } catch (error) {
       console.error("Upload error:", error);
       res.status(500).json({ message: "Upload failed" });
@@ -411,8 +433,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Save field mapping
-  app.post("/api/import/field-map", authenticateToken, async (req: any, res) => {
+  // Field mapping endpoint
+  app.post("/api/field-mapping", authenticateToken, async (req: any, res) => {
     try {
       const validation = fieldMappingSchema.safeParse(req.body);
       
@@ -423,17 +445,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const { uploadId, mapping } = validation.data;
+      const { uploadId, fieldMapping } = validation.data;
       
-      const importData = importStore.get(uploadId);
-      if (!importData) {
-        return res.status(404).json({ message: "Import data not found" });
+      // Get import record
+      const importRecord = await storage.getImportByUploadId(uploadId);
+      if (!importRecord) {
+        return res.status(404).json({ message: "Import not found" });
       }
 
-      // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Verify project ownership
+      const project = await storage.getProjectById(importRecord.projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
 
-      res.json({ ok: true });
+      // Update field mapping
+      await storage.updateImportFieldMapping(uploadId, JSON.stringify(fieldMapping));
+      
+      // Update user progress
+      await storage.updateUserProgress(req.user.id, { uploadTexts: true });
+
+      res.json({ success: true });
     } catch (error) {
       console.error("Field mapping error:", error);
       res.status(500).json({ message: "Internal server error" });

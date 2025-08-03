@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth, useLogout } from "@/hooks/useAuth";
+import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +56,7 @@ export default function Dashboard() {
   const logout = useLogout();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const [notificationDismissed, setNotificationDismissed] = useState(false);
   const [selectedProjectForImport, setSelectedProjectForImport] = useState<string | null>(null);
@@ -82,7 +84,7 @@ export default function Dashboard() {
       const response = await apiRequest("POST", "/api/projects", data);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (newProject) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/progress"] });
       setIsCreateProjectOpen(false);
@@ -91,6 +93,8 @@ export default function Dashboard() {
         title: "Успешно",
         description: "Проект создан!",
       });
+      // Redirect to project page
+      setLocation(`/project/${newProject.id}`);
     },
     onError: (error: Error) => {
       toast({
@@ -298,10 +302,13 @@ export default function Dashboard() {
                     <Card key={project.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                          <div className="flex-1">
+                          <div 
+                            className="flex-1 cursor-pointer"
+                            onClick={() => setLocation(`/project/${project.id}`)}
+                          >
                             <div className="flex items-center gap-3">
                               <div>
-                                <h3 className="text-lg font-semibold text-gray-900">{project.domain}</h3>
+                                <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600">{project.domain}</h3>
                                 <p className="text-sm text-gray-500">{project.name}</p>
                               </div>
                               <Badge variant={project.status === "READY" ? "default" : "secondary"}>
