@@ -251,49 +251,41 @@ export default function AuthPage() {
 
                   <Form {...registerForm}>
                     <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-6">
-                      <FormField
-                        control={registerForm.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="block text-sm font-medium text-gray-700 mb-2">Email address</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="Enter your email" 
-                                type="email" 
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                                autoComplete="email"
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Email address</label>
+                        <input 
+                          placeholder="Enter your email" 
+                          type="email" 
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                          autoComplete="email"
+                          {...registerForm.register("email")}
+                        />
+                        {registerForm.formState.errors.email && (
+                          <p className="text-sm font-medium text-red-600 mt-1">
+                            {registerForm.formState.errors.email.message}
+                          </p>
                         )}
-                      />
+                      </div>
 
-                      <FormField
-                        control={registerForm.control}
-                        name="password"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="block text-sm font-medium text-gray-700 mb-2">Password</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="Create a strong password" 
-                                type="password"
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                                autoComplete="new-password"
-                                {...field} 
-                              />
-                            </FormControl>
-                            <div className="mt-2 text-sm text-gray-500 flex items-center">
-                              <AlertCircle className="w-4 h-4 mr-1" />
-                              Password must be at least 8 characters long
-                            </div>
-                            <FormMessage />
-                          </FormItem>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                        <input 
+                          placeholder="Create a strong password" 
+                          type="password"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                          autoComplete="new-password"
+                          {...registerForm.register("password")}
+                        />
+                        <div className="mt-2 text-sm text-gray-500 flex items-center">
+                          <AlertCircle className="w-4 h-4 mr-1" />
+                          Password must be at least 8 characters long
+                        </div>
+                        {registerForm.formState.errors.password && (
+                          <p className="text-sm font-medium text-red-600 mt-1">
+                            {registerForm.formState.errors.password.message}
+                          </p>
                         )}
-                      />
+                      </div>
 
                       <FormField
                         control={registerForm.control}
