@@ -367,18 +367,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileName = req.file.originalname;
       const fileSize = req.file.size;
 
-      // Parse CSV file
+      // Parse file based on extension
       const fileContent = fs.readFileSync(filePath, 'utf-8');
-      const lines = fileContent.split('\n').filter(line => line.trim());
-      
-      if (lines.length === 0) {
-        return res.status(400).json({ message: "File is empty" });
-      }
+      let headers: string[] = [];
+      let rows: string[][] = [];
 
-      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-      const rows = lines.slice(1, 4).map(line => 
-        line.split(',').map(cell => cell.trim().replace(/"/g, ''))
-      );
+      if (fileName.endsWith('.csv')) {
+        // Parse CSV
+        const lines = fileContent.split('\n').filter(line => line.trim());
+        
+        if (lines.length === 0) {
+          return res.status(400).json({ message: "CSV file is empty" });
+        }
+
+        // Simple CSV parsing - handle quoted fields
+        const parseCSVLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          result.push(current.trim());
+          return result;
+        };
+
+        headers = parseCSVLine(lines[0]);
+        rows = lines.slice(1, 4).map(line => parseCSVLine(line));
+      } else if (fileName.endsWith('.json')) {
+        // Parse JSON
+        try {
+          const jsonData = JSON.parse(fileContent);
+          if (Array.isArray(jsonData) && jsonData.length > 0) {
+            headers = Object.keys(jsonData[0]);
+            rows = jsonData.slice(0, 3).map(item => headers.map(h => String(item[h] || '')));
+          } else {
+            return res.status(400).json({ message: "JSON must be an array of objects" });
+          }
+        } catch (error) {
+          return res.status(400).json({ message: "Invalid JSON format" });
+        }
+      } else {
+        return res.status(400).json({ message: "Unsupported file format" });
+      }
 
       const projectId = req.body.projectId;
       if (!projectId) {

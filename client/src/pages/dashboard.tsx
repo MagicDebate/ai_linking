@@ -29,7 +29,7 @@ import {
   Upload
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import ImportWizard from "./import-wizard";
+
 
 interface Project {
   id: string;
@@ -59,7 +59,7 @@ export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const [notificationDismissed, setNotificationDismissed] = useState(false);
-  const [selectedProjectForImport, setSelectedProjectForImport] = useState<string | null>(null);
+
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateProjectForm>();
 
@@ -222,15 +222,7 @@ export default function Dashboard() {
                   <h1 className="text-3xl font-bold text-gray-900 mb-2">Ваши проекты</h1>
                   <p className="text-gray-600">Управляйте внутренними ссылками в один клик</p>
                 </div>
-                {projects.length > 0 && !progress?.uploadTexts && (
-                  <Button 
-                    onClick={() => setSelectedProjectForImport(projects[0].id)}
-                    className="flex items-center gap-2"
-                  >
-                    <Upload className="h-4 w-4" />
-                    Импорт контента
-                  </Button>
-                )}
+
               </div>
             </div>
 
@@ -480,12 +472,7 @@ export default function Dashboard() {
       </div>
       
       {/* Import Wizard */}
-      {selectedProjectForImport && (
-        <ImportWizard 
-          projectId={selectedProjectForImport}
-          onClose={() => setSelectedProjectForImport(null)}
-        />
-      )}
+
     </div>
   );
 }
