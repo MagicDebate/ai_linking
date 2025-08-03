@@ -120,12 +120,17 @@ export const linkingRulesSchema = z.object({
     clusterCrossLink: z.boolean(),
     commercialRouting: z.boolean(),
     orphanFix: z.boolean(),
+    depthLift: z.boolean(),
   }),
+  depthThreshold: z.number().min(4).max(8),
   oldLinksPolicy: z.enum(['enrich', 'regenerate', 'audit']),
   dedupeLinks: z.boolean(),
   brokenLinksPolicy: z.enum(['delete', 'replace', 'ignore']),
   stopAnchors: z.array(z.string()),
   moneyPages: z.array(z.string()),
+  freshnessPush: z.boolean(),
+  freshnessThreshold: z.number().min(1).max(365),
+  freshnessLinks: z.number().min(0).max(3),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

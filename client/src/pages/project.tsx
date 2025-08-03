@@ -11,6 +11,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Upload,
@@ -24,7 +25,10 @@ import {
   Settings,
   Link as LinkIcon,
   Info,
-  X
+  X,
+  Calendar,
+  TrendingUp,
+  Play
 } from "lucide-react";
 
 interface FieldMapping {
@@ -53,12 +57,17 @@ interface LinkingRules {
     clusterCrossLink: boolean;
     commercialRouting: boolean;
     orphanFix: boolean;
+    depthLift: boolean;
   };
+  depthThreshold: number;
   oldLinksPolicy: 'enrich' | 'regenerate' | 'audit';
   dedupeLinks: boolean;
   brokenLinksPolicy: 'delete' | 'replace' | 'ignore';
   stopAnchors: string[];
   moneyPages: string[];
+  freshnessPush: boolean;
+  freshnessThreshold: number;
+  freshnessLinks: number;
 }
 
 export default function ProjectPage() {
@@ -73,21 +82,27 @@ export default function ProjectPage() {
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
   const [uploadId, setUploadId] = useState<string>("");
+  const [helpDialog, setHelpDialog] = useState<string | null>(null);
   const [rules, setRules] = useState<LinkingRules>({
     maxLinks: 5,
-    minDistance: 200,
+    minDistance: 50,
     exactPercent: 20,
     scenarios: {
       headConsolidation: true,
       clusterCrossLink: true,
       commercialRouting: true,
       orphanFix: true,
+      depthLift: true,
     },
+    depthThreshold: 5,
     oldLinksPolicy: 'enrich',
     dedupeLinks: true,
     brokenLinksPolicy: 'delete',
     stopAnchors: ['читать далее', 'подробнее', 'здесь', 'жмите сюда', 'click here', 'learn more'],
     moneyPages: [],
+    freshnessPush: true,
+    freshnessThreshold: 30,
+    freshnessLinks: 1,
   });
 
   // Get project data
@@ -180,11 +195,15 @@ export default function ProjectPage() {
             exactPercent: rules.exactPercent,
           },
           scenarios: rules.scenarios,
+          depthThreshold: rules.depthThreshold,
           oldLinksPolicy: rules.oldLinksPolicy,
           dedupeLinks: rules.dedupeLinks,
           brokenLinksPolicy: rules.brokenLinksPolicy,
           stopAnchors: rules.stopAnchors,
           moneyPages: rules.moneyPages,
+          freshnessPush: rules.freshnessPush,
+          freshnessThreshold: rules.freshnessThreshold,
+          freshnessLinks: rules.freshnessLinks,
         }),
         credentials: "include",
       });
@@ -646,19 +665,19 @@ export default function ProjectPage() {
 
                       <div>
                         <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                          Мин. расстояние, px: {rules.minDistance}
+                          Мин. расстояние, слов: {rules.minDistance}
                         </Label>
                         <Slider
                           value={[rules.minDistance]}
                           onValueChange={(value) => setRules(prev => ({ ...prev, minDistance: value[0] }))}
-                          max={400}
-                          min={100}
-                          step={50}
+                          max={200}
+                          min={10}
+                          step={10}
                           className="w-full"
                         />
                         <div className="flex justify-between text-xs text-gray-500 mt-1">
-                          <span>100</span>
-                          <span>400</span>
+                          <span>10</span>
+                          <span>200</span>
                         </div>
                       </div>
                     </div>
@@ -759,6 +778,40 @@ export default function ProjectPage() {
                           }))}
                         />
                       </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="depth-lift" className="text-sm text-gray-700">
+                          Depth Lift
+                        </Label>
+                        <Switch
+                          id="depth-lift"
+                          checked={rules.scenarios.depthLift}
+                          onCheckedChange={(checked) => setRules(prev => ({
+                            ...prev,
+                            scenarios: { ...prev.scenarios, depthLift: checked }
+                          }))}
+                        />
+                      </div>
+                      
+                      {rules.scenarios.depthLift && (
+                        <div className="ml-6 mt-2">
+                          <Label className="text-sm text-gray-600 mb-2 block">
+                            Глубиной считать URL ≥ {rules.depthThreshold}
+                          </Label>
+                          <Slider
+                            value={[rules.depthThreshold]}
+                            onValueChange={(value) => setRules(prev => ({ ...prev, depthThreshold: value[0] }))}
+                            max={8}
+                            min={4}
+                            step={1}
+                            className="w-32"
+                          />
+                          <div className="flex justify-between text-xs text-gray-400 mt-1 w-32">
+                            <span>4</span>
+                            <span>8</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -854,14 +907,118 @@ export default function ProjectPage() {
                     />
                   </div>
 
-                  {/* G. Приоритетные URL */}
+                  {/* G. Freshness / Boost новых страниц */}
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Продвижение новых страниц</h4>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="link" size="sm" className="text-blue-600 p-0">
+                            <Info className="h-4 w-4 mr-1" />
+                            Подробнее
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>Freshness Push</DialogTitle>
+                            <DialogDescription>
+                              Автоматическое продвижение свежего контента
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
+                              <Play className="h-16 w-16 text-gray-400" />
+                              <span className="ml-2 text-gray-500">Видео-объяснение</span>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              Новые страницы получают дополнительные ссылки от старых материалов 
+                              для быстрого продвижения в поисковой выдаче.
+                            </p>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="freshness-push" className="text-sm text-gray-700">
+                          Включить Freshness Push
+                        </Label>
+                        <Switch
+                          id="freshness-push"
+                          checked={rules.freshnessPush}
+                          onCheckedChange={(checked) => setRules(prev => ({ ...prev, freshnessPush: checked }))}
+                        />
+                      </div>
+                      
+                      {rules.freshnessPush && (
+                        <div className="ml-6 space-y-4">
+                          <div>
+                            <Label className="text-sm text-gray-600 mb-2 block">
+                              Считать статью новой, если опубликована ≤ {rules.freshnessThreshold} дн.
+                            </Label>
+                            <Input
+                              type="number"
+                              value={rules.freshnessThreshold}
+                              onChange={(e) => setRules(prev => ({ ...prev, freshnessThreshold: parseInt(e.target.value) || 30 }))}
+                              min={1}
+                              max={365}
+                              className="w-32"
+                            />
+                          </div>
+                          
+                          <div>
+                            <Label className="text-sm text-gray-600 mb-2 block">
+                              Ставить до {rules.freshnessLinks} ссылк{rules.freshnessLinks === 1 ? 'и' : rules.freshnessLinks < 5 ? 'и' : ''} из каждой "вечнозелёной" статьи
+                            </Label>
+                            <Slider
+                              value={[rules.freshnessLinks]}
+                              onValueChange={(value) => setRules(prev => ({ ...prev, freshnessLinks: value[0] }))}
+                              max={3}
+                              min={0}
+                              step={1}
+                              className="w-48"
+                            />
+                            <div className="flex justify-between text-xs text-gray-400 mt-1 w-48">
+                              <span>0</span>
+                              <span>3</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* H. Приоритетные URL */}
                   <div className="pb-4">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-md font-medium text-gray-900">Приоритетные страницы</h4>
-                      <Button variant="link" size="sm" className="text-blue-600 p-0">
-                        <Info className="h-4 w-4 mr-1" />
-                        Подробнее
-                      </Button>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="link" size="sm" className="text-blue-600 p-0">
+                            <Info className="h-4 w-4 mr-1" />
+                            Подробнее
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>Приоритетные страницы</DialogTitle>
+                            <DialogDescription>
+                              Money-страницы для усиленной перелинковки
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
+                              <Play className="h-16 w-16 text-gray-400" />
+                              <span className="ml-2 text-gray-500">Видео-объяснение</span>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              Указанные страницы получат больше входящих ссылок 
+                              для повышения их позиций в поисковой выдаче.
+                            </p>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                     
                     <Textarea
