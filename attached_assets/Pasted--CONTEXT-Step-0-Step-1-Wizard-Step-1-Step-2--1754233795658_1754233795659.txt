@@ -1,0 +1,61 @@
+ CONTEXT
+Step 0 (авторизация), Step 1 («Мои проекты» + Wizard Step 1 “Основное”)
+и Step 2 (Источник контента + CSV-маппинг) уже готовы.
+
+Нужно реализовать **Step 3 “Базовые правила перелинковки”**.
+
+
+Каждая настройка содержит:
+  1) элемент управления (slider / checkbox / radio / textarea / chip-input)
+  2) thumbnail-заготовку — <div class="helper-thumb"></div>  
+     (просто серый прямоугольник 160×90 px с иконкой)
+  3) ссылку «ℹ️ Подробнее» — атрибут data-video-id=""  
+     (пока #placeholder; фронт открывает modal с текстом “Видео скоро”)
+
+A. **Лимиты ссылок**
+   • Slider “Max links / страницу” (1-10, default 5)  
+   • Slider “Min distance, px” (100-400, default 200)
+
+B. **Доля точных анкоров**
+   • Slider “Exact-анкоры ≤ %” (0-50 %, default 20 %)
+
+C. **Сценарии перелинковки** (toggle list, ON по умолчанию)
+   ▢ Head-Consolidation  
+   ▢ Cluster Cross-Link  
+   ▢ Commercial Routing  
+   ▢ Orphan Fix  
+
+D. **Старые ссылки** (radio)
+   ○ Enrich (existing + new)  ○ Regenerate all  ○ Audit only  
+   Checkbox: “Удалять дубли ссылок на один URL”
+
+E. **Битые (404) ссылки** (radio)
+   ○ Delete   ○ Replace   ○ Ignore
+
+F. **Stop-лист анкор-фраз** – textarea, предзаполнить:  
+   читать далее / подробнее / здесь / жмите сюда / click here / learn more
+
+G. **Приоритетные (money)-URL** – chip-input, валидация https
+
+Кнопки: ‹ Назад | **Сохранить и запустить импорт**  
+(disabled пока обязательные поля не валидны)
+
+────────────────────────────────────────────────────────────
+BACKEND-STUB (дописать к существующему mini-server)
+
+POST /api/rules
+  { projectId, limits:{maxLinks,minGap,exactPercent},
+    scenarios:{headConsol,crossLink,commercial,orphanFix},
+    oldLinksPolicy:'enrich|regenerate|audit',
+    dedupeLinks:boolean,
+    brokenLinksPolicy:'delete|replace|ignore',
+    stopAnchors:[…],  moneyPages:[…] }
+
+POST /api/import/start     // body:{ projectId } → { ok:true }
+
+────────────────────────────────────────────────────────────
+FLOW
+1. Пользователь настраивает → «Сохранить…»  
+   – POST /api/rules  
+   – POST /api/import/start  
+   – wizard закрывается, редирект на экран “Импорт” (уже готов).

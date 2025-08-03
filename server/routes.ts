@@ -13,7 +13,7 @@ import {
   clearTokenCookies, 
   authenticateToken 
 } from "./auth";
-import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema } from "@shared/schema";
+import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema } from "@shared/schema";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
@@ -431,8 +431,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Project not found" });
       }
 
-      // Save import record
-      await storage.createImport({
+      // Save import record with uploadId as the ID
+      const newImport = await storage.createImport({
+        id: uploadId,
         projectId,
         fileName,
         filePath,
@@ -539,6 +540,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ apiKey: newApiKey.apiKey });
     } catch (error) {
       console.error("Create API key error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Save linking rules endpoint
+  app.post("/api/rules", authenticateToken, async (req: any, res) => {
+    try {
+      const validation = linkingRulesSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: validation.error.errors 
+        });
+      }
+
+      const { projectId, ...rules } = validation.data;
+      
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Store rules in project metadata (simplified for now)
+      console.log("Linking rules saved for project:", projectId, rules);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Save rules error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Start import endpoint
+  app.post("/api/import/start", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.body;
+      
+      if (!projectId) {
+        return res.status(400).json({ message: "Project ID is required" });
+      }
+
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Update user progress
+      await storage.updateUserProgress(req.user.id, { 
+        uploadTexts: "true",
+        setPriorities: "true" 
+      });
+
+      // Start import process (simplified for now)
+      console.log("Starting import for project:", projectId);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Start import error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });

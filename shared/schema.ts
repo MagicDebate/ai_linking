@@ -53,7 +53,7 @@ export const projectApiKeys = pgTable("project_api_keys", {
 });
 
 export const imports = pgTable("imports", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id").primaryKey(),
   projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   fileName: text("file_name").notNull(),
   filePath: text("file_path"),
@@ -100,13 +100,32 @@ export const insertApiKeySchema = createInsertSchema(projectApiKeys).omit({
 });
 
 export const insertImportSchema = createInsertSchema(imports).omit({
-  id: true,
   createdAt: true,
 });
 
 export const fieldMappingSchema = z.object({
   uploadId: z.string(),
   fieldMapping: z.record(z.string(), z.string()),
+});
+
+export const linkingRulesSchema = z.object({
+  projectId: z.string(),
+  limits: z.object({
+    maxLinks: z.number().min(1).max(10),
+    minDistance: z.number().min(100).max(400),
+    exactPercent: z.number().min(0).max(50),
+  }),
+  scenarios: z.object({
+    headConsolidation: z.boolean(),
+    clusterCrossLink: z.boolean(),
+    commercialRouting: z.boolean(),
+    orphanFix: z.boolean(),
+  }),
+  oldLinksPolicy: z.enum(['enrich', 'regenerate', 'audit']),
+  dedupeLinks: z.boolean(),
+  brokenLinksPolicy: z.enum(['delete', 'replace', 'ignore']),
+  stopAnchors: z.array(z.string()),
+  moneyPages: z.array(z.string()),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
