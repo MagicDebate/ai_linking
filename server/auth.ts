@@ -3,8 +3,8 @@ import bcrypt from "bcrypt";
 import type { Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret-key";
+const JWT_SECRET = process.env.JWT_SECRET || "dev-jwt-secret-key-12345-very-long-and-secure-for-development";
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "dev-refresh-secret-key-67890-also-very-long-and-secure-for-development";
 const ACCESS_TOKEN_EXPIRY = "15m";
 const REFRESH_TOKEN_EXPIRY = "30d";
 
