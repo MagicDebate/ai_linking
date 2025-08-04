@@ -153,10 +153,11 @@ export default function ProjectPage() {
         description: "Теперь сопоставьте поля с данными",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.details || error.response?.data?.message || error.message;
       toast({
         title: "Ошибка загрузки",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -191,10 +192,11 @@ export default function ProjectPage() {
         description: "Переходим к настройке сценариев",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.details || error.response?.data?.message || error.message;
       toast({
         title: "Ошибка сопоставления",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -230,10 +232,11 @@ export default function ProjectPage() {
         description: "Обработка данных началась",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.details || error.response?.data?.message || error.message;
       toast({
         title: "Ошибка генерации",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     },

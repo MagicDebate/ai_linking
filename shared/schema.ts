@@ -105,7 +105,14 @@ export const insertImportSchema = createInsertSchema(imports).omit({
 
 export const fieldMappingSchema = z.object({
   uploadId: z.string(),
-  fieldMapping: z.record(z.string(), z.string()),
+  fieldMapping: z.record(z.string(), z.string()).refine(
+    (mapping) => mapping.url && mapping.url.trim() !== '',
+    {
+      message: "URL field mapping is required",
+      path: ["url"]
+    }
+  ),
+  projectId: z.string().optional(),
 });
 
 export const linkingRulesSchema = z.object({

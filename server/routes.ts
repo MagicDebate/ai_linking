@@ -388,21 +388,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           for (let i = 0; i < line.length; i++) {
             const char = line[i];
-            if (char === '"') {
+            if (char === '"' && (i === 0 || line[i-1] === ',' || inQuotes)) {
               inQuotes = !inQuotes;
             } else if (char === ',' && !inQuotes) {
-              result.push(current.trim());
+              result.push(current.trim().replace(/^"|"$/g, ''));
               current = '';
             } else {
               current += char;
             }
           }
-          result.push(current.trim());
+          result.push(current.trim().replace(/^"|"$/g, ''));
           return result;
         };
 
         headers = parseCSVLine(lines[0]);
-        rows = lines.slice(1, 4).map(line => parseCSVLine(line));
+        const dataRows = lines.slice(1);
+        
+        // Parse rows and ensure they match header count
+        rows = dataRows.slice(0, 5).map(line => {
+          const parsedRow = parseCSVLine(line);
+          // Pad or trim row to match header count
+          while (parsedRow.length < headers.length) {
+            parsedRow.push('');
+          }
+          return parsedRow.slice(0, headers.length);
+        });
       } else if (fileName.endsWith('.json')) {
         // Parse JSON
         try {
@@ -479,8 +489,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validation = fieldMappingSchema.safeParse(req.body);
       
       if (!validation.success) {
+        const errorMessages = validation.error.errors.map(err => {
+          if (err.path.includes('uploadId')) {
+            return 'ID загрузки обязателен';
+          }
+          if (err.path.includes('fieldMapping')) {
+            return 'Сопоставление полей обязательно';
+          }
+          if (err.code === 'invalid_type' && err.path.includes('url')) {
+            return 'Поле URL обязательно для сопоставления';
+          }
+          return err.message;
+        });
+        
         return res.status(400).json({ 
-          message: "Validation error", 
+          message: "Ошибка сопоставления полей", 
+          details: errorMessages.join(', '),
           errors: validation.error.errors 
         });
       }
