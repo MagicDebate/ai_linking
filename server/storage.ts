@@ -211,7 +211,7 @@ export class DatabaseStorage implements IStorage {
     return updatedImport || undefined;
   }
 
-  // Import Jobs - in-memory implementation
+  // Import Jobs - in-memory implementation with persistence
   async createImportJob(jobData: any): Promise<any> {
     const job = {
       id: Math.random().toString(36),
@@ -228,18 +228,24 @@ export class DatabaseStorage implements IStorage {
       avgWordCount: 0,
       deepPages: 0,
       avgClickDepth: 0.0,
-      logs: [],
+      logs: [`Создан импорт джоб ${jobData.jobId}`],
       startedAt: new Date(),
       finishedAt: null
     };
     
-    // Initialize global storage
+    // Ensure global storage is initialized
     if (!global.importJobs) {
       global.importJobs = new Map();
+      console.log('Initialized new global.importJobs Map');
     }
     
+    // Store the job immediately
     global.importJobs.set(jobData.jobId, job);
-    console.log(`Created import job ${jobData.jobId} for project ${jobData.projectId}`);
+    
+    // Verify storage
+    const stored = global.importJobs.get(jobData.jobId);
+    console.log(`✓ Created and verified import job ${jobData.jobId} - stored: ${!!stored}`);
+    console.log(`✓ Total jobs in memory: ${global.importJobs.size}`);
     
     return job;
   }

@@ -380,24 +380,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "CSV file is empty" });
         }
 
-        // Simple CSV parsing - handle quoted fields
+        // Enhanced CSV parsing with proper quote handling
         const parseCSVLine = (line: string): string[] => {
           const result: string[] = [];
           let current = '';
           let inQuotes = false;
+          let i = 0;
           
-          for (let i = 0; i < line.length; i++) {
+          while (i < line.length) {
             const char = line[i];
-            if (char === '"' && (i === 0 || line[i-1] === ',' || inQuotes)) {
-              inQuotes = !inQuotes;
+            const nextChar = line[i + 1];
+            
+            if (char === '"') {
+              if (inQuotes && nextChar === '"') {
+                // Escaped quote inside quoted field
+                current += '"';
+                i += 2;
+                continue;
+              } else {
+                // Toggle quote state
+                inQuotes = !inQuotes;
+              }
             } else if (char === ',' && !inQuotes) {
-              result.push(current.trim().replace(/^"|"$/g, ''));
+              // Field separator
+              result.push(current.trim());
               current = '';
             } else {
               current += char;
             }
+            i++;
           }
-          result.push(current.trim().replace(/^"|"$/g, ''));
+          
+          // Add final field
+          result.push(current.trim());
           return result;
         };
 
@@ -675,8 +690,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         percent: 0
       });
 
-      // Start background processing
-      setImmediate(() => {
+      console.log(`Job created:`, importJob);
+      console.log(`Global jobs after create:`, global.importJobs ? Array.from(global.importJobs.keys()) : 'undefined');
+      
+      // CRITICAL: Start processing in next tick to ensure job is saved
+      setTimeout(() => {
         processImportJobAsync(jobId, importId, scenarios, scope, rules).catch(err => {
           console.error(`Import job ${jobId} failed:`, err);
           storage.updateImportJob(jobId, {
@@ -685,7 +703,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             finishedAt: new Date()
           });
         });
-      });
+      }, 100);
 
       res.json({ 
         success: true, 
@@ -698,10 +716,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint to debug import job creation
+  app.post("/api/import/test-create", async (req, res) => {
+    try {
+      const testJobId = "test-job-" + Date.now();
+      console.log(`Creating test job: ${testJobId}`);
+      
+      if (!global.importJobs) {
+        global.importJobs = new Map();
+        console.log('Initialized global.importJobs');
+      }
+      
+      const testJob = {
+        jobId: testJobId,
+        projectId: "test-project",
+        status: "running",
+        phase: "loading",
+        percent: 0,
+        startedAt: new Date()
+      };
+      
+      global.importJobs.set(testJobId, testJob);
+      console.log(`Test job created. Total jobs: ${global.importJobs.size}`);
+      console.log('Available job IDs:', Array.from(global.importJobs.keys()));
+      
+      res.json({ 
+        success: true, 
+        jobId: testJobId,
+        totalJobs: global.importJobs.size,
+        availableJobs: Array.from(global.importJobs.keys())
+      });
+    } catch (error) {
+      console.error('Test create error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get import status
   app.get("/api/import/status", authenticateToken, async (req: any, res) => {
     try {
       const { projectId, jobId } = req.query;
+      
+      console.log(`Getting import status for project: ${projectId}, jobId: ${jobId}`);
+      console.log(`Available jobs:`, global.importJobs ? Array.from(global.importJobs.keys()) : 'undefined');
       
       if (!projectId) {
         return res.status(400).json({ error: "Missing projectId parameter" });
@@ -709,6 +766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get import job status
       const job = await storage.getImportJobStatus(projectId as string, jobId as string);
+      console.log(`Found job:`, job ? 'YES' : 'NO');
       
       if (!job) {
         return res.status(404).json({ error: "Import job not found" });
