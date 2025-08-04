@@ -705,10 +705,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }, 100);
 
+      console.log(`✓ Sending response with jobId: ${jobId}`);
+      
       res.json({ 
         success: true, 
-        jobId,
-        message: "Import job started" 
+        jobId: jobId,
+        message: "Import job started successfully"
       });
     } catch (error) {
       console.error("Import start error:", error);

@@ -329,6 +329,18 @@ export default function ProjectPage() {
     },
     onSuccess: (data) => {
       console.log('Import started successfully:', data);
+      console.log('JobId from response:', data.jobId);
+      
+      if (!data.jobId) {
+        console.error('❌ No jobId received from server!', data);
+        toast({
+          title: "Ошибка импорта",
+          description: "Сервер не вернул ID задачи",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Redirect to import monitoring page using existing route
       window.location.href = `/project/${projectId}/import?jobId=${data.jobId}`;
     },
