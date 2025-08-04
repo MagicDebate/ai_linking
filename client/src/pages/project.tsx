@@ -166,17 +166,20 @@ export default function ProjectPage() {
   // Field mapping mutation
   const mappingMutation = useMutation({
     mutationFn: async (mapping: FieldMapping) => {
+      const payload = {
+        uploadId,
+        fieldMapping: mapping,
+        projectId,
+      };
+      console.log('Sending payload:', payload);
+      
       const response = await fetch("/api/field-mapping", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({
-          uploadId,
-          mapping,
-          projectId,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -251,6 +254,7 @@ export default function ProjectPage() {
   };
 
   const handleMappingSubmit = () => {
+    console.log('Submitting field mapping:', { uploadId, fieldMapping });
     mappingMutation.mutate(fieldMapping);
   };
 
@@ -384,24 +388,30 @@ export default function ProjectPage() {
                       <h3 className="font-medium text-gray-900">Сопоставление полей</h3>
                       
                       <div className="space-y-3">
-                        {["url", "title", "content", "h1", "description"].map((field) => (
+                        {["url", "title", "content", "h1", "description", "pageType"].map((field) => (
                           <div key={field}>
                             <Label className="text-sm font-medium capitalize">
-                              {field === "url" ? "URL страницы" : 
+                              {field === "url" ? "URL страницы *" : 
                                field === "title" ? "Заголовок (Title)" :
                                field === "content" ? "Содержимое" :
-                               field === "h1" ? "Заголовок H1" : "Описание"}
+                               field === "h1" ? "Заголовок H1" : 
+                               field === "description" ? "Описание" :
+                               field === "pageType" ? "Тип страницы (опционально)" : field}
                             </Label>
                             <Select
-                              value={fieldMapping[field] || ""}
-                              onValueChange={(value) => 
-                                setFieldMapping(prev => ({ ...prev, [field]: value }))
-                              }
+                              value={fieldMapping[field] || (field === "pageType" ? "__none__" : "")}
+                              onValueChange={(value) => {
+                                const actualValue = value === "__none__" ? "" : value;
+                                setFieldMapping(prev => ({ ...prev, [field]: actualValue }));
+                              }}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Выберите колонку" />
+                                <SelectValue placeholder={field === "pageType" ? "Не выбрано" : "Выберите колонку"} />
                               </SelectTrigger>
                               <SelectContent>
+                                {field === "pageType" && (
+                                  <SelectItem value="__none__">Не сопоставлять</SelectItem>
+                                )}
                                 {csvPreview.headers.map((header) => (
                                   <SelectItem key={header} value={header}>
                                     {header}

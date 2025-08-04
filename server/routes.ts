@@ -489,17 +489,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validation = fieldMappingSchema.safeParse(req.body);
       
       if (!validation.success) {
+        console.log('Field mapping validation error:', validation.error.errors);
         const errorMessages = validation.error.errors.map(err => {
           if (err.path.includes('uploadId')) {
             return 'ID загрузки обязателен';
           }
+          if (err.path.includes('fieldMapping') && err.message.includes('URL field mapping')) {
+            return 'Поле URL обязательно для сопоставления';
+          }
           if (err.path.includes('fieldMapping')) {
             return 'Сопоставление полей обязательно';
           }
-          if (err.code === 'invalid_type' && err.path.includes('url')) {
-            return 'Поле URL обязательно для сопоставления';
-          }
-          return err.message;
+          return `${err.path.join('.')}: ${err.message}`;
         });
         
         return res.status(400).json({ 
