@@ -112,7 +112,7 @@ export const linkingRulesSchema = z.object({
   projectId: z.string(),
   limits: z.object({
     maxLinks: z.number().min(1).max(10),
-    minDistance: z.number().min(100).max(400),
+    minDistance: z.number().min(50).max(500),
     exactPercent: z.number().min(0).max(50),
   }),
   scenarios: z.object({

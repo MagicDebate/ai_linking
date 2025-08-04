@@ -12,6 +12,9 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
+import { HelpDialog } from "@/components/HelpDialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
   Upload,
@@ -28,7 +31,12 @@ import {
   X,
   Calendar,
   TrendingUp,
-  Play
+  Play,
+  RefreshCw,
+  Star,
+  DollarSign,
+  LifeBuoy,
+  Network
 } from "lucide-react";
 
 interface FieldMapping {
@@ -83,9 +91,19 @@ export default function ProjectPage() {
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
   const [uploadId, setUploadId] = useState<string>("");
   const [helpDialog, setHelpDialog] = useState<string | null>(null);
+  const [selectedScenarios, setSelectedScenarios] = useState<string[]>([]);
+  const [scopeSettings, setScopeSettings] = useState({
+    fullProject: true,
+    includePrefix: '',
+    dateAfter: '',
+    samplePercent: 100,
+    manualList: []
+  });
+  const [scopeCount, setScopeCount] = useState<number>(0);
+  const [advancedExpanded, setAdvancedExpanded] = useState(false);
   const [rules, setRules] = useState<LinkingRules>({
     maxLinks: 5,
-    minDistance: 50,
+    minDistance: 100,
     exactPercent: 20,
     scenarios: {
       headConsolidation: true,
@@ -280,8 +298,35 @@ export default function ProjectPage() {
     }));
   };
 
+  // Preview scope count  
+  const { data: scopePreview } = useQuery({
+    queryKey: ['/api/scope/preview', project?.id, scopeSettings],
+    queryFn: () => apiRequest(`/api/scope/preview?projectId=${project?.id}&prefix=${scopeSettings.includePrefix}&dateAfter=${scopeSettings.dateAfter}&sample=${scopeSettings.samplePercent}`),
+    enabled: !!project?.id && !scopeSettings.fullProject
+  });
+
+  // Generate mutation
+  const generateMutation = useMutation({
+    mutationFn: (data: any) => apiRequest('/api/generate', { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: () => {
+      toast({ title: "Генерация запущена!" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Ошибка запуска генерации", description: error.message, variant: "destructive" });
+    }
+  });
+
   const handleSubmitMapping = () => {
     mappingMutation.mutate(fieldMapping);
+  };
+
+  const handleGenerate = () => {
+    generateMutation.mutate({
+      projectId,
+      scenarios: selectedScenarios,
+      scope: scopeSettings,
+      advanced: advancedExpanded ? rules : {}
+    });
   };
 
   if (projectLoading) {
@@ -623,25 +668,151 @@ export default function ProjectPage() {
             )}
 
             {currentStep === 3 && (
-              <div className="space-y-8">
+              <div className="space-y-6 max-w-2xl mx-auto">
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Базовые правила перелинковки
+                    Запуск генерации
                   </h3>
                   <p className="text-sm text-gray-600 mb-6">
-                    Настройте основные параметры для создания внутренних ссылок
+                    Выберите сценарии и настройте параметры для генерации ссылок
                   </p>
                 </div>
+
+                {/* 1. Что хотим улучшить */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-gray-900">1️⃣ Что хотим улучшить?</h4>
+                  <div className="grid grid-cols-1 gap-3">
+                    {[
+                      { id: 'freshness', icon: RefreshCw, title: 'Быстрая индексация нового', desc: 'Ускорить попадание свежих статей в индекс' },
+                      { id: 'hub_boost', icon: Star, title: 'Усилить главный гайд', desc: 'Увеличить вес основных материалов' },
+                      { id: 'commercial', icon: DollarSign, title: 'Перелить трафик на money', desc: 'Направить посетителей на продающие страницы' },
+                      { id: 'orphan_depth', icon: LifeBuoy, title: 'Спасти сироты / глубокие', desc: 'Добавить ссылки на изолированные страницы' },
+                      { id: 'crosslink', icon: Network, title: 'Связать статьи внутри темы', desc: 'Объединить родственные материалы' }
+                    ].map((scenario) => {
+                      const Icon = scenario.icon;
+                      const isSelected = selectedScenarios.includes(scenario.id);
+                      return (
+                        <div
+                          key={scenario.id}
+                          className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-blue-500 bg-blue-50' 
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => {
+                            setSelectedScenarios(prev => 
+                              prev.includes(scenario.id)
+                                ? prev.filter(s => s !== scenario.id)
+                                : [...prev, scenario.id]
+                            );
+                          }}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <Checkbox 
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="mt-1"
+                            />
+                            <Icon className={`h-5 w-5 mt-0.5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                            <div className="flex-1">
+                              <h5 className={`font-medium ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>
+                                {scenario.title}
+                              </h5>
+                              <p className={`text-sm ${isSelected ? 'text-blue-700' : 'text-gray-600'}`}>
+                                {scenario.desc}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Какие страницы обрабатывать */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-gray-900">2️⃣ Какие страницы обрабатывать?</h4>
+                  <RadioGroup 
+                    value={scopeSettings.fullProject ? 'full' : 'custom'} 
+                    onValueChange={(value) => setScopeSettings(prev => ({ ...prev, fullProject: value === 'full' }))}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="full" id="full" />
+                      <Label htmlFor="full">Весь проект</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="custom" id="custom" />
+                      <Label htmlFor="custom">Уточнить выбор</Label>
+                    </div>
+                  </RadioGroup>
+
+                  {!scopeSettings.fullProject && (
+                    <div className="ml-6 space-y-4 p-4 bg-gray-50 rounded-lg">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700">URL-подпуть</Label>
+                          <Input
+                            placeholder="/blog/"
+                            value={scopeSettings.includePrefix}
+                            onChange={(e) => setScopeSettings(prev => ({ ...prev, includePrefix: e.target.value }))}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700">Опубликованы после</Label>
+                          <Input
+                            type="date"
+                            value={scopeSettings.dateAfter}
+                            onChange={(e) => setScopeSettings(prev => ({ ...prev, dateAfter: e.target.value }))}
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Случайная выборка: {scopeSettings.samplePercent}%
+                        </Label>
+                        <Slider
+                          value={[scopeSettings.samplePercent]}
+                          onValueChange={(value) => setScopeSettings(prev => ({ ...prev, samplePercent: value[0] }))}
+                          max={100}
+                          min={5}
+                          step={5}
+                          className="w-full"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700">Список URL вручную</Label>
+                        <Textarea
+                          placeholder="https://example.com/page1&#10;https://example.com/page2"
+                          className="mt-1 min-h-[80px]"
+                        />
+                      </div>
+                      <div className="text-sm text-blue-600 font-medium">
+                        Будет обработано: {scopePreview?.pages || 0} страниц
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Расширенные настройки */}
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="advanced">
+                    <AccordionTrigger 
+                      onClick={() => setAdvancedExpanded(!advancedExpanded)}
+                      className="text-left"
+                    >
+                      3️⃣ Расширенные настройки
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-6">
+                      <div className="space-y-4 pb-6">
 
                 {/* A. Лимиты ссылок */}
                 <div className="space-y-4">
                   <div className="border-b border-gray-200 pb-4">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-md font-medium text-gray-900">Лимиты ссылок</h4>
-                      <Button variant="link" size="sm" className="text-blue-600 p-0">
-                        <Info className="h-4 w-4 mr-1" />
-                        Подробнее
-                      </Button>
+                      <HelpDialog contentKey="limits" />
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -670,14 +841,14 @@ export default function ProjectPage() {
                         <Slider
                           value={[rules.minDistance]}
                           onValueChange={(value) => setRules(prev => ({ ...prev, minDistance: value[0] }))}
-                          max={200}
-                          min={10}
-                          step={10}
+                          max={500}
+                          min={50}
+                          step={25}
                           className="w-full"
                         />
                         <div className="flex justify-between text-xs text-gray-500 mt-1">
-                          <span>10</span>
-                          <span>200</span>
+                          <span>50</span>
+                          <span>500</span>
                         </div>
                       </div>
                     </div>
@@ -687,10 +858,7 @@ export default function ProjectPage() {
                   <div className="border-b border-gray-200 pb-4">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-md font-medium text-gray-900">Доля точных анкоров</h4>
-                      <Button variant="link" size="sm" className="text-blue-600 p-0">
-                        <Info className="h-4 w-4 mr-1" />
-                        Подробнее
-                      </Button>
+                      <HelpDialog contentKey="exactAnchors" />
                     </div>
                     
                     <div className="max-w-md">
@@ -1032,6 +1200,10 @@ export default function ProjectPage() {
                     />
                   </div>
                 </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
 
                 <div className="flex justify-between">
                   <Button
@@ -1042,11 +1214,12 @@ export default function ProjectPage() {
                     Назад
                   </Button>
                   <Button 
-                    onClick={() => rulesMutation.mutate()}
-                    disabled={rulesMutation.isPending}
+                    onClick={handleGenerate}
+                    disabled={selectedScenarios.length === 0 || generateMutation.isPending}
+                    className="bg-blue-600 hover:bg-blue-700"
                   >
-                    {rulesMutation.isPending ? "Сохраняем..." : "Сохранить и продолжить"}
-                    <ArrowRight className="h-4 w-4 ml-2" />
+                    <Settings className="h-4 w-4 mr-2" />
+                    {generateMutation.isPending ? "Запуск..." : "Запустить генерацию"}
                   </Button>
                 </div>
               </div>

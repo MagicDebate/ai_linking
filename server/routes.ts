@@ -605,6 +605,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Scope preview endpoint
+  app.get("/api/scope/preview", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId, prefix, dateAfter, sample } = req.query;
+      
+      // Simulate page count calculation
+      let baseCount = Math.floor(Math.random() * 250) + 50;
+      
+      if (prefix) baseCount = Math.floor(baseCount * 0.6);
+      if (dateAfter) baseCount = Math.floor(baseCount * 0.4);
+      if (sample) baseCount = Math.floor(baseCount * (Number(sample) / 100));
+      
+      res.json({ pages: baseCount });
+    } catch (error) {
+      console.error("Error in scope preview:", error);
+      res.status(500).json({ error: "Failed to get scope preview" });
+    }
+  });
+
+  // Generate links endpoint
+  app.post("/api/generate", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId, scenarios, scope, advanced } = req.body;
+      
+      // Simulate generation process
+      const runId = crypto.randomUUID();
+      
+      // Simulate 3-second generation
+      setTimeout(() => {
+        console.log(`Generation completed for run ${runId}`);
+      }, 3000);
+      
+      res.json({ ok: true, runId });
+    } catch (error) {
+      console.error("Error in generate:", error);
+      res.status(500).json({ error: "Failed to start generation" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
