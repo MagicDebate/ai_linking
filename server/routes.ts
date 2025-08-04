@@ -650,6 +650,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate links endpoint
+  // Start import job for Step 4
+  app.post("/api/import/start", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId, importId, scenarios, scope, rules } = req.body;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Create import job
+      const jobId = crypto.randomUUID();
+      const importJob = await storage.createImportJob({
+        jobId,
+        projectId,
+        importId,
+        status: "running",
+        phase: "loading",
+        percent: 0
+      });
+
+      // Start background processing simulation
+      processImportJobAsync(jobId, importId, scenarios, scope, rules);
+
+      res.json({ 
+        success: true, 
+        jobId,
+        message: "Import job started" 
+      });
+    } catch (error) {
+      console.error("Import start error:", error);
+      res.status(500).json({ error: "Failed to start import" });
+    }
+  });
+
+  // Get import status
+  app.get("/api/import/status", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId, jobId } = req.query;
+      
+      if (!projectId) {
+        return res.status(400).json({ error: "Missing projectId parameter" });
+      }
+
+      // Get import job status
+      const job = await storage.getImportJobStatus(projectId, jobId);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Import job not found" });
+      }
+
+      res.json(job);
+    } catch (error) {
+      console.error("Import status error:", error);
+      res.status(500).json({ error: "Failed to get import status" });
+    }
+  });
+
+  // Cancel import job
+  app.post("/api/import/cancel", authenticateToken, async (req: any, res) => {
+    try {
+      const { jobId } = req.body;
+      
+      await storage.cancelImportJob(jobId);
+      
+      res.json({ success: true, message: "Import canceled" });
+    } catch (error) {
+      console.error("Import cancel error:", error);
+      res.status(500).json({ error: "Failed to cancel import" });
+    }
+  });
+
+  // Get full logs for download
+  app.get("/api/import/logs/:jobId", authenticateToken, async (req: any, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      const logs = await storage.getImportJobLogs(jobId);
+      
+      if (!logs) {
+        return res.status(404).json({ error: "Import job not found" });
+      }
+
+      // Return full logs as plain text for download
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', `attachment; filename="import-${jobId}.log"`);
+      res.send(logs.join('\n'));
+    } catch (error) {
+      console.error("Import logs error:", error);
+      res.status(500).json({ error: "Failed to get import logs" });
+    }
+  });
+
   app.post("/api/generate", authenticateToken, async (req: any, res) => {
     try {
       const { projectId, scenarios, scope, advanced } = req.body;
@@ -671,4 +765,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Background import processing simulation
+async function processImportJobAsync(jobId: string, importId: string, scenarios: any, scope: any, rules: any) {
+  try {
+    console.log(`Starting import job ${jobId}`);
+    
+    const phases = [
+      { name: "loading", duration: 2000, label: "Загрузка источника" },
+      { name: "cleaning", duration: 3000, label: "Очистка от boilerplate" },
+      { name: "chunking", duration: 2500, label: "Нарезка на блоки" },
+      { name: "extracting", duration: 4000, label: "Извлечение метаданных" },
+      { name: "embedding", duration: 5000, label: "Генерация эмбеддингов" },
+      { name: "graphing", duration: 3000, label: "Обновление графа" },
+      { name: "finalizing", duration: 1500, label: "Финализация" }
+    ];
+
+    let totalProgress = 0;
+    const progressPerPhase = 100 / phases.length;
+
+    for (let i = 0; i < phases.length; i++) {
+      const phase = phases[i];
+      console.log(`Processing phase: ${phase.label}`);
+      
+      // Update phase
+      await storage.updateImportJob(jobId, {
+        phase: phase.name,
+        percent: Math.round(totalProgress),
+        logs: [`Начинаем фазу: ${phase.label}`]
+      });
+
+      // Simulate phase processing with progress updates
+      const steps = 5;
+      for (let step = 0; step < steps; step++) {
+        await new Promise(resolve => setTimeout(resolve, phase.duration / steps));
+        
+        const phaseProgress = ((step + 1) / steps) * progressPerPhase;
+        const currentPercent = Math.round(totalProgress + phaseProgress);
+
+        await storage.updateImportJob(jobId, {
+          percent: currentPercent,
+          pagesDone: Math.round((currentPercent / 100) * 150), // Simulate 150 pages
+          blocksDone: Math.round((currentPercent / 100) * 1200), // Simulate 1200 blocks
+          logs: [`Фаза ${phase.label}: ${Math.round(((step + 1) / steps) * 100)}%`]
+        });
+      }
+
+      totalProgress += progressPerPhase;
+    }
+
+    // Finalize job
+    await storage.updateImportJob(jobId, {
+      status: "completed",
+      percent: 100,
+      pagesTotal: 150,
+      pagesDone: 150,
+      blocksDone: 1200,
+      orphanCount: 23,
+      avgWordCount: 850,
+      deepPages: 18,
+      avgClickDepth: 3.2,
+      importDuration: Math.round((Date.now() - Date.now()) / 1000),
+      finishedAt: new Date(),
+      logs: ["Импорт успешно завершен"]
+    });
+
+    console.log(`Import job ${jobId} completed successfully`);
+  } catch (error) {
+    console.error(`Import job ${jobId} failed:`, error);
+    
+    await storage.updateImportJob(jobId, {
+      status: "failed",
+      errorMessage: error instanceof Error ? error.message : "Unknown error",
+      finishedAt: new Date(),
+      logs: [`Ошибка: ${error instanceof Error ? error.message : "Unknown error"}`]
+    });
+  }
 }

@@ -303,10 +303,10 @@ export default function ProjectPage() {
     },
   });
 
-  // Generate mutation
+  // Generate mutation - starts Step 4 import process
   const generateMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/generate", {
+      const response = await fetch("/api/import/start", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -314,6 +314,7 @@ export default function ProjectPage() {
         credentials: "include",
         body: JSON.stringify({
           projectId,
+          importId: uploadId,
           scenarios: selectedScenarios,
           scope: scopeSettings,
           rules
@@ -321,22 +322,19 @@ export default function ProjectPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Generation failed");
+        throw new Error("Import start failed");
       }
 
       return response.json();
     },
-    onSuccess: () => {
-      setCurrentStep(5);
-      toast({
-        title: "Генерация запущена",
-        description: "Обработка данных началась",
-      });
+    onSuccess: (data) => {
+      // Redirect to import monitoring page
+      window.location.href = `/project/${projectId}/import?jobId=${data.jobId}`;
     },
     onError: (error: any) => {
       const errorMessage = error.response?.data?.details || error.response?.data?.message || error.message;
       toast({
-        title: "Ошибка генерации",
+        title: "Ошибка запуска импорта",
         description: errorMessage,
         variant: "destructive",
       });
@@ -1241,7 +1239,7 @@ export default function ProjectPage() {
                     className="bg-blue-600 hover:bg-blue-700"
                   >
                     <Settings className="h-4 w-4 mr-2" />
-                    {generateMutation.isPending ? "Запуск..." : "Запустить генерацию"}
+                    {generateMutation.isPending ? "Запуск..." : "Сохранить и запустить импорт"}
                   </Button>
                 </div>
               </div>

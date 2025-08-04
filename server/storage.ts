@@ -50,6 +50,13 @@ export interface IStorage {
   createImport(importData: InsertImport): Promise<Import>;
   getImportByUploadId(uploadId: string): Promise<Import | undefined>;
   updateImportFieldMapping(uploadId: string, fieldMapping: string): Promise<Import | undefined>;
+
+  // Import Jobs
+  createImportJob(jobData: any): Promise<any>;
+  getImportJobStatus(projectId: string, jobId?: string): Promise<any>;
+  updateImportJob(jobId: string, updates: any): Promise<void>;
+  cancelImportJob(jobId: string): Promise<void>;
+  getImportJobLogs(jobId: string): Promise<string[] | null>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -197,6 +204,84 @@ export class DatabaseStorage implements IStorage {
       .where(eq(imports.id, uploadId))
       .returning();
     return updatedImport || undefined;
+  }
+
+  // Import Jobs - simplified implementation for now
+  async createImportJob(jobData: any): Promise<any> {
+    // For now, store in memory since we don't have the full schema deployed
+    const job = {
+      id: Math.random().toString(36),
+      jobId: jobData.jobId,
+      projectId: jobData.projectId,
+      importId: jobData.importId,
+      status: jobData.status,
+      phase: jobData.phase,
+      percent: jobData.percent,
+      pagesTotal: 0,
+      pagesDone: 0,
+      blocksDone: 0,
+      orphanCount: 0,
+      avgWordCount: 0,
+      deepPages: 0,
+      avgClickDepth: 0,
+      logs: [],
+      startedAt: new Date(),
+      finishedAt: null
+    };
+    
+    // Store in memory for now
+    if (!global.importJobs) global.importJobs = new Map();
+    global.importJobs.set(jobData.jobId, job);
+    
+    return job;
+  }
+
+  async getImportJobStatus(projectId: string, jobId?: string): Promise<any> {
+    if (!global.importJobs) return null;
+    
+    if (jobId) {
+      return global.importJobs.get(jobId) || null;
+    }
+    
+    // Get latest job for project
+    const jobs = Array.from(global.importJobs.values())
+      .filter(job => job.projectId === projectId)
+      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+    
+    return jobs[0] || null;
+  }
+
+  async updateImportJob(jobId: string, updates: any): Promise<void> {
+    if (!global.importJobs) return;
+    
+    const job = global.importJobs.get(jobId);
+    if (job) {
+      Object.assign(job, updates);
+      
+      // Append new logs
+      if (updates.logs && Array.isArray(updates.logs)) {
+        job.logs = [...(job.logs || []), ...updates.logs];
+        // Keep only last 1000 log entries
+        if (job.logs.length > 1000) {
+          job.logs = job.logs.slice(-1000);
+        }
+      }
+    }
+  }
+
+  async cancelImportJob(jobId: string): Promise<void> {
+    await this.updateImportJob(jobId, {
+      status: "canceled",
+      finishedAt: new Date(),
+      logs: ["Import canceled by user"]
+    });
+  }
+
+  async getImportJobLogs(jobId: string): Promise<string[] | null> {
+    if (!global.importJobs) return null;
+    
+    const job = global.importJobs.get(jobId);
+    return job ? job.logs || [] : null;
   }
 }
 

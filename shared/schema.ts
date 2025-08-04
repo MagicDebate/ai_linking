@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, pgEnum, uuid, integer, jsonb, real, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -60,6 +60,81 @@ export const imports = pgTable("imports", {
   status: text("status").notNull().default("PENDING"), // PENDING, MAPPED, PROCESSED
   fieldMapping: text("field_mapping"), // JSON string
   processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Import jobs for Step 4 processing
+export const importJobs = pgTable("import_jobs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  jobId: uuid("job_id").unique().notNull().defaultRandom(),
+  projectId: varchar("project_id").references(() => projects.id).notNull(),
+  importId: varchar("import_id").references(() => imports.id).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // pending, running, completed, failed, canceled
+  phase: varchar("phase", { length: 50 }).notNull().default("loading"), // loading, cleaning, chunking, extracting, embedding, graphing, finalizing
+  percent: integer("percent").notNull().default(0),
+  pagesTotal: integer("pages_total").notNull().default(0),
+  pagesDone: integer("pages_done").notNull().default(0),
+  blocksDone: integer("blocks_done").notNull().default(0),
+  orphanCount: integer("orphan_count").notNull().default(0),
+  avgWordCount: integer("avg_word_count").notNull().default(0),
+  deepPages: integer("deep_pages").notNull().default(0),
+  avgClickDepth: real("avg_click_depth").notNull().default(0),
+  importDuration: integer("import_duration"), // seconds
+  logs: text("logs").array().notNull().default(sql`ARRAY[]::text[]`),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  finishedAt: timestamp("finished_at"),
+});
+
+// Raw pages data
+export const pagesRaw = pgTable("pages_raw", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  jobId: uuid("job_id").references(() => importJobs.jobId).notNull(),
+  url: text("url").notNull(),
+  rawHtml: text("raw_html").notNull(),
+  meta: jsonb("meta").notNull().default(sql`'{}'::jsonb`),
+  importBatchId: uuid("import_batch_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Cleaned pages data
+export const pagesClean = pgTable("pages_clean", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  pageRawId: uuid("page_raw_id").references(() => pagesRaw.id).notNull(),
+  cleanHtml: text("clean_html").notNull(),
+  wordCount: integer("word_count").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Content blocks
+export const blocks = pgTable("blocks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  pageId: uuid("page_id").references(() => pagesClean.id).notNull(),
+  blockType: varchar("block_type", { length: 10 }).notNull(), // p, h1, h2, h3, h4, h5, h6
+  text: text("text").notNull(),
+  position: integer("position").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Embeddings
+export const embeddings = pgTable("embeddings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  blockId: uuid("block_id").references(() => blocks.id).notNull(),
+  vector: real("vector").array().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Internal link graph
+export const internalLinkGraph = pgTable("internal_link_graph", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  jobId: uuid("job_id").references(() => importJobs.jobId).notNull(),
+  fromUrl: text("from_url").notNull(),
+  toUrl: text("to_url").notNull(),
+  anchorText: text("anchor_text"),
+  clickDepth: integer("click_depth").notNull().default(1),
+  inDegree: integer("in_degree").notNull().default(0),
+  outDegree: integer("out_degree").notNull().default(0),
+  isOrphan: boolean("is_orphan").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
