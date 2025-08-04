@@ -664,9 +664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create import job
       const jobId = crypto.randomUUID();
       
-      console.log(`Starting import for project: ${projectId}`);
-      console.log(`Job ID: ${jobId}`);
-      console.log(`Import ID: ${importId}`);
+      console.log(`Starting import for project: ${projectId}, jobId: ${jobId}`);
       
       const importJob = await storage.createImportJob({
         jobId,
@@ -677,8 +675,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         percent: 0
       });
 
-      // Start background processing simulation
-      processImportJobAsync(jobId, importId, scenarios, scope, rules).catch(console.error);
+      // Start background processing
+      setImmediate(() => {
+        processImportJobAsync(jobId, importId, scenarios, scope, rules).catch(err => {
+          console.error(`Import job ${jobId} failed:`, err);
+          storage.updateImportJob(jobId, {
+            status: "failed",
+            errorMessage: err.message,
+            finishedAt: new Date()
+          });
+        });
+      });
 
       res.json({ 
         success: true, 
@@ -774,69 +781,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 // Background import processing simulation
 async function processImportJobAsync(jobId: string, importId: string, scenarios: any, scope: any, rules: any) {
+  const startTime = Date.now();
+  console.log(`Processing import job ${jobId} started`);
+  
   try {
-    console.log(`Starting import job ${jobId}`);
-    
     const phases = [
-      { name: "loading", duration: 2000, label: "Загрузка источника" },
-      { name: "cleaning", duration: 3000, label: "Очистка от boilerplate" },
-      { name: "chunking", duration: 2500, label: "Нарезка на блоки" },
-      { name: "extracting", duration: 4000, label: "Извлечение метаданных" },
-      { name: "embedding", duration: 5000, label: "Генерация эмбеддингов" },
-      { name: "graphing", duration: 3000, label: "Обновление графа" },
-      { name: "finalizing", duration: 1500, label: "Финализация" }
+      { name: "loading", duration: 1500, label: "Загрузка источника" },
+      { name: "cleaning", duration: 2000, label: "Очистка от boilerplate" },
+      { name: "chunking", duration: 1800, label: "Нарезка на блоки" },
+      { name: "extracting", duration: 2500, label: "Извлечение метаданных" },
+      { name: "embedding", duration: 3000, label: "Генерация эмбеддингов" },
+      { name: "graphing", duration: 2200, label: "Обновление графа" },
+      { name: "finalizing", duration: 1000, label: "Финализация" }
     ];
 
     let totalProgress = 0;
     const progressPerPhase = 100 / phases.length;
 
+    // Set initial status
+    await storage.updateImportJob(jobId, {
+      status: "running",
+      phase: "loading",
+      percent: 0,
+      pagesTotal: 147,
+      logs: [`Запуск импорта для jobId: ${jobId}`]
+    });
+
     for (let i = 0; i < phases.length; i++) {
       const phase = phases[i];
-      console.log(`Processing phase: ${phase.label}`);
+      console.log(`Phase ${i + 1}/7: ${phase.label} for job ${jobId}`);
       
-      // Update phase
+      // Update to new phase
       await storage.updateImportJob(jobId, {
         phase: phase.name,
         percent: Math.round(totalProgress),
-        logs: [`Начинаем фазу: ${phase.label}`]
+        logs: [`Фаза ${i + 1}/7: ${phase.label}`]
       });
 
-      // Simulate phase processing with progress updates
-      const steps = 5;
+      // Simulate phase processing
+      const steps = 4;
       for (let step = 0; step < steps; step++) {
         await new Promise(resolve => setTimeout(resolve, phase.duration / steps));
         
         const phaseProgress = ((step + 1) / steps) * progressPerPhase;
-        const currentPercent = Math.round(totalProgress + phaseProgress);
+        const currentPercent = Math.min(100, Math.round(totalProgress + phaseProgress));
 
         await storage.updateImportJob(jobId, {
           percent: currentPercent,
-          pagesDone: Math.round((currentPercent / 100) * 150), // Simulate 150 pages
-          blocksDone: Math.round((currentPercent / 100) * 1200), // Simulate 1200 blocks
-          logs: [`Фаза ${phase.label}: ${Math.round(((step + 1) / steps) * 100)}%`]
+          pagesDone: Math.round((currentPercent / 100) * 147),
+          blocksDone: Math.round((currentPercent / 100) * 1180),
+          logs: [`${phase.label}: ${Math.round(((step + 1) / steps) * 100)}% завершено`]
         });
       }
 
       totalProgress += progressPerPhase;
     }
 
-    // Finalize job
+    // Complete the job
+    const duration = Math.round((Date.now() - startTime) / 1000);
     await storage.updateImportJob(jobId, {
       status: "completed",
       percent: 100,
-      pagesTotal: 150,
-      pagesDone: 150,
-      blocksDone: 1200,
-      orphanCount: 23,
-      avgWordCount: 850,
-      deepPages: 18,
-      avgClickDepth: 3.2,
-      importDuration: Math.round((Date.now() - Date.now()) / 1000),
+      pagesTotal: 147,
+      pagesDone: 147,
+      blocksDone: 1180,
+      orphanCount: 18,
+      avgWordCount: 742,
+      deepPages: 23,
+      avgClickDepth: 2.8,
+      importDuration: duration,
       finishedAt: new Date(),
-      logs: ["Импорт успешно завершен"]
+      logs: [`Импорт завершен! Обработано 147 страниц за ${duration}с`]
     });
 
-    console.log(`Import job ${jobId} completed successfully`);
+    console.log(`Import job ${jobId} completed in ${duration}s`);
   } catch (error) {
     console.error(`Import job ${jobId} failed:`, error);
     
@@ -844,7 +862,7 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       status: "failed",
       errorMessage: error instanceof Error ? error.message : "Unknown error",
       finishedAt: new Date(),
-      logs: [`Ошибка: ${error instanceof Error ? error.message : "Unknown error"}`]
+      logs: [`ОШИБКА: ${error instanceof Error ? error.message : "Unknown error"}`]
     });
   }
 }
