@@ -111,6 +111,63 @@ export default function ProjectPage() {
     depthLift: false
   });
 
+  // Auto-configure parameters based on selected scenarios
+  const updateParametersForScenarios = (selectedScenarios: any) => {
+    const presets = {
+      headConsolidation: { maxLinks: 5, minDistance: 200, exactPercent: 20, freshnessPush: false }, // Усилить гайд
+      clusterCrossLink: { maxLinks: 3, minDistance: 150, exactPercent: 20, freshnessPush: false }, // Кросс-линк
+      commercialRouting: { maxLinks: 4, minDistance: 250, exactPercent: 15, freshnessPush: false }, // Трафик → money
+      orphanFix: { maxLinks: 2, minDistance: 150, exactPercent: 15, freshnessPush: false }, // Сироты+deep
+      depthLift: { maxLinks: 2, minDistance: 150, exactPercent: 15, freshnessPush: false } // Сироты+deep
+    };
+
+    // Get active scenarios
+    const activeScenarios = Object.entries(selectedScenarios)
+      .filter(([_, active]) => active)
+      .map(([name, _]) => name);
+
+    if (activeScenarios.length === 0) {
+      // Default if no scenarios selected
+      setRules(prev => ({
+        ...prev,
+        maxLinks: 5,
+        minDistance: 150,
+        exactPercent: 20,
+        freshnessPush: false
+      }));
+      return;
+    }
+
+    // Special case: if only freshness needed (no scenarios selected but freshness push)
+    if (activeScenarios.length === 0 && freshnessPush) {
+      setRules(prev => ({
+        ...prev,
+        maxLinks: 3,
+        minDistance: 200,
+        exactPercent: 10,
+        freshnessPush: true
+      }));
+      return;
+    }
+
+    // Calculate minimum values for multiple scenarios
+    const configs = activeScenarios.map(scenario => presets[scenario as keyof typeof presets]).filter(Boolean);
+    
+    if (configs.length > 0) {
+      const minConfig = {
+        maxLinks: Math.min(...configs.map(c => c.maxLinks)),
+        minDistance: Math.min(...configs.map(c => c.minDistance)),
+        exactPercent: Math.min(...configs.map(c => c.exactPercent)),
+        freshnessPush: configs.some(c => c.freshnessPush)
+      };
+
+      setRules(prev => ({
+        ...prev,
+        ...minConfig
+      }));
+    }
+  };
+
   const [rules, setRules] = useState<LinkingRules>({
     maxLinks: 5,
     minDistance: 100,
@@ -277,11 +334,28 @@ export default function ProjectPage() {
   };
 
   const toggleScenario = (scenario: string) => {
-    setSelectedScenarios(prev => 
-      prev.includes(scenario) 
-        ? prev.filter(s => s !== scenario)
-        : [...prev, scenario]
-    );
+    const newSelectedScenarios = selectedScenarios.includes(scenario)
+      ? selectedScenarios.filter(s => s !== scenario)
+      : [...selectedScenarios, scenario];
+    
+    setSelectedScenarios(newSelectedScenarios);
+    
+    // Update rules.scenarios based on selected scenarios
+    const newScenariosState = {
+      headConsolidation: newSelectedScenarios.includes("headConsolidation"),
+      clusterCrossLink: newSelectedScenarios.includes("clusterCrossLink"),
+      commercialRouting: newSelectedScenarios.includes("commercialRouting"),
+      orphanFix: newSelectedScenarios.includes("orphanFix"),
+      depthLift: newSelectedScenarios.includes("depthLift")
+    };
+    
+    setRules(prev => ({
+      ...prev,
+      scenarios: newScenariosState
+    }));
+    
+    // Auto-configure parameters
+    updateParametersForScenarios(newScenariosState);
   };
 
   if (projectLoading) {
@@ -397,12 +471,46 @@ export default function ProjectPage() {
                     Укажите, какие колонки соответствуют нужным полям
                   </p>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-6">
+                    {csvPreview && (
+                      <div className="space-y-4">
+                        <h3 className="font-medium text-gray-900">Превью данных</h3>
+                        <div className="border rounded-lg overflow-hidden">
+                          <div className="overflow-x-auto max-h-96">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-3 py-2 text-left font-medium text-gray-900 w-12">#</th>
+                                  {csvPreview.headers.map((header, index) => (
+                                    <th key={index} className="px-3 py-2 text-left font-medium text-gray-900 min-w-[120px]">
+                                      {header}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {csvPreview.rows.slice(0, 5).map((row, rowIndex) => (
+                                  <tr key={rowIndex} className="border-t">
+                                    <td className="px-3 py-2 text-sm text-gray-500 w-12">{rowIndex + 1}</td>
+                                    {row.map((cell, cellIndex) => (
+                                      <td key={cellIndex} className="px-3 py-2 text-gray-600 max-w-[200px] truncate">
+                                        {cell || "—"}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="space-y-4">
                       <h3 className="font-medium text-gray-900">Сопоставление полей</h3>
                       
-                      <div className="space-y-3">
-                        {["url", "title", "content", "h1", "description", "pageType"].map((field) => (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {["url", "title", "content", "h1", "description", "pageType", "publishDate"].map((field) => (
                           <div key={field}>
                             <Label className="text-sm font-medium capitalize">
                               {field === "url" ? "URL страницы *" : 
@@ -410,20 +518,21 @@ export default function ProjectPage() {
                                field === "content" ? "Содержимое *" :
                                field === "h1" ? "Заголовок H1" : 
                                field === "description" ? "Описание *" :
-                               field === "pageType" ? "Тип страницы (опционально)" : field}
+                               field === "pageType" ? "Тип страницы (опционально)" :
+                               field === "publishDate" ? "Дата публикации (опционально)" : field}
                             </Label>
                             <Select
-                              value={fieldMapping[field] || (field === "pageType" ? "__none__" : "")}
+                              value={fieldMapping[field] || (field === "pageType" || field === "publishDate" ? "__none__" : "")}
                               onValueChange={(value) => {
                                 const actualValue = value === "__none__" ? "" : value;
                                 setFieldMapping(prev => ({ ...prev, [field]: actualValue }));
                               }}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder={field === "pageType" ? "Не выбрано" : "Выберите колонку"} />
+                                <SelectValue placeholder={field === "pageType" || field === "publishDate" ? "Не выбрано" : "Выберите колонку"} />
                               </SelectTrigger>
                               <SelectContent>
-                                {field === "pageType" && (
+                                {(field === "pageType" || field === "publishDate") && (
                                   <SelectItem value="__none__">Не сопоставлять</SelectItem>
                                 )}
                                 {csvPreview.headers.map((header) => (
@@ -435,36 +544,6 @@ export default function ProjectPage() {
                             </Select>
                           </div>
                         ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <h3 className="font-medium text-gray-900">Превью данных</h3>
-                      <div className="border rounded-lg overflow-hidden">
-                        <div className="overflow-x-auto max-h-96">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                {csvPreview.headers.map((header, index) => (
-                                  <th key={index} className="px-3 py-2 text-left font-medium text-gray-900 min-w-[120px]">
-                                    {header}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {csvPreview.rows.slice(0, 5).map((row, rowIndex) => (
-                                <tr key={rowIndex} className="border-t">
-                                  {row.map((cell, cellIndex) => (
-                                    <td key={cellIndex} className="px-3 py-2 text-gray-600 max-w-[200px] truncate">
-                                      {cell}
-                                    </td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -499,112 +578,7 @@ export default function ProjectPage() {
                   </p>
                 </div>
 
-                {/* Preset Scenarios */}
-                <div className="mb-6">
-                  <h3 className="font-medium text-gray-900 mb-3">Готовые сценарии</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {[
-                      {
-                        id: "fastIndexing",
-                        title: "Быстрая индексация",
-                        description: "Оптимизация для быстрого попадания в индекс",
-                        preset: {
-                          maxLinks: 3,
-                          minDistance: 200,
-                          exactPercent: 10,
-                          scenarios: { headConsolidation: false, clusterCrossLink: false, commercialRouting: false, orphanFix: false, depthLift: false },
-                          freshnessPush: true,
-                          oldLinksPolicy: 'enrich' as const
-                        }
-                      },
-                      {
-                        id: "strengthenGuide",
-                        title: "Усилить гайд",
-                        description: "Укрепление позиций гайдов и статей",
-                        preset: {
-                          maxLinks: 5,
-                          minDistance: 200,
-                          exactPercent: 20,
-                          scenarios: { headConsolidation: true, clusterCrossLink: false, commercialRouting: false, orphanFix: false, depthLift: false },
-                          freshnessPush: false,
-                          oldLinksPolicy: 'enrich' as const
-                        }
-                      },
-                      {
-                        id: "trafficToMoney",
-                        title: "Трафик → money",
-                        description: "Направление трафика на коммерческие страницы",
-                        preset: {
-                          maxLinks: 4,
-                          minDistance: 250,
-                          exactPercent: 15,
-                          scenarios: { headConsolidation: false, clusterCrossLink: false, commercialRouting: true, orphanFix: false, depthLift: false },
-                          freshnessPush: false,
-                          oldLinksPolicy: 'enrich' as const
-                        }
-                      },
-                      {
-                        id: "orphansDeep",
-                        title: "Сироты+deep",
-                        description: "Спасение сирот и поднятие из глубины",
-                        preset: {
-                          maxLinks: 2,
-                          minDistance: 150,
-                          exactPercent: 15,
-                          scenarios: { headConsolidation: false, clusterCrossLink: false, commercialRouting: false, orphanFix: true, depthLift: true },
-                          freshnessPush: false,
-                          oldLinksPolicy: 'enrich' as const
-                        }
-                      },
-                      {
-                        id: "crossLink",
-                        title: "Кросс-линк",
-                        description: "Перекрёстная связка кластеров",
-                        preset: {
-                          maxLinks: 3,
-                          minDistance: 150,
-                          exactPercent: 20,
-                          scenarios: { headConsolidation: false, clusterCrossLink: true, commercialRouting: false, orphanFix: false, depthLift: false },
-                          freshnessPush: false,
-                          oldLinksPolicy: 'enrich' as const
-                        }
-                      }
-                    ].map((preset) => (
-                      <Card 
-                        key={preset.id}
-                        className={`cursor-pointer transition-colors ${
-                          selectedPreset === preset.id ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'
-                        }`}
-                        onClick={() => {
-                          setSelectedPreset(preset.id);
-                          setScenarios(preset.preset.scenarios);
-                          setMaxLinks(preset.preset.maxLinks);
-                          setMinDistance(preset.preset.minDistance);
-                          setExactPercent(preset.preset.exactPercent);
-                          setFreshnessPush(preset.preset.freshnessPush);
-                          setOldLinksPolicy(preset.preset.oldLinksPolicy);
-                          // Clear individual scenario selections when using preset
-                          setRules(prev => ({
-                            ...prev,
-                            maxLinks: preset.preset.maxLinks,
-                            minDistance: preset.preset.minDistance,
-                            exactPercent: preset.preset.exactPercent,
-                            scenarios: preset.preset.scenarios,
-                            freshnessPush: preset.preset.freshnessPush,
-                            oldLinksPolicy: preset.preset.oldLinksPolicy
-                          }));
-                        }}
-                      >
-                        <CardContent className="p-4">
-                          <h4 className="font-medium text-sm">{preset.title}</h4>
-                          <p className="text-xs text-gray-600 mt-1">{preset.description}</p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Individual Scenario Cards */}
+                {/* Scenario Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
                     {
