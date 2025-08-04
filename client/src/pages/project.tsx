@@ -34,7 +34,8 @@ import {
   Star,
   DollarSign,
   LifeBuoy,
-  Network
+  Network,
+  ChevronDown
 } from "lucide-react";
 
 interface FieldMapping {
@@ -58,6 +59,15 @@ interface LinkingRules {
   maxLinks: number;
   minDistance: number;
   exactPercent: number;
+  cssClass?: string;
+  showAdvancedHtml?: boolean;
+  relAttributes?: {
+    noopener: boolean;
+    noreferrer: boolean;
+    nofollow: boolean;
+  };
+  targetBlank?: boolean;
+  existingClassPolicy?: 'add' | 'replace';
   scenarios: {
     headConsolidation: boolean;
     clusterCrossLink: boolean;
@@ -196,6 +206,15 @@ export default function ProjectPage() {
     freshnessPush: true,
     freshnessThreshold: 30,
     freshnessLinks: 1,
+    cssClass: '',
+    showAdvancedHtml: false,
+    relAttributes: {
+      noopener: true,
+      noreferrer: true,
+      nofollow: false
+    },
+    targetBlank: false,
+    existingClassPolicy: 'add'
   });
 
   // Get project data
@@ -995,6 +1014,158 @@ export default function ProjectPage() {
                             moneyPages: e.target.value.split('\n').filter(url => url.trim()) 
                           }))}
                         />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* G2. HTML-атрибуты ссылок */}
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">HTML-атрибуты ссылок</h4>
+                      <HelpDialog contentKey="htmlAttributes" />
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {/* CSS класс - всегда видим */}
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                          CSS-класс для &lt;a&gt;
+                        </Label>
+                        <input
+                          type="text"
+                          className="w-full p-3 border rounded-lg text-sm"
+                          placeholder="internal-link"
+                          value={rules.cssClass || ''}
+                          onChange={(e) => setRules(prev => ({ 
+                            ...prev, 
+                            cssClass: e.target.value 
+                          }))}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Позволяет стилизовать все вставляемые ссылки одной строкой CSS
+                        </p>
+                      </div>
+
+                      {/* Дополнительные атрибуты - сворачиваемые */}
+                      <div className="space-y-3">
+                        <div 
+                          className="flex items-center cursor-pointer select-none"
+                          onClick={() => setRules(prev => ({ ...prev, showAdvancedHtml: !prev.showAdvancedHtml }))}
+                        >
+                          <ChevronDown className={`h-4 w-4 mr-2 transition-transform ${rules.showAdvancedHtml ? 'rotate-180' : ''}`} />
+                          <span className="text-sm font-medium text-gray-700">Дополнительные атрибуты</span>
+                        </div>
+
+                        {rules.showAdvancedHtml && (
+                          <div className="pl-6 space-y-4 bg-gray-50 p-4 rounded-lg">
+                            {/* rel атрибуты */}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                Добавлять rel
+                              </Label>
+                              <div className="space-y-2">
+                                <label className="flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={rules.relAttributes.noopener}
+                                    onChange={(e) => setRules(prev => ({
+                                      ...prev,
+                                      relAttributes: { ...prev.relAttributes, noopener: e.target.checked }
+                                    }))}
+                                    className="mr-2"
+                                  />
+                                  <span className="text-sm">noopener</span>
+                                </label>
+                                <label className="flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={rules.relAttributes.noreferrer}
+                                    onChange={(e) => setRules(prev => ({
+                                      ...prev,
+                                      relAttributes: { ...prev.relAttributes, noreferrer: e.target.checked }
+                                    }))}
+                                    className="mr-2"
+                                  />
+                                  <span className="text-sm">noreferrer</span>
+                                </label>
+                                <label className="flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={rules.relAttributes.nofollow}
+                                    onChange={(e) => setRules(prev => ({
+                                      ...prev,
+                                      relAttributes: { ...prev.relAttributes, nofollow: e.target.checked }
+                                    }))}
+                                    className="mr-2"
+                                  />
+                                  <span className="text-sm">nofollow</span>
+                                </label>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Безопасность и контроль индексации
+                              </p>
+                            </div>
+
+                            {/* target="_blank" */}
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <Label className="text-sm font-medium text-gray-700">
+                                  target="_blank"
+                                </Label>
+                                <p className="text-xs text-gray-500">
+                                  Открывать ли новые вкладки
+                                </p>
+                              </div>
+                              <Switch
+                                checked={rules.targetBlank}
+                                onCheckedChange={(checked) => setRules(prev => ({ 
+                                  ...prev, 
+                                  targetBlank: checked 
+                                }))}
+                              />
+                            </div>
+
+                            {/* Обработка существующих классов */}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                Если ссылка уже содержит класс
+                              </Label>
+                              <div className="space-y-2">
+                                <label className="flex items-center">
+                                  <input
+                                    type="radio"
+                                    name="existingClass"
+                                    value="add"
+                                    checked={rules.existingClassPolicy === 'add'}
+                                    onChange={(e) => setRules(prev => ({ 
+                                      ...prev, 
+                                      existingClassPolicy: e.target.value as 'add' | 'replace'
+                                    }))}
+                                    className="mr-2"
+                                  />
+                                  <span className="text-sm">Добавить к существующим</span>
+                                </label>
+                                <label className="flex items-center">
+                                  <input
+                                    type="radio"
+                                    name="existingClass"
+                                    value="replace"
+                                    checked={rules.existingClassPolicy === 'replace'}
+                                    onChange={(e) => setRules(prev => ({ 
+                                      ...prev, 
+                                      existingClassPolicy: e.target.value as 'add' | 'replace'
+                                    }))}
+                                    className="mr-2"
+                                  />
+                                  <span className="text-sm">Заменить</span>
+                                </label>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Не ломаем ручную разметку редакторов
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
