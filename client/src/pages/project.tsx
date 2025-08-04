@@ -113,6 +113,14 @@ export default function ProjectPage() {
 
   // Auto-configure parameters based on selected scenarios
   const updateParametersForScenarios = (selectedScenarios: any) => {
+    // Enable Freshness Push for fast indexing
+    const hasFreshnessScenarios = Object.entries(selectedScenarios).some(([key, active]) => 
+      active && key === 'headConsolidation' // Fast indexing equivalent
+    );
+    
+    if (hasFreshnessScenarios) {
+      setRules(prev => ({ ...prev, freshnessPush: true }));
+    }
     const presets = {
       headConsolidation: { maxLinks: 5, minDistance: 200, exactPercent: 20, freshnessPush: false }, // Усилить гайд
       clusterCrossLink: { maxLinks: 3, minDistance: 150, exactPercent: 20, freshnessPush: false }, // Кросс-линк
@@ -491,10 +499,10 @@ export default function ProjectPage() {
                               <tbody>
                                 {csvPreview.rows.slice(0, 5).map((row, rowIndex) => (
                                   <tr key={rowIndex} className="border-t">
-                                    <td className="px-3 py-2 text-sm text-gray-500 w-12">{rowIndex + 1}</td>
-                                    {row.map((cell, cellIndex) => (
+                                    <td className="px-3 py-2 text-sm text-gray-500 w-12 font-mono">{rowIndex + 1}</td>
+                                    {csvPreview.headers.map((header, cellIndex) => (
                                       <td key={cellIndex} className="px-3 py-2 text-gray-600 max-w-[200px] truncate">
-                                        {cell || "—"}
+                                        {row[cellIndex] || "—"}
                                       </td>
                                     ))}
                                   </tr>
@@ -610,6 +618,12 @@ export default function ProjectPage() {
                       title: "Поднятие глубоких",
                       description: "Улучшение доступности страниц с большой вложенностью",
                       icon: TrendingUp
+                    },
+                    {
+                      id: "custom",
+                      title: "Другое, настрою сам",
+                      description: "Индивидуальная настройка параметров",
+                      icon: Settings
                     }
                   ].map((scenario) => {
                     const Icon = scenario.icon;
@@ -866,6 +880,178 @@ export default function ProjectPage() {
                           <SelectItem value="ignore">Игнорировать</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                  </div>
+
+                  {/* E. Depth Lift Settings */}
+                  {rules.scenarios.depthLift && (
+                    <div className="border-b border-gray-200 pb-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-md font-medium text-gray-900">Настройки Depth Lift</h4>
+                        <HelpDialog contentKey="depthLift" />
+                      </div>
+                      
+                      <div className="max-w-md">
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Считать URL глубже ≥ {rules.depthThreshold} кликов
+                        </Label>
+                        <Slider
+                          value={[rules.depthThreshold]}
+                          onValueChange={(value) => setRules(prev => ({ ...prev, depthThreshold: value[0] }))}
+                          max={8}
+                          min={4}
+                          step={1}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>4</span>
+                          <span>8</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* F. Freshness Push Settings */}
+                  {rules.freshnessPush && (
+                    <div className="border-b border-gray-200 pb-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-md font-medium text-gray-900">Настройки Freshness Push</h4>
+                        <HelpDialog contentKey="freshnessPush" />
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                            Новая статья = опубликована ≤ {rules.freshnessThreshold} дней
+                          </Label>
+                          <Slider
+                            value={[rules.freshnessThreshold]}
+                            onValueChange={(value) => setRules(prev => ({ ...prev, freshnessThreshold: value[0] }))}
+                            max={365}
+                            min={1}
+                            step={1}
+                            className="w-full"
+                          />
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>1</span>
+                            <span>365</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                            Ссылок со старой статьи → новой: {rules.freshnessLinks}
+                          </Label>
+                          <Slider
+                            value={[rules.freshnessLinks]}
+                            onValueChange={(value) => setRules(prev => ({ ...prev, freshnessLinks: value[0] }))}
+                            max={3}
+                            min={0}
+                            step={1}
+                            className="w-full"
+                          />
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>0</span>
+                            <span>3</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* G. Stop-list and Money Pages */}
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Stop-лист и приоритеты</h4>
+                      <HelpDialog contentKey="stoplist" />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Stop-лист анкор-фраз
+                        </Label>
+                        <textarea
+                          className="w-full p-3 border rounded-lg text-sm min-h-[100px] resize-y"
+                          placeholder="читать далее&#10;подробнее&#10;click here&#10;здесь&#10;тут"
+                          value={rules.stopAnchors.join('\n')}
+                          onChange={(e) => setRules(prev => ({ 
+                            ...prev, 
+                            stopAnchors: e.target.value.split('\n').filter(anchor => anchor.trim()) 
+                          }))}
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Приоритетные (money) URL
+                        </Label>
+                        <textarea
+                          className="w-full p-3 border rounded-lg text-sm min-h-[100px] resize-y"
+                          placeholder="/buy/&#10;/product/&#10;/services/&#10;/order/"
+                          value={rules.moneyPages.join('\n')}
+                          onChange={(e) => setRules(prev => ({ 
+                            ...prev, 
+                            moneyPages: e.target.value.split('\n').filter(url => url.trim()) 
+                          }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* H. Cannibalization Settings */}
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Блок «Каннибализация»</h4>
+                      <HelpDialog contentKey="cannibalization" />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Чувствительность к дублям
+                        </Label>
+                        <Select defaultValue="medium">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="high">Высокая — строго</SelectItem>
+                            <SelectItem value="medium">Средняя — баланс</SelectItem>
+                            <SelectItem value="low">Низкая — мягко</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Действие при конфликте
+                        </Label>
+                        <Select defaultValue="block">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="block">Block — не ставить ссылки</SelectItem>
+                            <SelectItem value="flag">Flag only — только пометить</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Как выбрать каноник
+                        </Label>
+                        <Select defaultValue="content">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="content">По полноте контента</SelectItem>
+                            <SelectItem value="url">По URL-структуре</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
                 </div>
