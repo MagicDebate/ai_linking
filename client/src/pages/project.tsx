@@ -1002,7 +1002,7 @@ export default function ProjectPage() {
                   {/* H. Cannibalization Settings */}
                   <div className="border-b border-gray-200 pb-4">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-md font-medium text-gray-900">Блок «Каннибализация»</h4>
+                      <h4 className="text-md font-medium text-gray-900">Каннибализация</h4>
                       <HelpDialog contentKey="cannibalization" />
                     </div>
                     
