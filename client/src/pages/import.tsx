@@ -88,10 +88,13 @@ export function ImportPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const startJobId = urlParams.get("jobId");
     
+    console.log('ImportPage useEffect:', { projectId, startJobId, urlParams: urlParams.toString() });
+    
     if (startJobId) {
       setJobId(startJobId);
+      console.log('Set jobId to:', startJobId);
     }
-  }, []);
+  }, [projectId]);
 
   // Stop auto-refresh when job is completed/failed/canceled
   useEffect(() => {

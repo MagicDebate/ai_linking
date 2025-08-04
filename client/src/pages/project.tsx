@@ -329,8 +329,8 @@ export default function ProjectPage() {
     },
     onSuccess: (data) => {
       console.log('Import started successfully:', data);
-      // Redirect to import monitoring page - fix path
-      window.location.href = `/import/${projectId}?jobId=${data.jobId}`;
+      // Redirect to import monitoring page using existing route
+      window.location.href = `/project/${projectId}/import?jobId=${data.jobId}`;
     },
     onError: (error: any) => {
       const errorMessage = error.response?.data?.details || error.response?.data?.message || error.message;
