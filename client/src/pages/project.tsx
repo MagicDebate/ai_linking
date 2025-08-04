@@ -97,6 +97,20 @@ export default function ProjectPage() {
     manualUrls: ''
   });
 
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [maxLinks, setMaxLinks] = useState(5);
+  const [minDistance, setMinDistance] = useState(150);
+  const [exactPercent, setExactPercent] = useState(20);
+  const [freshnessPush, setFreshnessPush] = useState(false);
+  const [oldLinksPolicy, setOldLinksPolicy] = useState<'enrich' | 'regenerate' | 'audit'>('enrich');
+  const [scenarios, setScenarios] = useState({
+    headConsolidation: false,
+    clusterCrossLink: false,
+    commercialRouting: false,
+    orphanFix: false,
+    depthLift: false
+  });
+
   const [rules, setRules] = useState<LinkingRules>({
     maxLinks: 5,
     minDistance: 100,
@@ -392,10 +406,10 @@ export default function ProjectPage() {
                           <div key={field}>
                             <Label className="text-sm font-medium capitalize">
                               {field === "url" ? "URL страницы *" : 
-                               field === "title" ? "Заголовок (Title)" :
-                               field === "content" ? "Содержимое" :
+                               field === "title" ? "Заголовок (Title) *" :
+                               field === "content" ? "Содержимое *" :
                                field === "h1" ? "Заголовок H1" : 
-                               field === "description" ? "Описание" :
+                               field === "description" ? "Описание *" :
                                field === "pageType" ? "Тип страницы (опционально)" : field}
                             </Label>
                             <Select
@@ -465,7 +479,7 @@ export default function ProjectPage() {
                     </Button>
                     <Button 
                       onClick={handleMappingSubmit}
-                      disabled={mappingMutation.isPending || !fieldMapping.url}
+                      disabled={mappingMutation.isPending || !fieldMapping.url || !fieldMapping.title || !fieldMapping.content || !fieldMapping.description}
                     >
                       <ArrowRight className="h-4 w-4 mr-2" />
                       {mappingMutation.isPending ? "Сохранение..." : "Продолжить"}
@@ -485,7 +499,112 @@ export default function ProjectPage() {
                   </p>
                 </div>
 
-                {/* 1. Scenario Cards */}
+                {/* Preset Scenarios */}
+                <div className="mb-6">
+                  <h3 className="font-medium text-gray-900 mb-3">Готовые сценарии</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[
+                      {
+                        id: "fastIndexing",
+                        title: "Быстрая индексация",
+                        description: "Оптимизация для быстрого попадания в индекс",
+                        preset: {
+                          maxLinks: 3,
+                          minDistance: 200,
+                          exactPercent: 10,
+                          scenarios: { headConsolidation: false, clusterCrossLink: false, commercialRouting: false, orphanFix: false, depthLift: false },
+                          freshnessPush: true,
+                          oldLinksPolicy: 'enrich' as const
+                        }
+                      },
+                      {
+                        id: "strengthenGuide",
+                        title: "Усилить гайд",
+                        description: "Укрепление позиций гайдов и статей",
+                        preset: {
+                          maxLinks: 5,
+                          minDistance: 200,
+                          exactPercent: 20,
+                          scenarios: { headConsolidation: true, clusterCrossLink: false, commercialRouting: false, orphanFix: false, depthLift: false },
+                          freshnessPush: false,
+                          oldLinksPolicy: 'enrich' as const
+                        }
+                      },
+                      {
+                        id: "trafficToMoney",
+                        title: "Трафик → money",
+                        description: "Направление трафика на коммерческие страницы",
+                        preset: {
+                          maxLinks: 4,
+                          minDistance: 250,
+                          exactPercent: 15,
+                          scenarios: { headConsolidation: false, clusterCrossLink: false, commercialRouting: true, orphanFix: false, depthLift: false },
+                          freshnessPush: false,
+                          oldLinksPolicy: 'enrich' as const
+                        }
+                      },
+                      {
+                        id: "orphansDeep",
+                        title: "Сироты+deep",
+                        description: "Спасение сирот и поднятие из глубины",
+                        preset: {
+                          maxLinks: 2,
+                          minDistance: 150,
+                          exactPercent: 15,
+                          scenarios: { headConsolidation: false, clusterCrossLink: false, commercialRouting: false, orphanFix: true, depthLift: true },
+                          freshnessPush: false,
+                          oldLinksPolicy: 'enrich' as const
+                        }
+                      },
+                      {
+                        id: "crossLink",
+                        title: "Кросс-линк",
+                        description: "Перекрёстная связка кластеров",
+                        preset: {
+                          maxLinks: 3,
+                          minDistance: 150,
+                          exactPercent: 20,
+                          scenarios: { headConsolidation: false, clusterCrossLink: true, commercialRouting: false, orphanFix: false, depthLift: false },
+                          freshnessPush: false,
+                          oldLinksPolicy: 'enrich' as const
+                        }
+                      }
+                    ].map((preset) => (
+                      <Card 
+                        key={preset.id}
+                        className={`cursor-pointer transition-colors ${
+                          selectedPreset === preset.id ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+                        }`}
+                        onClick={() => {
+                          setSelectedPreset(preset.id);
+                          setScenarios(preset.preset.scenarios);
+                          setMaxLinks(preset.preset.maxLinks);
+                          setMinDistance(preset.preset.minDistance);
+                          setExactPercent(preset.preset.exactPercent);
+                          setFreshnessPush(preset.preset.freshnessPush);
+                          setOldLinksPolicy(preset.preset.oldLinksPolicy);
+                          // Clear individual scenario selections when using preset
+                          setRules(prev => ({
+                            ...prev,
+                            maxLinks: preset.preset.maxLinks,
+                            minDistance: preset.preset.minDistance,
+                            exactPercent: preset.preset.exactPercent,
+                            scenarios: preset.preset.scenarios,
+                            freshnessPush: preset.preset.freshnessPush,
+                            oldLinksPolicy: preset.preset.oldLinksPolicy
+                          }));
+                        }}
+                      >
+                        <CardContent className="p-4">
+                          <h4 className="font-medium text-sm">{preset.title}</h4>
+                          <p className="text-xs text-gray-600 mt-1">{preset.description}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Individual Scenario Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
                     {

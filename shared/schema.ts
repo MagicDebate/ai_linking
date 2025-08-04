@@ -106,10 +106,13 @@ export const insertImportSchema = createInsertSchema(imports).omit({
 export const fieldMappingSchema = z.object({
   uploadId: z.string(),
   fieldMapping: z.record(z.string(), z.string()).refine(
-    (mapping) => mapping.url && mapping.url.trim() !== '',
+    (mapping) => {
+      const required = ['url', 'title', 'content', 'description'];
+      return required.every(field => mapping[field] && mapping[field].trim() !== '');
+    },
     {
-      message: "URL field mapping is required",
-      path: ["url"]
+      message: "URL, Title, Content, and Description field mappings are required",
+      path: ["fieldMapping"]
     }
   ),
   projectId: z.string().optional(),
