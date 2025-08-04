@@ -663,6 +663,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create import job
       const jobId = crypto.randomUUID();
+      
+      console.log(`Starting import for project: ${projectId}`);
+      console.log(`Job ID: ${jobId}`);
+      console.log(`Import ID: ${importId}`);
+      
       const importJob = await storage.createImportJob({
         jobId,
         projectId,
@@ -673,7 +678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Start background processing simulation
-      processImportJobAsync(jobId, importId, scenarios, scope, rules);
+      processImportJobAsync(jobId, importId, scenarios, scope, rules).catch(console.error);
 
       res.json({ 
         success: true, 
@@ -696,7 +701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get import job status
-      const job = await storage.getImportJobStatus(projectId, jobId);
+      const job = await storage.getImportJobStatus(projectId as string, jobId as string);
       
       if (!job) {
         return res.status(404).json({ error: "Import job not found" });

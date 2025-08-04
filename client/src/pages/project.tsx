@@ -535,7 +535,7 @@ export default function ProjectPage() {
                       <h3 className="font-medium text-gray-900">Сопоставление полей</h3>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {["url", "title", "content", "h1", "description", "pageType", "publishDate"].map((field) => (
+                        {["url", "title", "content", "h1", "description", "depth", "pageType", "publishDate"].map((field) => (
                           <div key={field}>
                             <Label className="text-sm font-medium capitalize">
                               {field === "url" ? "URL страницы *" : 
@@ -543,21 +543,22 @@ export default function ProjectPage() {
                                field === "content" ? "Содержимое *" :
                                field === "h1" ? "Заголовок H1" : 
                                field === "description" ? "Описание *" :
+                               field === "depth" ? "Глубина ссылки (опционально)" :
                                field === "pageType" ? "Тип страницы (опционально)" :
                                field === "publishDate" ? "Дата публикации (опционально)" : field}
                             </Label>
                             <Select
-                              value={fieldMapping[field] || (field === "pageType" || field === "publishDate" ? "__none__" : "")}
+                              value={fieldMapping[field] || (["pageType", "publishDate", "depth"].includes(field) ? "__none__" : "")}
                               onValueChange={(value) => {
                                 const actualValue = value === "__none__" ? "" : value;
                                 setFieldMapping(prev => ({ ...prev, [field]: actualValue }));
                               }}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder={field === "pageType" || field === "publishDate" ? "Не выбрано" : "Выберите колонку"} />
+                                <SelectValue placeholder={["pageType", "publishDate", "depth"].includes(field) ? "Не выбрано" : "Выберите колонку"} />
                               </SelectTrigger>
                               <SelectContent>
-                                {(field === "pageType" || field === "publishDate") && (
+                                {["pageType", "publishDate", "depth"].includes(field) && (
                                   <SelectItem value="__none__">Не сопоставлять</SelectItem>
                                 )}
                                 {csvPreview.headers.map((header) => (

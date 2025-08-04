@@ -61,7 +61,24 @@ export function ImportPage() {
 
   // Poll import status every 2 seconds
   const { data: importStatus, refetch, isError } = useQuery<ImportStatus>({
-    queryKey: ["/api/import/status", projectId, jobId],
+    queryKey: ["/api/import/status", projectId],
+    queryFn: async () => {
+      const url = new URL(`/api/import/status`, window.location.origin);
+      url.searchParams.set('projectId', projectId!);
+      if (jobId) {
+        url.searchParams.set('jobId', jobId);
+      }
+      
+      const response = await fetch(url, {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch import status');
+      }
+      
+      return response.json();
+    },
     enabled: !!projectId && autoRefresh,
     refetchInterval: 2000,
   });
@@ -131,12 +148,19 @@ export function ImportPage() {
         <Card>
           <CardContent className="p-8 text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Ошибка загрузки</h2>
-            <p className="text-gray-600 mb-4">Не удалось получить статус импорта</p>
-            <Button onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Попробовать снова
-            </Button>
+            <h2 className="text-xl font-semibold mb-2">Импорт не найден</h2>
+            <p className="text-gray-600 mb-4">
+              Импорт джоб не найден или истек. Возможно, сервер был перезапущен.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button variant="outline" onClick={() => window.location.href = `/project/${projectId}`}>
+                Вернуться к проекту
+              </Button>
+              <Button onClick={() => refetch()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Попробовать снова
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -149,7 +173,19 @@ export function ImportPage() {
         <Card>
           <CardContent className="p-8 text-center">
             <RefreshCw className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-4" />
-            <p>Загрузка статуса импорта...</p>
+            <div className="space-y-3">
+              <p>Загрузка статуса импорта...</p>
+              <p className="text-sm text-gray-500">
+                Project ID: {projectId}, Job ID: {jobId || 'не указан'}
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => window.location.href = `/project/${projectId}`}
+              >
+                Вернуться к проекту
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

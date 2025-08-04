@@ -21,6 +21,11 @@ import {
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 
+// Global type declaration for import jobs
+declare global {
+  var importJobs: Map<string, any> | undefined;
+}
+
 export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
@@ -206,32 +211,35 @@ export class DatabaseStorage implements IStorage {
     return updatedImport || undefined;
   }
 
-  // Import Jobs - simplified implementation for now
+  // Import Jobs - in-memory implementation
   async createImportJob(jobData: any): Promise<any> {
-    // For now, store in memory since we don't have the full schema deployed
     const job = {
       id: Math.random().toString(36),
       jobId: jobData.jobId,
       projectId: jobData.projectId,
       importId: jobData.importId,
-      status: jobData.status,
-      phase: jobData.phase,
-      percent: jobData.percent,
+      status: jobData.status || "pending",
+      phase: jobData.phase || "loading",
+      percent: jobData.percent || 0,
       pagesTotal: 0,
       pagesDone: 0,
       blocksDone: 0,
       orphanCount: 0,
       avgWordCount: 0,
       deepPages: 0,
-      avgClickDepth: 0,
+      avgClickDepth: 0.0,
       logs: [],
       startedAt: new Date(),
       finishedAt: null
     };
     
-    // Store in memory for now
-    if (!global.importJobs) global.importJobs = new Map();
+    // Initialize global storage
+    if (!global.importJobs) {
+      global.importJobs = new Map();
+    }
+    
     global.importJobs.set(jobData.jobId, job);
+    console.log(`Created import job ${jobData.jobId} for project ${jobData.projectId}`);
     
     return job;
   }
@@ -239,7 +247,7 @@ export class DatabaseStorage implements IStorage {
   async getImportJobStatus(projectId: string, jobId?: string): Promise<any> {
     if (!global.importJobs) return null;
     
-    if (jobId) {
+    if (jobId && jobId !== 'undefined') {
       return global.importJobs.get(jobId) || null;
     }
     
