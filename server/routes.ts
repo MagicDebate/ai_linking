@@ -614,36 +614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Start import endpoint
-  app.post("/api/import/start", authenticateToken, async (req: any, res) => {
-    try {
-      const { projectId } = req.body;
-      
-      if (!projectId) {
-        return res.status(400).json({ message: "Project ID is required" });
-      }
-
-      // Verify project ownership
-      const project = await storage.getProjectById(projectId);
-      if (!project || project.userId !== req.user.id) {
-        return res.status(404).json({ message: "Project not found" });
-      }
-
-      // Update user progress
-      await storage.updateUserProgress(req.user.id, { 
-        uploadTexts: "true",
-        setPriorities: "true" 
-      });
-
-      // Start import process (simplified for now)
-      console.log("Starting import for project:", projectId);
-      
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Start import error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
+  // REMOVED: Duplicate endpoint that was overriding the real import/start handler
 
   // Scope preview endpoint
   app.get("/api/scope/preview", authenticateToken, async (req: any, res) => {
@@ -680,7 +651,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create import job
       const jobId = crypto.randomUUID();
       
-      console.log(`Starting import for project: ${projectId}, jobId: ${jobId}`);
+      console.log(`Starting import for project: ${projectId}`);
+      console.log(`Generated jobId: ${jobId}`);
       
       const importJob = await storage.createImportJob({
         jobId,
