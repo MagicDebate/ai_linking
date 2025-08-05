@@ -494,37 +494,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return result;
         };
 
+        // Find ALL URLs in the entire file content first
+        const allUrls = fileContent.match(/https:\/\/evolucionika\.ru\/[^\s,'">\]]+/g) || [];
+        console.log(`🔍 Found ${allUrls.length} URLs in entire file:`, allUrls.slice(0, 5));
+        
         const dataRows = lines.slice(1);
+        let urlIndex = 0;
+        
         fullData = dataRows.map((line, lineIndex) => {
           const parsedRow = parseCSVLine(line);
           const rowObject: any = {};
           
-          // Fix broken CSV structure - if Permalink is in wrong field, extract it
-          if (parsedRow.length === 1 && parsedRow[0].includes('https://evolucionika.ru/')) {
-            // URL is mixed with HTML content in one field
-            const urlMatch = parsedRow[0].match(/https:\/\/evolucionika\.ru\/[^\s,'"]+/);
-            if (urlMatch) {
-              console.log(`🔧 Fixed URL extraction on line ${lineIndex + 2}: ${urlMatch[0]}`);
-              rowObject.Permalink = urlMatch[0];
-              // Clear other fields as they're likely corrupted
-              headers.forEach(header => {
-                if (header !== 'Permalink') rowObject[header] = '';
-              });
-              return rowObject;
-            }
-          }
-          
           headers.forEach((header, index) => {
             let value = parsedRow[index] || '';
             
-            // If Permalink field is empty but value contains URL, extract it
-            if (header === 'Permalink' && !value && parsedRow.some(field => field.includes('https://evolucionika.ru/'))) {
-              const urlField = parsedRow.find(field => field.includes('https://evolucionika.ru/'));
-              if (urlField) {
-                const urlMatch = urlField.match(/https:\/\/evolucionika\.ru\/[^\s,'"]+/);
-                if (urlMatch) {
-                  value = urlMatch[0];
-                  console.log(`🔧 Extracted URL from wrong field: ${value}`);
+            // For Permalink field, use next available URL from the list
+            if (header === 'Permalink') {
+              if (!value || value.trim() === '') {
+                if (urlIndex < allUrls.length) {
+                  value = allUrls[urlIndex];
+                  urlIndex++;
+                  console.log(`🔧 Assigned URL to row ${lineIndex + 2}: ${value}`);
                 }
               }
             }
