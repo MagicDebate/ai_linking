@@ -330,7 +330,7 @@ export default function ProjectPage() {
       });
 
       console.log('Import response status:', response.status);
-      console.log('Import response headers:', [...response.headers.entries()]);
+      console.log('Import response headers:', Array.from(response.headers.entries()));
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -1093,10 +1093,15 @@ export default function ProjectPage() {
                                 <label className="flex items-center">
                                   <input
                                     type="checkbox"
-                                    checked={rules.relAttributes.noopener}
+                                    checked={rules.relAttributes?.noopener || false}
                                     onChange={(e) => setRules(prev => ({
                                       ...prev,
-                                      relAttributes: { ...prev.relAttributes, noopener: e.target.checked }
+                                      relAttributes: { 
+                                        ...prev.relAttributes, 
+                                        noopener: e.target.checked,
+                                        noreferrer: prev.relAttributes?.noreferrer || false,
+                                        nofollow: prev.relAttributes?.nofollow || false
+                                      }
                                     }))}
                                     className="mr-2"
                                   />
@@ -1105,10 +1110,15 @@ export default function ProjectPage() {
                                 <label className="flex items-center">
                                   <input
                                     type="checkbox"
-                                    checked={rules.relAttributes.noreferrer}
+                                    checked={rules.relAttributes?.noreferrer || false}
                                     onChange={(e) => setRules(prev => ({
                                       ...prev,
-                                      relAttributes: { ...prev.relAttributes, noreferrer: e.target.checked }
+                                      relAttributes: { 
+                                        ...prev.relAttributes, 
+                                        noreferrer: e.target.checked,
+                                        noopener: prev.relAttributes?.noopener || false,
+                                        nofollow: prev.relAttributes?.nofollow || false
+                                      }
                                     }))}
                                     className="mr-2"
                                   />
@@ -1117,10 +1127,15 @@ export default function ProjectPage() {
                                 <label className="flex items-center">
                                   <input
                                     type="checkbox"
-                                    checked={rules.relAttributes.nofollow}
+                                    checked={rules.relAttributes?.nofollow || false}
                                     onChange={(e) => setRules(prev => ({
                                       ...prev,
-                                      relAttributes: { ...prev.relAttributes, nofollow: e.target.checked }
+                                      relAttributes: { 
+                                        ...prev.relAttributes, 
+                                        nofollow: e.target.checked,
+                                        noopener: prev.relAttributes?.noopener || false,
+                                        noreferrer: prev.relAttributes?.noreferrer || false
+                                      }
                                     }))}
                                     className="mr-2"
                                   />

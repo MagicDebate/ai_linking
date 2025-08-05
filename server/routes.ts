@@ -506,10 +506,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Store full CSV data in global memory for processing
-      if (!global.uploads) {
-        global.uploads = new Map();
+      if (!(global as any).uploads) {
+        (global as any).uploads = new Map();
       }
-      global.uploads.set(uploadId, { 
+      (global as any).uploads.set(uploadId, { 
         data: fullData, 
         headers: headers,
         fileName: fileName 
@@ -759,8 +759,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const testJobId = "test-job-" + Date.now();
       console.log(`Creating test job: ${testJobId}`);
       
-      if (!global.importJobs) {
-        global.importJobs = new Map();
+      if (!(global as any).importJobs) {
+        (global as any).importJobs = new Map();
         console.log('Initialized global.importJobs');
       }
       
@@ -773,19 +773,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startedAt: new Date()
       };
       
-      global.importJobs.set(testJobId, testJob);
-      console.log(`Test job created. Total jobs: ${global.importJobs.size}`);
-      console.log('Available job IDs:', Array.from(global.importJobs.keys()));
+      (global as any).importJobs.set(testJobId, testJob);
+      console.log(`Test job created. Total jobs: ${(global as any).importJobs.size}`);
+      console.log('Available job IDs:', Array.from((global as any).importJobs.keys()));
       
       res.json({ 
         success: true, 
         jobId: testJobId,
-        totalJobs: global.importJobs.size,
-        availableJobs: Array.from(global.importJobs.keys())
+        totalJobs: (global as any).importJobs.size,
+        availableJobs: Array.from((global as any).importJobs.keys())
       });
     } catch (error) {
       console.error('Test create error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 
@@ -795,7 +795,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { projectId, jobId } = req.query;
       
       console.log(`Getting import status for project: ${projectId}, jobId: ${jobId}`);
-      console.log(`Available jobs:`, global.importJobs ? Array.from(global.importJobs.keys()) : 'undefined');
+      console.log(`Available jobs:`, (global as any).importJobs ? Array.from((global as any).importJobs.keys()) : 'undefined');
       
       if (!projectId) {
         return res.status(400).json({ error: "Missing projectId parameter" });
@@ -890,7 +890,7 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
   
   try {
     // Get real CSV data from upload
-    const csvData = global.uploads?.get(importId);
+    const csvData = (global as any).uploads?.get(importId);
     if (!csvData) {
       throw new Error(`Upload data not found for importId: ${importId}`);
     }
@@ -909,11 +909,11 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       const content = row.Content || '';
       
       // Count text blocks (split by double newlines)
-      const blocks = content.split(/\n\n+/).filter(block => block.trim().length > 0);
+      const blocks = content.split(/\n\n+/).filter((block: string) => block.trim().length > 0);
       totalBlocks += blocks.length;
       
       // Count words in content
-      const words = content.trim().split(/\s+/).filter(word => word.trim().length > 0);
+      const words = content.trim().split(/\s+/).filter((word: string) => word.trim().length > 0);
       totalWords += words.length;
       
       // Check if page has no links (orphan)
