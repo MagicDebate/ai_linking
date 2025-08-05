@@ -380,53 +380,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "CSV file is empty" });
         }
 
-        // Enhanced CSV parsing with proper quote handling
-        const parseCSVLine = (line: string): string[] => {
-          const result: string[] = [];
-          let current = '';
-          let inQuotes = false;
-          let i = 0;
-          
-          while (i < line.length) {
-            const char = line[i];
-            const nextChar = line[i + 1];
-            
-            if (char === '"') {
-              if (inQuotes && nextChar === '"') {
-                // Escaped quote inside quoted field
-                current += '"';
-                i += 2;
-                continue;
-              } else {
-                // Toggle quote state
-                inQuotes = !inQuotes;
-              }
-            } else if (char === ',' && !inQuotes) {
-              // Field separator
-              result.push(current.trim());
-              current = '';
-            } else {
-              current += char;
-            }
-            i++;
-          }
-          
-          // Add final field
-          result.push(current.trim());
-          return result;
-        };
-
-        headers = parseCSVLine(lines[0]);
-        const dataRows = lines.slice(1);
+        // Simple CSV parsing - split by comma, handle basic quotes
+        headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
         
-        // Parse rows and ensure they match header count
-        rows = dataRows.slice(0, 5).map(line => {
-          const parsedRow = parseCSVLine(line);
-          // Pad or trim row to match header count
-          while (parsedRow.length < headers.length) {
-            parsedRow.push('');
+        // Take first few complete lines for preview
+        const previewLines = [];
+        for (let i = 1; i < lines.length && previewLines.length < 5; i++) {
+          const line = lines[i];
+          if (line.includes(',')) {
+            previewLines.push(line);
           }
-          return parsedRow.slice(0, headers.length);
+        }
+        
+        rows = previewLines.map(line => {
+          const fields = line.split(',');
+          // Ensure we have exactly the same number of fields as headers
+          while (fields.length < headers.length) {
+            fields.push('');
+          }
+          return fields.slice(0, headers.length).map(f => f.trim().replace(/^"|"$/g, ''));
         });
       } else if (fileName.endsWith('.json')) {
         // Parse JSON
@@ -456,70 +428,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Project not found" });
       }
 
-      // Parse full CSV data for processing
+      // Parse full CSV data for processing - simple approach
       let fullData: any[] = [];
       if (fileName.endsWith('.csv')) {
         const lines = fileContent.split('\n').filter(line => line.trim());
-        const parseCSVLine = (line: string): string[] => {
-          const result: string[] = [];
-          let current = '';
-          let inQuotes = false;
-          let i = 0;
-          
-          while (i < line.length) {
-            const char = line[i];
-            const nextChar = line[i + 1];
-            
-            if (char === '"') {
-              if (inQuotes && nextChar === '"') {
-                current += '"';
-                i += 2;
-                continue;
-              } else {
-                inQuotes = !inQuotes;
-              }
-            } else if (char === ',' && !inQuotes) {
-              result.push(current.trim());
-              current = '';
-            } else {
-              current += char;
-            }
-            i++;
-          }
-          
-          result.push(current.trim());
-          if (result.length > 1) {
-            console.log(`🔍 Parsed CSV line into ${result.length} fields:`, result.slice(0, 6));
-          }
-          return result;
-        };
-
-        // Find ALL URLs in the entire file content first
-        const allUrls = fileContent.match(/https:\/\/evolucionika\.ru\/[^\s,'">\]]+/g) || [];
-        console.log(`🔍 Found ${allUrls.length} URLs in entire file:`, allUrls.slice(0, 5));
-        
         const dataRows = lines.slice(1);
-        let urlIndex = 0;
         
-        fullData = dataRows.map((line, lineIndex) => {
-          const parsedRow = parseCSVLine(line);
+        fullData = dataRows.map(line => {
+          const fields = line.split(',');
           const rowObject: any = {};
-          
           headers.forEach((header, index) => {
-            let value = parsedRow[index] || '';
-            
-            // For Permalink field, use next available URL from the list
-            if (header === 'Permalink') {
-              if (!value || value.trim() === '') {
-                if (urlIndex < allUrls.length) {
-                  value = allUrls[urlIndex];
-                  urlIndex++;
-                  console.log(`🔧 Assigned URL to row ${lineIndex + 2}: ${value}`);
-                }
-              }
-            }
-            
-            rowObject[header] = value;
+            rowObject[header] = (fields[index] || '').trim().replace(/^"|"$/g, '');
           });
           return rowObject;
         });
@@ -539,26 +458,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       console.log(`Stored ${fullData.length} rows for uploadId: ${uploadId}`);
-      console.log(`📋 CSV Headers:`, headers);
-      console.log(`📋 First row data:`, fullData[0]);
-      
-      // Check if Permalink field has any data AFTER processing
-      const permalinkData = fullData.slice(0, 10).map(row => row.Permalink || 'EMPTY');
-      console.log(`🔍 First 10 Permalink values AFTER processing:`, permalinkData);
-      
-      // Generate preview from PROCESSED data, not raw CSV
-      const previewRows = fullData.slice(0, 5).map(row => 
-        headers.map(header => String(row[header] || ''))
-      );
-      console.log(`📋 Preview rows from PROCESSED data:`, previewRows.slice(0, 2));
-      
-      // Check raw CSV lines - only for CSV files
-      if (fileName.endsWith('.csv')) {
-        const lines = fileContent.split('\n').filter(line => line.trim());
-        console.log(`🔍 Raw first CSV line:`, lines[0]);
-        console.log(`🔍 Raw second CSV line:`, lines[1]);
-        console.log(`🔍 Raw third CSV line:`, lines[2]);
-      }
+      console.log(`CSV Headers:`, headers);
+      console.log(`Preview rows:`, rows.slice(0, 2));
 
       // Save import record with uploadId as the ID
       const newImport = await storage.createImport({
@@ -571,7 +472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         processedAt: null,
       });
 
-      res.json({ uploadId, preview: { headers, rows: previewRows } });
+      res.json({ uploadId, preview: { headers, rows } });
     } catch (error) {
       console.error("Upload error:", error);
       res.status(500).json({ message: "Upload failed" });
