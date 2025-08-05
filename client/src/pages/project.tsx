@@ -306,6 +306,14 @@ export default function ProjectPage() {
   // Generate mutation - starts Step 4 import process
   const generateMutation = useMutation({
     mutationFn: async () => {
+      console.log('🚀 Starting import with data:', {
+        projectId,
+        importId: uploadId,
+        scenarios: selectedScenarios,
+        scope: scopeSettings,
+        rules
+      });
+      
       const response = await fetch("/api/import/start", {
         method: "POST",
         headers: {
@@ -321,11 +329,18 @@ export default function ProjectPage() {
         }),
       });
 
+      console.log('Import response status:', response.status);
+      console.log('Import response headers:', [...response.headers.entries()]);
+
       if (!response.ok) {
-        throw new Error("Import start failed");
+        const errorText = await response.text();
+        console.error('Import request failed:', errorText);
+        throw new Error(`Import start failed: ${response.status} - ${errorText}`);
       }
 
-      return response.json();
+      const result = await response.json();
+      console.log('Import response JSON:', result);
+      return result;
     },
     onSuccess: (data) => {
       console.log('Import started successfully:', data);

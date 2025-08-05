@@ -668,6 +668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start import job for Step 4
   app.post("/api/import/start", authenticateToken, async (req: any, res) => {
     try {
+      console.log('🚀 /api/import/start called with body:', req.body);
       const { projectId, importId, scenarios, scope, rules } = req.body;
       
       // Validate project belongs to user
@@ -705,13 +706,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }, 100);
 
-      console.log(`✓ Sending response with jobId: ${jobId}`);
-      
-      res.json({ 
+      const responseData = { 
         success: true, 
         jobId: jobId,
         message: "Import job started successfully"
-      });
+      };
+      
+      console.log(`✓ Sending response:`, responseData);
+      res.json(responseData);
     } catch (error) {
       console.error("Import start error:", error);
       res.status(500).json({ error: "Failed to start import" });
