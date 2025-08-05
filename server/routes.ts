@@ -488,6 +488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           result.push(current.trim());
+          console.log(`🔍 Parsed CSV line into ${result.length} fields:`, result.slice(0, 6));
           return result;
         };
 
@@ -519,6 +520,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`📋 CSV Headers:`, headers);
       console.log(`📋 First row data:`, fullData[0]);
       console.log(`📋 Preview rows:`, rows.slice(0, 2));
+      
+      // Check if Permalink field has any data
+      const permalinkData = fullData.slice(0, 10).map(row => row.Permalink || 'EMPTY');
+      console.log(`🔍 First 10 Permalink values:`, permalinkData);
+      
+      // Check raw CSV lines
+      console.log(`🔍 Raw first CSV line:`, lines[0]);
+      console.log(`🔍 Raw second CSV line:`, lines[1]);
+      console.log(`🔍 Raw third CSV line:`, lines[2]);
 
       // Save import record with uploadId as the ID
       const newImport = await storage.createImport({
