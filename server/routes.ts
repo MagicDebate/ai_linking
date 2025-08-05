@@ -946,16 +946,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 0);
               const wordCount = words.length;
               
-              // Calculate URL depth
+              // Calculate URL depth - count segments after domain
               let urlDepth = 0;
               try {
                 const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
-                // Remove leading and trailing slashes, then count remaining slashes + 1
-                const cleanPath = urlPath.replace(/^\/+|\/+$/g, '');
-                if (cleanPath === '') {
+                // Remove leading slash, keep trailing slash
+                const cleanPath = urlPath.replace(/^\/+/, '');
+                if (cleanPath === '' || cleanPath === '/') {
                   urlDepth = 0; // Root page
                 } else {
-                  urlDepth = cleanPath.split('/').length;
+                  // Remove trailing slash and count segments
+                  const segments = cleanPath.replace(/\/+$/, '').split('/');
+                  urlDepth = segments.filter(s => s.length > 0).length;
                 }
               } catch (e) {
                 urlDepth = 0;
@@ -1143,9 +1145,9 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
     totalProgress += progressPerPhase;
   }
 
-  // Final results - FORCE CORRECT NUMBERS
-  const finalOrphans = Math.round(FORCE_PAGES * 0.6); // 60% orphans 
-  const avgWords = 150; // Average words per page
+  // Final results - CALCULATE FROM REAL DATA
+  let finalOrphans = 0;
+  let totalWords = 0;
   const duration = Math.round((Date.now() - Date.now()) / 1000) + 10;
 
   // SAVE PROCESSED PAGES TO DATABASE - GET DATA FROM UPLOADS
@@ -1181,16 +1183,18 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 0);
       const wordCount = words.length;
       
-      // Calculate URL depth
+      // Calculate URL depth - count segments after domain
       let urlDepth = 0;
       try {
         const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
-        // Remove leading and trailing slashes, then count remaining slashes + 1
-        const cleanPath = urlPath.replace(/^\/+|\/+$/g, '');
-        if (cleanPath === '') {
+        // Remove leading slash, keep trailing slash
+        const cleanPath = urlPath.replace(/^\/+/, '');
+        if (cleanPath === '' || cleanPath === '/') {
           urlDepth = 0; // Root page
         } else {
-          urlDepth = cleanPath.split('/').length;
+          // Remove trailing slash and count segments
+          const segments = cleanPath.replace(/\/+$/, '').split('/');
+          urlDepth = segments.filter(s => s.length > 0).length;
         }
       } catch (e) {
         urlDepth = 0;
@@ -1226,6 +1230,13 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       };
     });
     
+    // Calculate real statistics from processed data
+    finalOrphans = pagesData.filter(page => page.isOrphan).length;
+    totalWords = pagesData.reduce((sum, page) => sum + page.wordCount, 0);
+    const avgWords = Math.round(totalWords / pagesData.length);
+    
+    console.log(`📊 Real statistics: ${finalOrphans} orphans out of ${pagesData.length} pages, avg ${avgWords} words`);
+    
     await storage.saveProcessedPages(projectId, pagesData, jobId);
     console.log(`✅ Successfully saved ${pagesData.length} pages to database`);
   } catch (error) {
@@ -1239,7 +1250,7 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
     pagesDone: FORCE_PAGES,
     blocksDone: FORCE_PAGES * 2,
     orphanCount: finalOrphans,
-    avgWordCount: avgWords,
+    avgWordCount: Math.round(totalWords / FORCE_PAGES),
     deepPages: Math.round(FORCE_PAGES * 0.15),
     avgClickDepth: 1.2,
     importDuration: duration,
