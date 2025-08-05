@@ -1356,9 +1356,16 @@ class ContentProcessor {
   private async splitIntoBlocks(cleanPages: any[]) {
     const allBlocks = [];
     
-    for (const page of cleanPages) {
+    console.log(`📝 Starting to process ${cleanPages.length} pages into blocks...`);
+    
+    for (let pageIndex = 0; pageIndex < cleanPages.length; pageIndex++) {
+      const page = cleanPages[pageIndex];
       const htmlContent = page.cleanHtml;
       const blockList = this.extractBlocks(htmlContent);
+      
+      if (pageIndex % 50 === 0) {
+        console.log(`📝 Processing page ${pageIndex + 1}/${cleanPages.length} - found ${blockList.length} blocks`);
+      }
       
       for (let i = 0; i < blockList.length; i++) {
         const block = blockList[i];
@@ -1380,7 +1387,7 @@ class ContentProcessor {
       }
     }
     
-    console.log(`📝 Created ${allBlocks.length} content blocks`);
+    console.log(`📝 Created ${allBlocks.length} content blocks from ${cleanPages.length} pages`);
     return allBlocks;
   }
 
