@@ -516,6 +516,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       console.log(`Stored ${fullData.length} rows for uploadId: ${uploadId}`);
+      console.log(`📋 CSV Headers:`, headers);
+      console.log(`📋 First row data:`, fullData[0]);
+      console.log(`📋 Preview rows:`, rows.slice(0, 2));
 
       // Save import record with uploadId as the ID
       const newImport = await storage.createImport({
