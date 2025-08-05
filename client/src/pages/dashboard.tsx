@@ -472,23 +472,7 @@ export default function Dashboard() {
               </CardContent>
             </Card>
             
-            {/* Debug section */}
-            <Card className="mt-4 border-orange-200">
-              <CardHeader>
-                <CardTitle className="text-sm text-orange-600">🔍 Отладка данных</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full border-orange-300 hover:bg-orange-50"
-                  onClick={() => window.open('/debug/pages', '_blank')}
-                >
-                  <Bug className="w-4 h-4 mr-2" />
-                  Посмотреть данные страниц
-                </Button>
-              </CardContent>
-            </Card>
+            
           </div>
         </div>
       </div>
