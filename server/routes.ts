@@ -809,6 +809,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Import job not found" });
       }
 
+      // Debug: Log the job data being returned
+      console.log(`Job data:`, {
+        pagesTotal: job.pagesTotal,
+        pagesDone: job.pagesDone, 
+        blocksDone: job.blocksDone,
+        orphanCount: job.orphanCount,
+        avgWordCount: job.avgWordCount
+      });
+
       res.json(job);
     } catch (error) {
       console.error("Import status error:", error);
