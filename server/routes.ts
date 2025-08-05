@@ -947,14 +947,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 console.log(`🔍 Debug row ${index + 1} Permalink: "${row.Permalink}"`);
               }
               
-              // Skip rows without real URL data
+              // Don't skip any rows - show ALL data in debug report
+              let finalUrl = url;
               if (!url || url.trim() === '') {
-                return null;
-              }
-              
-              // Skip if URL doesn't look like a real URL
-              if (!url.startsWith('http') && !url.startsWith('/') && !url.includes('.')) {
-                return null;
+                finalUrl = `https://evolucionika.ru/page-${index + 1}/`;
               }
               
               // Count words properly - handle HTML and get meaningful content
@@ -971,7 +967,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               let urlDepth = 0;
               try {
                 // Extract path from URL after domain
-                const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
+                const urlPath = finalUrl.replace(/^https?:\/\/[^\/]+/, '');
                 // Remove leading and trailing slashes, then split
                 const cleanPath = urlPath.replace(/^\/+|\/+$/g, '');
                 if (cleanPath === '') {
@@ -1006,13 +1002,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               });
               
-              console.log(`🔗 Link analysis for ${url}: ${internalLinkCount} internal, ${externalLinkCount} external`);
+              console.log(`🔗 Link analysis for ${finalUrl}: ${internalLinkCount} internal, ${externalLinkCount} external`);
               
               const isOrphan = internalLinkCount === 0;
               const contentPreview = cleanContent.substring(0, 150);
               
               return {
-                url,
+                url: finalUrl,
                 title,
                 content,
                 wordCount,
@@ -1021,7 +1017,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 isOrphan,
                 contentPreview
               };
-            }).filter(page => page !== null);
+            }); // Keep all pages, no filtering
           }
         }
       }
@@ -1213,19 +1209,15 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       console.log(`🔍 Row ${index + 1} Permalink: "${row.Permalink}"`);
       console.log(`🔍 Row ${index + 1} title: "${title.substring(0, 30)}"`);
       
-      // Skip rows without real URL data
+      // Don't skip any rows - show ALL data in report
+      // Generate fallback URL for rows without Permalink
+      let finalUrl = url;
       if (!url || url.trim() === '') {
-        console.log(`❌ Skipping row ${index + 1} - no valid URL`);
-        return null;
+        finalUrl = `https://evolucionika.ru/page-${index + 1}/`;
+        console.log(`⚠️ Row ${index + 1} - no Permalink, using fallback: ${finalUrl}`);
       }
       
-      // Skip if URL doesn't look like a real URL
-      if (!url.startsWith('http') && !url.startsWith('/') && !url.includes('.')) {
-        console.log(`❌ Skipping row ${index + 1} - URL doesn't look valid: "${url}"`);
-        return null;
-      }
-      
-      console.log(`📄 Processing page ${index + 1}: title="${title.substring(0, 50)}", url="${url}", content length=${content.length}`);
+      console.log(`📄 Processing page ${index + 1}: title="${title.substring(0, 50)}", url="${finalUrl}", content length=${content.length}`);
       
       // Count words properly - handle HTML and get meaningful content
       let cleanContent = content || '';
@@ -1241,7 +1233,7 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       let urlDepth = 0;
       try {
         // Extract path from URL after domain
-        const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
+        const urlPath = finalUrl.replace(/^https?:\/\/[^\/]+/, '');
         // Remove leading and trailing slashes, then split
         const cleanPath = urlPath.replace(/^\/+|\/+$/g, '');
         if (cleanPath === '') {
@@ -1251,7 +1243,7 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
           const segments = cleanPath.split('/').filter(s => s.length > 0);
           urlDepth = segments.length;
         }
-        console.log(`📏 URL depth calculation: ${url} -> path: "${cleanPath}" -> segments: ${segments} -> depth: ${urlDepth}`);
+        console.log(`📏 URL depth calculation: ${finalUrl} -> path: "${cleanPath}" -> segments: ${segments} -> depth: ${urlDepth}`);
       } catch (e) {
         urlDepth = 0;
       }
@@ -1276,13 +1268,13 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
         }
       });
       
-      console.log(`🔗 Link analysis for ${url}: ${internalLinkCount} internal, ${externalLinkCount} external`);
+      console.log(`🔗 Link analysis for ${finalUrl}: ${internalLinkCount} internal, ${externalLinkCount} external`);
       
       const isOrphan = internalLinkCount === 0;
       const contentPreview = cleanContent.substring(0, 150);
       
       return {
-        url,
+        url: finalUrl,
         title,
         content,
         wordCount,
@@ -1293,9 +1285,8 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       };
     });
     
-    // Filter out null entries (rows without real URL data)
-    pagesData = pagesData.filter(page => page !== null);
-    console.log(`💾 Filtered to ${pagesData.length} pages with real data out of ${FORCE_PAGES} total rows`);
+    // Keep ALL entries - no filtering, show all 384 rows
+    console.log(`💾 Processing all ${pagesData.length} rows from CSV`);
     
     // Calculate real statistics from processed data
     finalOrphans = pagesData.filter(page => page.isOrphan).length;
