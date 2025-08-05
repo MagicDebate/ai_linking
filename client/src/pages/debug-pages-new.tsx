@@ -39,7 +39,7 @@ export default function DebugPages() {
   const [filters, setFilters] = useState({
     minWords: '',
     maxWords: '',
-    urlDepth: '',
+    urlDepth: 'all',
     minLinks: '',
     maxLinks: '',
     orphanOnly: false
@@ -55,7 +55,7 @@ export default function DebugPages() {
   const filteredPages = pagesData?.pages?.filter((page: PageData) => {
     if (filters.minWords && page.wordCount < parseInt(filters.minWords)) return false;
     if (filters.maxWords && page.wordCount > parseInt(filters.maxWords)) return false;
-    if (filters.urlDepth && page.urlDepth !== parseInt(filters.urlDepth)) return false;
+    if (filters.urlDepth && filters.urlDepth !== 'all' && page.urlDepth !== parseInt(filters.urlDepth)) return false;
     if (filters.minLinks && page.internalLinkCount < parseInt(filters.minLinks)) return false;
     if (filters.maxLinks && page.internalLinkCount > parseInt(filters.maxLinks)) return false;
     if (filters.orphanOnly && !page.isOrphan) return false;
@@ -66,7 +66,7 @@ export default function DebugPages() {
     setFilters({
       minWords: '',
       maxWords: '',
-      urlDepth: '',
+      urlDepth: 'all',
       minLinks: '',
       maxLinks: '',
       orphanOnly: false
@@ -210,7 +210,7 @@ export default function DebugPages() {
                   <SelectValue placeholder="Любая" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Любая</SelectItem>
+                  <SelectItem value="all">Любая</SelectItem>
                   <SelectItem value="0">0 (главная)</SelectItem>
                   <SelectItem value="1">1 (/page)</SelectItem>
                   <SelectItem value="2">2 (/cat/page)</SelectItem>
