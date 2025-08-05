@@ -13,7 +13,9 @@ import {
   clearTokenCookies, 
   authenticateToken 
 } from "./auth";
-import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema } from "@shared/schema";
+import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, embeddings, edges, graphMeta } from "@shared/schema";
+import { sql } from "drizzle-orm";
+import { db } from "./db";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
@@ -1143,216 +1145,393 @@ function calculateRelevanceScore(sourcePage: any, targetPage: any): number {
   return Math.min(1.0, jaccardScore + titleBonus + lengthPenalty);
 }
 
-// CRITICAL FUNCTION: FORCE CSV DATA PROCESSING - NO FAKE DATA ALLOWED
-async function processImportJobAsync(jobId: string, importId: string, scenarios: any, scope: any, rules: any, projectId: string) {
-  console.log(`🔥🔥🔥 FORCE START processImportJobAsync FOR JOB ${jobId} 🔥🔥🔥`);
-  console.log(`🔥 ProjectId: ${projectId}, ImportId: ${importId}, scenarios: ${JSON.stringify(scenarios)}`);
-  
-  // FORCE 384 PAGES - NO MATTER WHAT
-  const FORCE_PAGES = 384;
-  
-  console.log(`🔥 FORCING ${FORCE_PAGES} PAGES - NO FAKE DATA ALLOWED`);
-  
-  // Immediately set correct data
-  await storage.updateImportJob(jobId, {
-    status: "running",
-    phase: "loading", 
-    percent: 0,
-    pagesTotal: FORCE_PAGES,
-    pagesDone: 0,
-    blocksDone: 0,
-    orphanCount: 0,
-    avgWordCount: 0,
-    logs: [`🔥 FORCED: Processing ${FORCE_PAGES} pages from CSV`]
-  });
+// Content processing pipeline
+class ContentProcessor {
+  constructor(private storage: IStorage) {}
 
-  const phases = [
-    { name: "loading", duration: 1000, label: "Загрузка CSV данных" },
-    { name: "cleaning", duration: 1500, label: "Обработка реальных данных" },
-    { name: "chunking", duration: 1200, label: "Анализ 384 страниц" },
-    { name: "extracting", duration: 1800, label: "Извлечение метаданных" },
-    { name: "embedding", duration: 2000, label: "Создание связей" },
-    { name: "graphing", duration: 1500, label: "Построение графа" },
-    { name: "finalizing", duration: 800, label: "Финализация" }
-  ];
-
-  let totalProgress = 0;
-  const progressPerPhase = 100 / phases.length;
-
-  for (let i = 0; i < phases.length; i++) {
-    const phase = phases[i];
-    console.log(`🔥 Phase ${i + 1}/7: ${phase.label} - FORCE ${FORCE_PAGES} pages`);
+  async processContent(jobId: string, projectId: string, importId: string) {
+    console.log(`🚀 Starting real content processing for job ${jobId}`);
     
-    await storage.updateImportJob(jobId, {
-      phase: phase.name,
-      percent: Math.round(totalProgress),
-      logs: [`🔥 Фаза ${i + 1}/7: ${phase.label} (${FORCE_PAGES} страниц)`]
-    });
-
-    const steps = 4;
-    for (let step = 0; step < steps; step++) {
-      await new Promise(resolve => setTimeout(resolve, phase.duration / steps));
-      
-      const phaseProgress = ((step + 1) / steps) * progressPerPhase;
-      const currentPercent = Math.min(100, Math.round(totalProgress + phaseProgress));
-
-      await storage.updateImportJob(jobId, {
-        percent: currentPercent,
-        pagesDone: Math.round((currentPercent / 100) * FORCE_PAGES),
-        blocksDone: Math.round((currentPercent / 100) * (FORCE_PAGES * 2.5)),
-        logs: [`${phase.label}: ${Math.round(((step + 1) / steps) * 100)}% завершено`]
-      });
+    // Phase 1: Load CSV data
+    await this.updateProgress(jobId, "loading", 0, "Читаем CSV");
+    const csvData = await this.loadCSVData(importId);
+    if (!csvData) {
+      throw new Error("Failed to load CSV data");
     }
-
-    totalProgress += progressPerPhase;
+    
+    await this.updateProgress(jobId, "loading", 100, `CSV загружен: ${csvData.length} записей`);
+    
+    // Phase 2: Clean HTML and save to pages_clean
+    await this.updateProgress(jobId, "cleaning", 0, "Очищаем HTML");
+    const cleanPages = await this.cleanHTML(csvData, jobId);
+    await this.updateProgress(jobId, "cleaning", 100, `HTML очищен: ${cleanPages.length} страниц`);
+    
+    // Phase 3: Split into blocks
+    await this.updateProgress(jobId, "chunking", 0, "Режем на абзацы");
+    const blocksData = await this.splitIntoBlocks(cleanPages);
+    await this.updateProgress(jobId, "chunking", 100, `Создано блоков: ${blocksData.length}`);
+    
+    // Phase 4: Generate embeddings
+    await this.updateProgress(jobId, "vectorizing", 0, "Векторизация");
+    const embeddings = await this.generateEmbeddings(blocksData);
+    await this.updateProgress(jobId, "vectorizing", 100, `Векторов создано: ${embeddings.length}`);
+    
+    // Phase 5: Build link graph
+    await this.updateProgress(jobId, "graphing", 0, "Строим карту ссылок");
+    const graphData = await this.buildLinkGraph(cleanPages, jobId);
+    await this.updateProgress(jobId, "graphing", 100, `Граф построен: ${graphData.orphanCount} сирот`);
+    
+    // Final statistics
+    const stats = {
+      pagesTotal: cleanPages.length,
+      blocksTotal: blocksData.length,
+      orphanCount: graphData.orphanCount,
+      avgClickDepth: graphData.avgClickDepth
+    };
+    
+    await this.storage.updateImportJob(jobId, {
+      status: "completed",
+      phase: "completed",
+      percent: 100,
+      pagesTotal: stats.pagesTotal,
+      pagesDone: stats.pagesTotal,
+      blocksDone: stats.blocksTotal,
+      orphanCount: stats.orphanCount,
+      avgClickDepth: stats.avgClickDepth,
+      finishedAt: sql`now()`,
+      logs: [`✅ Обработка завершена: ${stats.pagesTotal} страниц, ${stats.blocksTotal} блоков, ${stats.orphanCount} сирот`]
+    });
+    
+    console.log(`✅ Content processing completed:`, stats);
+    return stats;
   }
 
-  // Final results - CALCULATE FROM REAL DATA
-  let finalOrphans = 0;
-  let totalWords = 0;
-  const duration = Math.round((Date.now() - Date.now()) / 1000) + 10;
+  private async updateProgress(jobId: string, phase: string, percent: number, message: string) {
+    console.log(`📈 ${phase}: ${percent}% - ${message}`);
+    await this.storage.updateImportJob(jobId, { phase, logs: [message] });
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
 
-  // SAVE PROCESSED PAGES TO DATABASE - GET DATA FROM UPLOADS
-  console.log(`💾 Saving ${FORCE_PAGES} pages to database for project ${projectId}`);
-  try {
-    // Get upload data for this import
-    const uploads = (global as any).uploads;
-    let projectUpload = null;
-    if (uploads && uploads.size > 0) {
-      for (const [uploadId, upload] of uploads.entries()) {
-        if (upload && (upload.projectId === projectId || uploadId === importId)) {
-          projectUpload = upload;
-          console.log(`💾 Found upload data for ${uploadId}: ${upload.data ? upload.data.length : 0} rows`);
-          break;
-        }
+  private async loadCSVData(importId: string) {
+    const importData = await this.storage.getImportByUploadId(importId);
+    if (!importData || !importData.filePath) {
+      throw new Error("Import data or file path not found");
+    }
+
+    const fs = require('fs');
+    const fileContent = fs.readFileSync(importData.filePath, 'utf-8');
+    const fieldMapping = JSON.parse(importData.fieldMapping || '{}');
+    
+    const csvRows = this.parseCSV(fileContent);
+    const headers = csvRows[0];
+    const dataRows = csvRows.slice(1);
+    
+    const validData = [];
+    for (const row of dataRows) {
+      const rowObject: any = {};
+      headers.forEach((header, index) => {
+        rowObject[header] = (row[index] || '').trim();
+      });
+      
+      const url = rowObject[fieldMapping.url] || '';
+      if (url && url.includes('http')) {
+        validData.push({
+          url,
+          title: rowObject[fieldMapping.title] || '',
+          content: rowObject[fieldMapping.content] || '',
+          description: rowObject[fieldMapping.description] || '',
+          rawData: rowObject
+        });
       }
     }
     
-    if (!projectUpload || !projectUpload.data || !Array.isArray(projectUpload.data)) {
-      console.error(`❌ No valid data array found for project ${projectId}, importId ${importId}`);
-      console.log(`❌ Available uploads:`, uploads ? Array.from(uploads.keys()) : 'none');
-      throw new Error('No valid data array found');
-    }
+    console.log(`📄 Loaded ${validData.length} valid pages from CSV`);
+    return validData;
+  }
+
+  private parseCSV(csvText: string): string[][] {
+    const results: string[][] = [];
+    let currentRow: string[] = [];
+    let currentField = '';
+    let inQuotes = false;
+    let i = 0;
     
-    console.log(`💾 Found upload data: ${projectUpload.data.length} rows`);
-    let pagesData = projectUpload.data.slice(0, FORCE_PAGES).map((row: any, index: number) => {
-      const content = row.Content || row.content || '';
-      const title = row.Title || row.title || '';
-      const url = row.Permalink || row.URL || row.url || '';
+    while (i < csvText.length) {
+      const char = csvText[i];
+      const nextChar = csvText[i + 1];
       
-      // Debug field mapping
-      console.log(`🔍 Row ${index + 1} fields:`, Object.keys(row));
-      console.log(`🔍 Row ${index + 1} Permalink: "${row.Permalink}"`);
-      console.log(`🔍 Row ${index + 1} title: "${title.substring(0, 30)}"`);
-      
-      // Skip rows without real Permalink - no fallback URLs allowed
-      if (!url || url.trim() === '') {
-        console.log(`❌ Skipping row ${index + 1} - no Permalink field`);
-        return null;
-      }
-      
-      console.log(`✅ Row ${index + 1} has valid Permalink: "${url}"`);
-      
-      console.log(`📄 Processing page ${index + 1}: title="${title.substring(0, 50)}", url="${url}", content length=${content.length}`);
-      
-      // Count words properly - handle HTML and get meaningful content
-      let cleanContent = content || '';
-      // Remove HTML tags but preserve spaces
-      cleanContent = cleanContent.replace(/<[^>]*>/g, ' ');
-      // Normalize whitespace
-      cleanContent = cleanContent.replace(/\s+/g, ' ').trim();
-      // Split and count words
-      const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 0);
-      const wordCount = words.length; // Use actual word count, no minimum
-      
-      // Calculate URL depth - count URL path segments correctly
-      let urlDepth = 0;
-      try {
-        // Extract path from URL after domain
-        const urlPath = finalUrl.replace(/^https?:\/\/[^\/]+/, '');
-        // Remove leading and trailing slashes, then split
-        const cleanPath = urlPath.replace(/^\/+|\/+$/g, '');
-        if (cleanPath === '') {
-          urlDepth = 0; // Root page
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          currentField += '"';
+          i += 2;
+          continue;
         } else {
-          // Split by slash and count non-empty segments
-          const segments = cleanPath.split('/').filter(s => s.length > 0);
-          urlDepth = segments.length;
+          inQuotes = !inQuotes;
         }
-        console.log(`📏 URL depth calculation: ${url} -> path: "${cleanPath}" -> segments: ${segments} -> depth: ${urlDepth}`);
-      } catch (e) {
-        urlDepth = 0;
+      } else if (char === ',' && !inQuotes) {
+        currentRow.push(currentField.trim());
+        currentField = '';
+      } else if ((char === '\n' || char === '\r') && !inQuotes) {
+        currentRow.push(currentField.trim());
+        if (currentRow.some(field => field.length > 0)) {
+          results.push(currentRow);
+        }
+        currentRow = [];
+        currentField = '';
+        if (char === '\r' && nextChar === '\n') i++;
+      } else {
+        currentField += char;
+      }
+      i++;
+    }
+    
+    if (currentField || currentRow.length > 0) {
+      currentRow.push(currentField.trim());
+      if (currentRow.some(field => field.length > 0)) {
+        results.push(currentRow);
+      }
+    }
+    
+    return results;
+  }
+
+  private async cleanHTML(csvData: any[], jobId: string) {
+    const cleanPages = [];
+    
+    for (let i = 0; i < csvData.length; i++) {
+      const page = csvData[i];
+      
+      let cleanHtml = page.content || '';
+      cleanHtml = cleanHtml.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+      cleanHtml = cleanHtml.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+      cleanHtml = cleanHtml.replace(/<!--[\s\S]*?-->/g, '');
+      
+      const cleanText = cleanHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const wordCount = cleanText.split(/\s+/).filter(word => word.length > 0).length;
+      
+      // Save to pages_clean table
+      const pageCleanResult = await db.insert(pagesClean).values({
+        pageRawId: sql`(SELECT id FROM pages_raw WHERE url = ${page.url} AND job_id = ${jobId} LIMIT 1)`,
+        cleanHtml,
+        wordCount
+      }).returning({ id: pagesClean.id });
+      
+      cleanPages.push({
+        id: pageCleanResult[0].id,
+        url: page.url,
+        title: page.title,
+        cleanHtml,
+        wordCount,
+        originalData: page
+      });
+      
+      if (i % 50 === 0) {
+        console.log(`🧹 Cleaned ${i + 1}/${csvData.length} pages`);
+      }
+    }
+    
+    return cleanPages;
+  }
+
+  private async splitIntoBlocks(cleanPages: any[]) {
+    const allBlocks = [];
+    
+    for (const page of cleanPages) {
+      const htmlContent = page.cleanHtml;
+      const blockList = this.extractBlocks(htmlContent);
+      
+      for (let i = 0; i < blockList.length; i++) {
+        const block = blockList[i];
+        
+        const blockResult = await db.insert(blocks).values({
+          pageId: page.id,
+          blockType: block.type,
+          text: block.text,
+          position: i
+        }).returning({ id: blocks.id });
+        
+        allBlocks.push({
+          id: blockResult[0].id,
+          pageId: page.id,
+          type: block.type,
+          text: block.text,
+          position: i
+        });
+      }
+    }
+    
+    console.log(`📝 Created ${allBlocks.length} content blocks`);
+    return allBlocks;
+  }
+
+  private extractBlocks(htmlContent: string) {
+    const blocksList = [];
+    
+    const headingRegex = /<(h[1-6])[^>]*>(.*?)<\/\1>/gi;
+    let match;
+    while ((match = headingRegex.exec(htmlContent)) !== null) {
+      blocksList.push({
+        type: match[1].toLowerCase(),
+        text: match[2].replace(/<[^>]*>/g, '').trim()
+      });
+    }
+    
+    const paragraphRegex = /<p[^>]*>(.*?)<\/p>/gi;
+    while ((match = paragraphRegex.exec(htmlContent)) !== null) {
+      const text = match[1].replace(/<[^>]*>/g, '').trim();
+      if (text.length > 10) {
+        blocksList.push({
+          type: 'p',
+          text
+        });
+      }
+    }
+    
+    const listRegex = /<li[^>]*>(.*?)<\/li>/gi;
+    while ((match = listRegex.exec(htmlContent)) !== null) {
+      const text = match[1].replace(/<[^>]*>/g, '').trim();
+      if (text.length > 5) {
+        blocksList.push({
+          type: 'li',
+          text
+        });
+      }
+    }
+    
+    return blocksList;
+  }
+
+  private async generateEmbeddings(blocksData: any[]) {
+    const embeddingsList = [];
+    
+    for (const block of blocksData) {
+      // PLACEHOLDER: In real implementation, use S-BERT MiniLM
+      // For now, create zero vectors to avoid fake data
+      const vector = Array.from({ length: 384 }, () => 0);
+      
+      const embeddingResult = await db.insert(embeddings).values({
+        blockId: block.id,
+        vector
+      }).returning({ id: embeddings.id });
+      
+      embeddingsList.push({
+        id: embeddingResult[0].id,
+        blockId: block.id,
+        vector
+      });
+    }
+    
+    console.log(`🔢 Generated ${embeddingsList.length} embeddings`);
+    return embeddingsList;
+  }
+
+  private async buildLinkGraph(cleanPages: any[], jobId: string) {
+    const edgesList = [];
+    let orphanCount = 0;
+    let totalDepth = 0;
+    
+    const urlToPageId = new Map();
+    cleanPages.forEach(page => {
+      urlToPageId.set(page.url, page.id);
+    });
+    
+    for (const page of cleanPages) {
+      const internalLinks = this.extractInternalLinks(page.cleanHtml, 'evolucionika.ru');
+      let pageDepth = this.calculateURLDepth(page.url);
+      let inDegree = 0;
+      let outDegree = internalLinks.length;
+      
+      for (const linkUrl of internalLinks) {
+        const targetPageId = urlToPageId.get(linkUrl);
+        if (targetPageId) {
+          const edgeResult = await db.insert(edges).values({
+            jobId,
+            fromPageId: page.id,
+            toPageId: targetPageId,
+            fromUrl: page.url,
+            toUrl: linkUrl,
+            isInternal: true
+          }).returning({ id: edges.id });
+          
+          edgesList.push(edgeResult[0]);
+        }
       }
       
-      // Count internal links from real content
-      const linkMatches = content.match(/<a [^>]*href=['"']([^'"']*)['"'][^>]*>/gi) || [];
-      let internalLinkCount = 0;
-      let externalLinkCount = 0;
-      
-      linkMatches.forEach((match: string) => {
-        const hrefMatch = match.match(/href=['"']([^'"']*)['"']/i);
-        if (hrefMatch && hrefMatch[1]) {
-          const href = hrefMatch[1];
-          // Count internal vs external links
-          if (href.startsWith('/') || href.startsWith('./') || href.startsWith('../') || 
-              (href.includes('evolucionika.ru')) ||
-              (!href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('mailto:') && !href.startsWith('tel:'))) {
-            internalLinkCount++;
-          } else if (href.startsWith('http://') || href.startsWith('https://')) {
-            externalLinkCount++;
+      for (const otherPage of cleanPages) {
+        if (otherPage.id !== page.id) {
+          const otherLinks = this.extractInternalLinks(otherPage.cleanHtml, 'evolucionika.ru');
+          if (otherLinks.includes(page.url)) {
+            inDegree++;
           }
         }
+      }
+      
+      const isOrphan = inDegree === 0;
+      if (isOrphan) orphanCount++;
+      totalDepth += pageDepth;
+      
+      await db.insert(graphMeta).values({
+        pageId: page.id,
+        jobId,
+        url: page.url,
+        clickDepth: pageDepth,
+        inDegree,
+        outDegree,
+        isOrphan
       });
-      
-      console.log(`🔗 Link analysis for ${url}: ${internalLinkCount} internal, ${externalLinkCount} external`);
-      
-      const isOrphan = internalLinkCount === 0;
-      const contentPreview = cleanContent.substring(0, 150);
-      
-      return {
-        url,
-        title,
-        content,
-        wordCount,
-        urlDepth,
-        internalLinkCount,
-        isOrphan,
-        contentPreview
-      };
-    });
+    }
     
-    // Filter out null entries (rows without real Permalink)
-    pagesData = pagesData.filter(page => page !== null);
-    console.log(`💾 Filtered to ${pagesData.length} pages with valid Permalinks out of ${FORCE_PAGES} total rows`);
+    const avgClickDepth = totalDepth / cleanPages.length;
     
-    // Calculate real statistics from processed data
-    finalOrphans = pagesData.filter(page => page.isOrphan).length;
-    totalWords = pagesData.reduce((sum, page) => sum + page.wordCount, 0);
-    const avgWords = Math.round(totalWords / pagesData.length);
-    
-    console.log(`📊 Real statistics: ${finalOrphans} orphans out of ${pagesData.length} pages, avg ${avgWords} words`);
-    
-    await storage.saveProcessedPages(projectId, pagesData, jobId);
-    console.log(`✅ Successfully saved ${pagesData.length} pages to database`);
-  } catch (error) {
-    console.error(`❌ Failed to save pages to database:`, error);
+    return {
+      orphanCount,
+      avgClickDepth: Math.round(avgClickDepth * 10) / 10,
+      totalEdges: edgesList.length
+    };
   }
 
-  await storage.updateImportJob(jobId, {
-    status: "completed",
-    percent: 100,
-    pagesTotal: FORCE_PAGES,
-    pagesDone: FORCE_PAGES,
-    blocksDone: FORCE_PAGES * 2,
-    orphanCount: finalOrphans,
-    avgWordCount: Math.round(totalWords / FORCE_PAGES),
-    deepPages: Math.round(FORCE_PAGES * 0.15),
-    avgClickDepth: 1.2,
-    importDuration: duration,
-    finishedAt: new Date(),
-    logs: [`🔥 ЗАВЕРШЕНО! ${FORCE_PAGES} страниц обработано, ${finalOrphans} сирот найдено`]
-  });
+  private extractInternalLinks(htmlContent: string, domain: string): string[] {
+    const links = [];
+    const linkRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>/gi;
+    let match;
+    
+    while ((match = linkRegex.exec(htmlContent)) !== null) {
+      const url = match[1];
+      if (url.includes(domain) || url.startsWith('/')) {
+        if (url.startsWith('/')) {
+          links.push(`https://${domain}${url}`);
+        } else {
+          links.push(url);
+        }
+      }
+    }
+    
+    return Array.from(new Set(links));
+  }
 
-  console.log(`🔥 COMPLETED: Job ${jobId} - FORCED ${FORCE_PAGES} pages, ${finalOrphans} orphans`);
-  return { success: true, pagesTotal: FORCE_PAGES, orphanCount: finalOrphans };
+  private calculateURLDepth(url: string): number {
+    try {
+      const urlObj = new URL(url);
+      const pathSegments = urlObj.pathname.split('/').filter(segment => segment.length > 0);
+      return Math.max(1, pathSegments.length);
+    } catch (e) {
+      return 1;
+    }
+  }
+}
+
+async function processImportJobAsync(jobId: string, importId: string, scenarios: any, scope: any, rules: any, projectId: string) {
+  console.log(`🚀 Starting real content processing for job ${jobId}`);
+  
+  try {
+    const processor = new ContentProcessor(storage);
+    await processor.processContent(jobId, projectId, importId);
+  } catch (error) {
+    console.error(`❌ Content processing failed:`, error);
+    await storage.updateImportJob(jobId, {
+      status: "failed",
+      errorMessage: error.message,
+      finishedAt: sql`now()`
+    });
+  }
 }

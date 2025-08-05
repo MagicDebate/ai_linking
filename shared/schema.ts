@@ -124,13 +124,25 @@ export const embeddings = pgTable("embeddings", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// Internal link graph
-export const internalLinkGraph = pgTable("internal_link_graph", {
+// Link edges between pages
+export const edges = pgTable("edges", {
   id: uuid("id").primaryKey().defaultRandom(),
   jobId: uuid("job_id").references(() => importJobs.jobId).notNull(),
+  fromPageId: uuid("from_page_id").references(() => pagesClean.id).notNull(),
+  toPageId: uuid("to_page_id").references(() => pagesClean.id).notNull(),
   fromUrl: text("from_url").notNull(),
   toUrl: text("to_url").notNull(),
   anchorText: text("anchor_text"),
+  isInternal: boolean("is_internal").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Graph metadata for each page
+export const graphMeta = pgTable("graph_meta", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  pageId: uuid("page_id").references(() => pagesClean.id).notNull().unique(),
+  jobId: uuid("job_id").references(() => importJobs.jobId).notNull(),
+  url: text("url").notNull(),
   clickDepth: integer("click_depth").notNull().default(1),
   inDegree: integer("in_degree").notNull().default(0),
   outDegree: integer("out_degree").notNull().default(0),
