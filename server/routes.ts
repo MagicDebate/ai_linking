@@ -854,6 +854,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test chunking algorithm endpoint
+  app.post('/api/import/test-chunking', async (req, res) => {
+    try {
+      const { html } = req.body;
+      
+      if (!html) {
+        return res.status(400).json({ error: 'HTML content required' });
+      }
+
+      const processor = new ContentProcessor(storage);
+      const blocks = processor.extractBlocks(html);
+      
+      res.json({
+        success: true,
+        originalLength: html.length,
+        blocksCount: blocks.length,
+        blocks: blocks.map((block, index) => ({
+          index,
+          type: block.type,
+          textLength: block.text.length,
+          preview: block.text.substring(0, 100) + (block.text.length > 100 ? '...' : '')
+        }))
+      });
+    } catch (error) {
+      console.error('Test chunking error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Force restart import with optimized chunking
+  app.post('/api/import/force-restart', async (req, res) => {
+    try {
+      const jobId = 'b46fa8c6-b396-418d-9622-2d7290816d3d';
+      const projectId = '88543cf5-1e83-4204-9918-2a0845caaa7a';
+      const importId = '2861b371-da92-48a3-9295-d93409113449';
+      
+      console.log(`🔄 Force restarting import with optimized chunking: ${jobId}`);
+      
+      // Clear existing job from memory
+      if ((global as any).importJobs) {
+        (global as any).importJobs.delete(jobId);
+      }
+      
+      // Update job status in DB
+      await storage.updateImportJob(jobId, {
+        status: "running",
+        phase: "loading", 
+        percent: 0
+      });
+      
+      // Start processing immediately
+      processImportJobAsync(jobId, importId, {internal_linking: true}, "all_pages", {min_similarity: 0.7}, projectId)
+        .catch(err => {
+          console.error(`💥 Restart import job ${jobId} failed:`, err);
+          storage.updateImportJob(jobId, {
+            status: "failed",
+            errorMessage: err.message,
+            finishedAt: new Date()
+          });
+        });
+      
+      res.json({ 
+        success: true, 
+        message: 'Import restarted with optimized chunking',
+        jobId 
+      });
+    } catch (error) {
+      console.error('Force restart error:', error);
+      res.status(500).json({ error: 'Failed to restart import' });
+    }
+  });
+
   // Get import status
   app.get("/api/import/status", authenticateToken, async (req: any, res) => {
     try {
@@ -1172,13 +1244,11 @@ class ContentProcessor {
     
     // Phase 3: Split into blocks
     await this.updateProgress(jobId, "chunking", 0, "Режем на абзацы");
-    const blocksData = await this.splitIntoBlocks(cleanPages);
-    await this.updateProgress(jobId, "chunking", 100, `Создано блоков: ${blocksData.length}`);
+    const blocksData = await this.splitIntoBlocks(cleanPages, jobId);
     
     // Phase 4: Generate embeddings
     await this.updateProgress(jobId, "vectorizing", 0, "Векторизация");
-    const embeddings = await this.generateEmbeddings(blocksData);
-    await this.updateProgress(jobId, "vectorizing", 100, `Векторов создано: ${embeddings.length}`);
+    const embeddings = await this.generateEmbeddings(blocksData, jobId);
     
     // Phase 5: Build link graph
     await this.updateProgress(jobId, "graphing", 0, "Строим карту ссылок");
@@ -1357,7 +1427,7 @@ class ContentProcessor {
     return cleanPages;
   }
 
-  private async splitIntoBlocks(cleanPages: any[]) {
+  private async splitIntoBlocks(cleanPages: any[], jobId: string) {
     const allBlocks = [];
     
     console.log(`📝 Starting to process ${cleanPages.length} pages into blocks...`);
@@ -1367,8 +1437,12 @@ class ContentProcessor {
       const htmlContent = page.cleanHtml;
       const blockList = this.extractBlocks(htmlContent);
       
-      if (pageIndex % 50 === 0) {
-        console.log(`📝 Processing page ${pageIndex + 1}/${cleanPages.length} - found ${blockList.length} blocks`);
+      // Update progress every 25 pages
+      if (pageIndex % 25 === 0) {
+        const percent = Math.round((pageIndex / cleanPages.length) * 100);
+        await this.updateProgress(jobId, "chunking", percent, 
+          `Разбивка на блоки: ${pageIndex + 1}/${cleanPages.length} страниц (${allBlocks.length} блоков)`);
+        console.log(`📝 Processing page ${pageIndex + 1}/${cleanPages.length} - found ${blockList.length} blocks total: ${allBlocks.length}`);
       }
       
       for (let i = 0; i < blockList.length; i++) {
@@ -1391,6 +1465,8 @@ class ContentProcessor {
       }
     }
     
+    await this.updateProgress(jobId, "chunking", 100, 
+      `Разбивка завершена: ${allBlocks.length} блоков из ${cleanPages.length} страниц`);
     console.log(`📝 Created ${allBlocks.length} content blocks from ${cleanPages.length} pages`);
     return allBlocks;
   }
@@ -1456,10 +1532,21 @@ class ContentProcessor {
     return blocksList;
   }
 
-  private async generateEmbeddings(blocksData: any[]) {
+  private async generateEmbeddings(blocksData: any[], jobId: string) {
     const embeddingsList = [];
     
-    for (const block of blocksData) {
+    console.log(`🔢 Starting vectorization of ${blocksData.length} blocks...`);
+    
+    for (let i = 0; i < blocksData.length; i++) {
+      const block = blocksData[i];
+      
+      // Update progress every 100 blocks
+      if (i % 100 === 0) {
+        const percent = Math.round((i / blocksData.length) * 100);
+        await this.updateProgress(jobId, "vectorizing", percent, 
+          `Векторизация: ${i}/${blocksData.length} блоков`);
+      }
+      
       // PLACEHOLDER: In real implementation, use S-BERT MiniLM
       // For now, create zero vectors to avoid fake data
       const vector = Array.from({ length: 384 }, () => 0);
@@ -1476,6 +1563,8 @@ class ContentProcessor {
       });
     }
     
+    await this.updateProgress(jobId, "vectorizing", 100, 
+      `Векторизация завершена: ${embeddingsList.length} векторов`);
     console.log(`🔢 Generated ${embeddingsList.length} embeddings`);
     return embeddingsList;
   }
