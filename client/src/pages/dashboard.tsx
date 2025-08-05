@@ -223,6 +223,17 @@ export default function Dashboard() {
                   <h1 className="text-3xl font-bold text-gray-900 mb-2">Ваши проекты</h1>
                   <p className="text-gray-600">Управляйте внутренними ссылками в один клик</p>
                 </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => window.open('/debug/pages', '_blank')}
+                    className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                  >
+                    <Bug className="w-4 h-4 mr-2" />
+                    Отладка: 384 страницы
+                  </Button>
+                </div>
 
               </div>
             </div>
@@ -470,15 +481,15 @@ export default function Dashboard() {
             </Card>
             
             {/* Debug section */}
-            <Card className="mt-4">
+            <Card className="mt-4 border-orange-200">
               <CardHeader>
-                <CardTitle className="text-sm">Отладка</CardTitle>
+                <CardTitle className="text-sm text-orange-600">🔍 Отладка данных</CardTitle>
               </CardHeader>
               <CardContent>
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="w-full"
+                  className="w-full border-orange-300 hover:bg-orange-50"
                   onClick={() => window.open('/debug/pages', '_blank')}
                 >
                   <Bug className="w-4 h-4 mr-2" />
