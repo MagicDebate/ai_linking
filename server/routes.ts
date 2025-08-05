@@ -903,19 +903,22 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       const blocks = content.split(/\n\n+/).filter(block => block.trim().length > 0);
       totalBlocks += blocks.length;
       
-      // Count words
-      const words = content.split(/\s+/).filter(word => word.length > 0);
+      // Count words in content
+      const words = content.trim().split(/\s+/).filter(word => word.trim().length > 0);
       totalWords += words.length;
       
-      // Assume pages without internal links are orphans (simplified)
-      if (!content.includes('http') && !content.includes('www.')) {
+      // Check if page has no links (orphan)
+      const hasLinks = content.includes('<a ') || content.includes('href=') || 
+                      content.includes('http://') || content.includes('https://') ||
+                      content.includes('www.');
+      if (!hasLinks) {
         orphanCount++;
       }
     }
 
-    const avgWordCount = Math.round(totalWords / pagesTotal);
+    const avgWordCount = pagesTotal > 0 ? Math.round(totalWords / pagesTotal) : 0;
     
-    console.log(`Real statistics: ${pagesTotal} pages, ${totalBlocks} blocks, avg ${avgWordCount} words, ${orphanCount} orphans`);
+    console.log(`Real statistics: ${pagesTotal} pages, ${totalBlocks} blocks, total ${totalWords} words, avg ${avgWordCount} words/page, ${orphanCount} orphans`);
 
     const phases = [
       { name: "loading", duration: 1500, label: "Загрузка источника" },
