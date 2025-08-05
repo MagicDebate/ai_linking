@@ -1078,6 +1078,25 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
   console.log(`🔥🔥🔥 FORCE START processImportJobAsync FOR JOB ${jobId} 🔥🔥🔥`);
   console.log(`🔥 ImportId: ${importId}, scenarios: ${JSON.stringify(scenarios)}`);
   
+  // Get projectId from import data
+  const uploads = (global as any).uploads;
+  let projectId = null;
+  if (uploads && uploads.size > 0) {
+    for (const [uploadId, upload] of uploads.entries()) {
+      if (uploadId === importId && upload && upload.projectId) {
+        projectId = upload.projectId;
+        break;
+      }
+    }
+  }
+  
+  if (!projectId) {
+    console.error(`❌ No projectId found for importId ${importId}`);
+    throw new Error('ProjectId not found for import');
+  }
+  
+  console.log(`🔥 Found projectId: ${projectId} for importId: ${importId}`);
+  
   // FORCE 384 PAGES - NO MATTER WHAT
   const FORCE_PAGES = 384;
   
