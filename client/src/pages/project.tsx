@@ -882,9 +882,9 @@ export default function ProjectPage() {
                             <table className="w-full text-sm">
                               <thead className="bg-gray-50">
                                 <tr>
-                                  <th className="px-3 py-2 text-left font-medium text-gray-900 w-12">#</th>
+                                  <th className="px-2 py-2 text-left font-medium text-gray-900 w-8">#</th>
                                   {csvPreview.headers.map((header, index) => (
-                                    <th key={index} className="px-3 py-2 text-left font-medium text-gray-900 min-w-[120px]">
+                                    <th key={index} className="px-2 py-2 text-left font-medium text-gray-900 min-w-[100px] max-w-[150px]">
                                       {header}
                                     </th>
                                   ))}
@@ -893,9 +893,9 @@ export default function ProjectPage() {
                               <tbody>
                                 {csvPreview.rows.slice(0, 5).map((row, rowIndex) => (
                                   <tr key={rowIndex} className="border-t">
-                                    <td className="px-3 py-2 text-sm text-gray-500 w-12 font-mono">{rowIndex + 1}</td>
+                                    <td className="px-2 py-2 text-sm text-gray-500 w-8 font-mono">{rowIndex + 1}</td>
                                     {csvPreview.headers.map((header, cellIndex) => (
-                                      <td key={cellIndex} className="px-3 py-2 text-gray-600 max-w-[200px] truncate">
+                                      <td key={cellIndex} className="px-2 py-2 text-gray-600 max-w-[150px] truncate text-xs">
                                         {row[cellIndex] || "—"}
                                       </td>
                                     ))}
@@ -903,6 +903,11 @@ export default function ProjectPage() {
                                 ))}
                               </tbody>
                             </table>
+                          </div>
+                          
+                          {/* Show all headers for debugging */}
+                          <div className="p-3 bg-gray-50 border-t text-xs">
+                            <strong>Найденные колонки ({csvPreview.headers.length}):</strong> {csvPreview.headers.join(', ')}
                           </div>
                         </div>
                       </div>
