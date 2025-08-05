@@ -13,9 +13,10 @@ import {
   clearTokenCookies, 
   authenticateToken 
 } from "./auth";
-import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, embeddings, edges, graphMeta } from "@shared/schema";
+import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, embeddings, edges, graphMeta, pagesRaw } from "@shared/schema";
 import { sql } from "drizzle-orm";
-import { db } from "./db";
+import { db } from "./db"; 
+import { DatabaseStorage } from "./storage";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
@@ -1054,7 +1055,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 isOrphan,
                 contentPreview
               };
-            }).filter(page => page !== null); // Filter out rows without Permalink
+            }).filter((page: any) => page !== null); // Filter out rows without Permalink
           }
         }
       }
@@ -1297,9 +1298,25 @@ class ContentProcessor {
   private async cleanHTML(csvData: any[], jobId: string) {
     const cleanPages = [];
     
+    // First, ensure pages_raw data exists by saving it
+    console.log(`📥 Saving ${csvData.length} pages to pages_raw table first`);
     for (let i = 0; i < csvData.length; i++) {
       const page = csvData[i];
       
+      // Save raw page data first
+      const pageRawResult = await db.insert(pagesRaw).values({
+        url: page.url,
+        jobId,
+        rawHtml: page.content,
+        title: page.title,
+        wordCount: 0, // Will calculate properly in clean phase
+        urlDepth: 1,
+        isOrphan: false,
+        contentPreview: (page.content || '').substring(0, 150),
+        importBatchId: jobId
+      }).returning({ id: pagesRaw.id });
+      
+      // Now clean the HTML
       let cleanHtml = page.content || '';
       cleanHtml = cleanHtml.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
       cleanHtml = cleanHtml.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
@@ -1308,15 +1325,16 @@ class ContentProcessor {
       const cleanText = cleanHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       const wordCount = cleanText.split(/\s+/).filter((word: string) => word.length > 0).length;
       
-      // Save to pages_clean table
+      // Save to pages_clean table with valid page_raw_id
       const pageCleanResult = await db.insert(pagesClean).values({
-        pageRawId: sql`(SELECT id FROM pages_raw WHERE url = ${page.url} AND job_id = ${jobId} LIMIT 1)`,
+        pageRawId: pageRawResult[0].id,
         cleanHtml,
         wordCount
       }).returning({ id: pagesClean.id });
       
       cleanPages.push({
         id: pageCleanResult[0].id,
+        pageRawId: pageRawResult[0].id,
         url: page.url,
         title: page.title,
         cleanHtml,
@@ -1325,7 +1343,7 @@ class ContentProcessor {
       });
       
       if (i % 50 === 0) {
-        console.log(`🧹 Cleaned ${i + 1}/${csvData.length} pages`);
+        console.log(`🧹 Processed ${i + 1}/${csvData.length} pages`);
       }
     }
     
