@@ -338,8 +338,8 @@ export class DatabaseStorage implements IStorage {
       // Delete existing pages for this project first
       await db.execute(sql`DELETE FROM pages_raw WHERE import_batch_id IN (
         SELECT DISTINCT import_batch_id FROM pages_raw pr 
-        INNER JOIN import_jobs ij ON pr.job_id = ij.job_id::text
-        WHERE ij.project_id = ${projectId}
+        INNER JOIN import_jobs ij ON pr.job_id = ij.job_id
+        WHERE ij.project_id::text = ${projectId}
       )`);
       
       await db.insert(pagesRaw).values(pagesToInsert);
