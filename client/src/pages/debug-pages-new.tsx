@@ -295,7 +295,7 @@ export default function DebugPages() {
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm truncate max-w-xs">{page.title}</span>
                           <a 
-                            href={page.url} 
+                            href={page.url.startsWith('http') ? page.url : `https://evolucionika.ru${page.url}`} 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="text-blue-500 hover:text-blue-700"
@@ -304,12 +304,12 @@ export default function DebugPages() {
                           </a>
                         </div>
                         <a 
-                          href={page.url} 
+                          href={page.url.startsWith('http') ? page.url : `https://evolucionika.ru${page.url}`} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="text-xs text-blue-500 hover:text-blue-700 font-mono truncate max-w-xs block"
                         >
-                          {page.url}
+                          {page.url.startsWith('http') ? page.url : `https://evolucionika.ru${page.url}`}
                         </a>
                       </div>
                     </TableCell>

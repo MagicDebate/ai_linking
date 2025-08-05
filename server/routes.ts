@@ -951,18 +951,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 2);
               const wordCount = Math.max(words.length, 50); // Minimum realistic word count
               
-              // Calculate URL depth - count segments after domain
+              // Calculate URL depth - count URL path segments correctly
               let urlDepth = 0;
               try {
+                // Extract path from URL after domain
                 const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
-                // Remove leading slash, keep trailing slash
-                const cleanPath = urlPath.replace(/^\/+/, '');
-                if (cleanPath === '' || cleanPath === '/') {
+                // Remove leading and trailing slashes, then split
+                const cleanPath = urlPath.replace(/^\/+|\/+$/g, '');
+                if (cleanPath === '') {
                   urlDepth = 0; // Root page
                 } else {
-                  // Remove trailing slash and count segments
-                  const segments = cleanPath.replace(/\/+$/, '').split('/');
-                  urlDepth = segments.filter(s => s.length > 0).length;
+                  // Split by slash and count non-empty segments
+                  const segments = cleanPath.split('/').filter(s => s.length > 0);
+                  urlDepth = segments.length;
                 }
               } catch (e) {
                 urlDepth = 0;
@@ -1199,18 +1200,19 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 2);
       const wordCount = Math.max(words.length, 50); // Minimum realistic word count
       
-      // Calculate URL depth - count segments after domain
+      // Calculate URL depth - count URL path segments correctly
       let urlDepth = 0;
       try {
+        // Extract path from URL after domain
         const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
-        // Remove leading slash, keep trailing slash
-        const cleanPath = urlPath.replace(/^\/+/, '');
-        if (cleanPath === '' || cleanPath === '/') {
+        // Remove leading and trailing slashes, then split
+        const cleanPath = urlPath.replace(/^\/+|\/+$/g, '');
+        if (cleanPath === '') {
           urlDepth = 0; // Root page
         } else {
-          // Remove trailing slash and count segments
-          const segments = cleanPath.replace(/\/+$/, '').split('/');
-          urlDepth = segments.filter(s => s.length > 0).length;
+          // Split by slash and count non-empty segments
+          const segments = cleanPath.split('/').filter(s => s.length > 0);
+          urlDepth = segments.length;
         }
       } catch (e) {
         urlDepth = 0;
