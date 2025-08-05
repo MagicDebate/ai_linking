@@ -5,6 +5,7 @@ import {
   notifications,
   projectApiKeys,
   imports,
+  importJobs,
   pagesRaw,
   type User, 
   type InsertUser,
@@ -220,7 +221,7 @@ export class DatabaseStorage implements IStorage {
   // Import Jobs - in-memory implementation with persistence
   async createImportJob(jobData: any): Promise<any> {
     const job = {
-      id: Math.random().toString(36),
+      id: crypto.randomUUID(),
       jobId: jobData.jobId,
       projectId: jobData.projectId,
       importId: jobData.importId,
@@ -238,6 +239,32 @@ export class DatabaseStorage implements IStorage {
       startedAt: new Date(),
       finishedAt: null
     };
+    
+    // Save to database first for foreign key constraint
+    try {
+      await db.insert(importJobs).values({
+        id: job.id,
+        jobId: job.jobId,
+        projectId: job.projectId,
+        importId: job.importId,
+        status: job.status,
+        phase: job.phase,
+        percent: job.percent,
+        pagesTotal: job.pagesTotal,
+        pagesDone: job.pagesDone,
+        blocksDone: job.blocksDone,
+        orphanCount: job.orphanCount,
+        avgWordCount: job.avgWordCount,
+        deepPages: job.deepPages,
+        avgClickDepth: job.avgClickDepth,
+        logs: job.logs,
+        startedAt: job.startedAt,
+        finishedAt: job.finishedAt
+      });
+      console.log(`✓ Saved import job ${jobData.jobId} to database`);
+    } catch (error) {
+      console.error(`❌ Failed to save import job to database:`, error);
+    }
     
     // Ensure global storage is initialized
     if (!global.importJobs) {
