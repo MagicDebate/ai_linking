@@ -488,16 +488,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           result.push(current.trim());
-          console.log(`🔍 Parsed CSV line into ${result.length} fields:`, result.slice(0, 6));
+          if (result.length > 1) {
+            console.log(`🔍 Parsed CSV line into ${result.length} fields:`, result.slice(0, 6));
+          }
           return result;
         };
 
         const dataRows = lines.slice(1);
-        fullData = dataRows.map(line => {
+        fullData = dataRows.map((line, lineIndex) => {
           const parsedRow = parseCSVLine(line);
           const rowObject: any = {};
+          
+          // Fix broken CSV structure - if Permalink is in wrong field, extract it
+          if (parsedRow.length === 1 && parsedRow[0].includes('https://evolucionika.ru/')) {
+            // URL is mixed with HTML content in one field
+            const urlMatch = parsedRow[0].match(/https:\/\/evolucionika\.ru\/[^\s,'"]+/);
+            if (urlMatch) {
+              console.log(`🔧 Fixed URL extraction on line ${lineIndex + 2}: ${urlMatch[0]}`);
+              rowObject.Permalink = urlMatch[0];
+              // Clear other fields as they're likely corrupted
+              headers.forEach(header => {
+                if (header !== 'Permalink') rowObject[header] = '';
+              });
+              return rowObject;
+            }
+          }
+          
           headers.forEach((header, index) => {
-            rowObject[header] = parsedRow[index] || '';
+            let value = parsedRow[index] || '';
+            
+            // If Permalink field is empty but value contains URL, extract it
+            if (header === 'Permalink' && !value && parsedRow.some(field => field.includes('https://evolucionika.ru/'))) {
+              const urlField = parsedRow.find(field => field.includes('https://evolucionika.ru/'));
+              if (urlField) {
+                const urlMatch = urlField.match(/https:\/\/evolucionika\.ru\/[^\s,'"]+/);
+                if (urlMatch) {
+                  value = urlMatch[0];
+                  console.log(`🔧 Extracted URL from wrong field: ${value}`);
+                }
+              }
+            }
+            
+            rowObject[header] = value;
           });
           return rowObject;
         });
@@ -525,10 +557,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const permalinkData = fullData.slice(0, 10).map(row => row.Permalink || 'EMPTY');
       console.log(`🔍 First 10 Permalink values:`, permalinkData);
       
-      // Check raw CSV lines
-      console.log(`🔍 Raw first CSV line:`, lines[0]);
-      console.log(`🔍 Raw second CSV line:`, lines[1]);
-      console.log(`🔍 Raw third CSV line:`, lines[2]);
+      // Check raw CSV lines - only for CSV files
+      if (fileName.endsWith('.csv')) {
+        const lines = fileContent.split('\n').filter(line => line.trim());
+        console.log(`🔍 Raw first CSV line:`, lines[0]);
+        console.log(`🔍 Raw second CSV line:`, lines[1]);
+        console.log(`🔍 Raw third CSV line:`, lines[2]);
+      }
 
       // Save import record with uploadId as the ID
       const newImport = await storage.createImport({
