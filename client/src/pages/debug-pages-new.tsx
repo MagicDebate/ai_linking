@@ -35,7 +35,8 @@ export default function DebugPages() {
   const params = useParams();
   const projectId = params.projectId;
   
-  // Filter states
+  // Filter states and pagination
+  const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState({
     minWords: '',
     maxWords: '',
@@ -44,6 +45,8 @@ export default function DebugPages() {
     maxLinks: '',
     orphanOnly: false
   });
+  
+  const PAGES_PER_PAGE = 50;
 
   // Get pages data for the project
   const { data: pagesData, isLoading } = useQuery<{pages: PageData[], stats: StatsData}>({
@@ -71,7 +74,13 @@ export default function DebugPages() {
       maxLinks: '',
       orphanOnly: false
     });
+    setCurrentPage(1);
   };
+  
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredPages.length / PAGES_PER_PAGE);
+  const startIndex = (currentPage - 1) * PAGES_PER_PAGE;
+  const paginatedPages = filteredPages.slice(startIndex, startIndex + PAGES_PER_PAGE);
 
   if (isLoading) {
     return (
@@ -269,8 +278,33 @@ export default function DebugPages() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-sm text-gray-600 mb-4">
-            Найдено страниц: {filteredPages.length} из {stats.totalPages}
+          <div className="flex justify-between items-center mb-4">
+            <div className="text-sm text-gray-600">
+              Найдено страниц: {filteredPages.length} из {stats.totalPages}
+            </div>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  ← Назад
+                </Button>
+                <span className="text-sm text-gray-600">
+                  Страница {currentPage} из {totalPages}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Вперед →
+                </Button>
+              </div>
+            )}
           </div>
           
           <div className="overflow-x-auto">
@@ -287,9 +321,9 @@ export default function DebugPages() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredPages.slice(0, 50).map((page, index) => (
-                  <TableRow key={index} className={page.isOrphan ? "bg-red-50" : ""}>
-                    <TableCell className="font-mono text-sm">{index + 1}</TableCell>
+                {paginatedPages.map((page, index) => (
+                  <TableRow key={startIndex + index} className={page.isOrphan ? "bg-red-50" : ""}>
+                    <TableCell className="font-mono text-sm">{startIndex + index + 1}</TableCell>
                     <TableCell>
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
@@ -350,9 +384,45 @@ export default function DebugPages() {
             </Table>
           </div>
           
-          {filteredPages.length > 50 && (
-            <div className="mt-4 text-center text-sm text-gray-500">
-              Показаны первые 50 из {filteredPages.length} найденных страниц
+          {totalPages > 1 && (
+            <div className="mt-4 flex justify-center">
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  Первая
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  ← Назад
+                </Button>
+                <span className="px-4 py-2 text-sm">
+                  {currentPage} из {totalPages}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Вперед →
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  Последняя
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
