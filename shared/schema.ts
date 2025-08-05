@@ -110,7 +110,7 @@ export const pagesClean = pgTable("pages_clean", {
 export const blocks = pgTable("blocks", {
   id: uuid("id").primaryKey().defaultRandom(),
   pageId: uuid("page_id").references(() => pagesClean.id).notNull(),
-  blockType: varchar("block_type", { length: 10 }).notNull(), // p, h1, h2, h3, h4, h5, h6
+  blockType: varchar("block_type", { length: 20 }).notNull(), // p, h1, h2, h3, h4, h5, h6, list, paragraph_group
   text: text("text").notNull(),
   position: integer("position").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -304,23 +304,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateImportJob(jobId: string, updates: any): Promise<any> {
+    // Initialize global.importJobs if not exists
     if (!global.importJobs) {
-      console.log(`updateImportJob: global.importJobs not initialized for ${jobId}`);
-      return null;
+      global.importJobs = new Map();
+      console.log(`updateImportJob: Initialized global.importJobs for ${jobId}`);
     }
     
-    const job = global.importJobs.get(jobId);
+    let job = global.importJobs.get(jobId);
     if (!job) {
-      console.log(`updateImportJob: job ${jobId} not found. Available:`, Array.from(global.importJobs.keys()));
-      return null;
+      // Create basic job structure if missing
+      job = {
+        jobId,
+        status: 'running',
+        phase: 'loading',
+        percent: 0,
+        pagesTotal: 0,
+        pagesDone: 0,
+        blocksDone: 0,
+        orphanCount: 0,
+        avgWordCount: 0,
+        logs: [],
+        startedAt: new Date()
+      };
+      global.importJobs.set(jobId, job);
+      console.log(`updateImportJob: Created missing job ${jobId}`);
     }
     
+    // Apply updates
     Object.assign(job, updates);
     
-    // Append new logs
+    // Handle logs properly
     if (updates.logs && Array.isArray(updates.logs)) {
       job.logs = [...(job.logs || []), ...updates.logs];
-      // Keep only last 1000 log entries
       if (job.logs.length > 1000) {
         job.logs = job.logs.slice(-1000);
       }
