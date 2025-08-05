@@ -7,7 +7,7 @@ import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
 import ProjectPage from "@/pages/project";
-import { ImportPage } from "@/pages/import";
+
 import DebugPages from "@/pages/debug-pages-new";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -34,10 +34,8 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/dashboard" component={Dashboard} />
-          <Route path="/project/:id">
-            {(params) => <ProjectPage projectId={params.id} />}
-          </Route>
-          <Route path="/project/:id/import" component={ImportPage} />
+          <Route path="/project/:id" component={ProjectPage} />
+
           <Route path="/project/:projectId/debug" component={DebugPages} />
         </>
       ) : (

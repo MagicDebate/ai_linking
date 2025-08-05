@@ -754,9 +754,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // CRITICAL: Immediately start processing with CSV validation
       console.log(`🆘 FORCE CALLING processImportJobAsync for jobId: ${jobId}`);
-      console.log(`🆘 Parameters: importId=${importId}, scenarios=${JSON.stringify(scenarios)}`);
+      console.log(`🆘 Parameters: projectId=${projectId}, importId=${importId}, scenarios=${JSON.stringify(scenarios)}`);
       
-      processImportJobAsync(jobId, importId, scenarios, scope, rules).catch(err => {
+      processImportJobAsync(jobId, importId, scenarios, scope, rules, projectId).catch(err => {
         console.error(`💥 Import job ${jobId} failed:`, err);
         storage.updateImportJob(jobId, {
           status: "failed",
@@ -1074,28 +1074,9 @@ function calculateRelevanceScore(sourcePage: any, targetPage: any): number {
 }
 
 // CRITICAL FUNCTION: FORCE CSV DATA PROCESSING - NO FAKE DATA ALLOWED
-async function processImportJobAsync(jobId: string, importId: string, scenarios: any, scope: any, rules: any) {
+async function processImportJobAsync(jobId: string, importId: string, scenarios: any, scope: any, rules: any, projectId: string) {
   console.log(`🔥🔥🔥 FORCE START processImportJobAsync FOR JOB ${jobId} 🔥🔥🔥`);
-  console.log(`🔥 ImportId: ${importId}, scenarios: ${JSON.stringify(scenarios)}`);
-  
-  // Get projectId from import data
-  const uploads = (global as any).uploads;
-  let projectId = null;
-  if (uploads && uploads.size > 0) {
-    for (const [uploadId, upload] of uploads.entries()) {
-      if (uploadId === importId && upload && upload.projectId) {
-        projectId = upload.projectId;
-        break;
-      }
-    }
-  }
-  
-  if (!projectId) {
-    console.error(`❌ No projectId found for importId ${importId}`);
-    throw new Error('ProjectId not found for import');
-  }
-  
-  console.log(`🔥 Found projectId: ${projectId} for importId: ${importId}`);
+  console.log(`🔥 ProjectId: ${projectId}, ImportId: ${importId}, scenarios: ${JSON.stringify(scenarios)}`);
   
   // FORCE 384 PAGES - NO MATTER WHAT
   const FORCE_PAGES = 384;
