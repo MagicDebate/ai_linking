@@ -1398,33 +1398,57 @@ class ContentProcessor {
   private extractBlocks(htmlContent: string) {
     const blocksList = [];
     
+    // Extract headings (H1-H6) as separate blocks
     const headingRegex = /<(h[1-6])[^>]*>(.*?)<\/\1>/gi;
     let match;
     while ((match = headingRegex.exec(htmlContent)) !== null) {
-      blocksList.push({
-        type: match[1].toLowerCase(),
-        text: match[2].replace(/<[^>]*>/g, '').trim()
-      });
-    }
-    
-    const paragraphRegex = /<p[^>]*>(.*?)<\/p>/gi;
-    while ((match = paragraphRegex.exec(htmlContent)) !== null) {
-      const text = match[1].replace(/<[^>]*>/g, '').trim();
-      if (text.length > 10) {
+      const text = match[2].replace(/<[^>]*>/g, '').trim();
+      if (text.length > 0) {
         blocksList.push({
-          type: 'p',
+          type: match[1].toLowerCase(),
           text
         });
       }
     }
     
-    const listRegex = /<li[^>]*>(.*?)<\/li>/gi;
+    // Extract complete lists (ul/ol) as single blocks
+    const listRegex = /<(ul|ol)[^>]*>(.*?)<\/\1>/gis;
     while ((match = listRegex.exec(htmlContent)) !== null) {
-      const text = match[1].replace(/<[^>]*>/g, '').trim();
-      if (text.length > 5) {
+      const listItems = [];
+      const itemRegex = /<li[^>]*>(.*?)<\/li>/gi;
+      let itemMatch;
+      while ((itemMatch = itemRegex.exec(match[2])) !== null) {
+        const itemText = itemMatch[1].replace(/<[^>]*>/g, '').trim();
+        if (itemText.length > 0) {
+          listItems.push(itemText);
+        }
+      }
+      
+      if (listItems.length > 0) {
         blocksList.push({
-          type: 'li',
-          text
+          type: 'list',
+          text: listItems.join('\n• ')
+        });
+      }
+    }
+    
+    // Extract paragraphs, but group consecutive ones
+    const paragraphRegex = /<p[^>]*>(.*?)<\/p>/gi;
+    const paragraphs = [];
+    while ((match = paragraphRegex.exec(htmlContent)) !== null) {
+      const text = match[1].replace(/<[^>]*>/g, '').trim();
+      if (text.length > 10) {
+        paragraphs.push(text);
+      }
+    }
+    
+    // Group paragraphs into chunks of 2-3 for better semantic blocks
+    for (let i = 0; i < paragraphs.length; i += 3) {
+      const chunk = paragraphs.slice(i, i + 3);
+      if (chunk.length > 0) {
+        blocksList.push({
+          type: 'paragraph_group',
+          text: chunk.join('\n\n')
         });
       }
     }
