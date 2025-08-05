@@ -938,8 +938,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             pages = csvData.map((row: any, index: number) => {
               const content = row.Content || row.content || '';
-              const title = row.Title || row.title || `Страница ${index + 1}`;
-              const url = row.Permalink || row.URL || row.url || `https://evolucionika.ru/page-${index + 1}/`;
+              const title = row.Title || row.title || '';
+              const url = row.Permalink || row.URL || row.url || '';
+              
+              // Skip rows without real URL data
+              if (!url || url.trim() === '') {
+                return null;
+              }
               
               // Count words properly - handle HTML and get meaningful content
               let cleanContent = content || '';
@@ -1005,7 +1010,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 isOrphan,
                 contentPreview
               };
-            });
+            }).filter(page => page !== null);
           }
         }
       }
@@ -1187,10 +1192,15 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
     }
     
     console.log(`💾 Found upload data: ${projectUpload.data.length} rows`);
-    const pagesData = projectUpload.data.slice(0, FORCE_PAGES).map((row: any, index: number) => {
+    let pagesData = projectUpload.data.slice(0, FORCE_PAGES).map((row: any, index: number) => {
       const content = row.Content || row.content || '';
-      const title = row.Title || row.title || `Страница ${index + 1}`;
-      const url = row.Permalink || row.URL || row.url || `https://evolucionika.ru/page-${index + 1}/`;
+      const title = row.Title || row.title || '';
+      const url = row.Permalink || row.URL || row.url || '';
+      
+      // Skip rows without real URL data
+      if (!url || url.trim() === '') {
+        return null;
+      }
       
       console.log(`📄 Processing page ${index + 1}: title="${title.substring(0, 50)}", url="${url}", content length=${content.length}`);
       
@@ -1259,6 +1269,10 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
         contentPreview
       };
     });
+    
+    // Filter out null entries (rows without real URL data)
+    pagesData = pagesData.filter(page => page !== null);
+    console.log(`💾 Filtered to ${pagesData.length} pages with real data out of ${FORCE_PAGES} total rows`);
     
     // Calculate real statistics from processed data
     finalOrphans = pagesData.filter(page => page.isOrphan).length;
