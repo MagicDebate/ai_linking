@@ -910,32 +910,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { projectId } = req.params;
       
-      // Get upload data for this specific project
-      const uploads = (global as any).uploads;
-      if (!uploads || uploads.size === 0) {
-        return res.json({ 
-          pages: [], 
-          stats: { totalPages: 0, orphanCount: 0, linkedPages: 0, avgWordCount: 0 } 
-        });
+      // Validate project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
       }
 
-      // Find upload for this project (look for most recent one)
-      let projectUpload = null;
-      for (const [uploadId, upload] of uploads.entries()) {
-        if (upload && upload.projectId === projectId) {
-          projectUpload = upload;
+      // Get pages from database first
+      let pages = await storage.getProjectPages(projectId);
+      
+      // If no pages in database, fallback to in-memory data
+      if (pages.length === 0) {
+        console.log(`No pages in database for project ${projectId}, checking in-memory data`);
+        const uploads = (global as any).uploads;
+        if (uploads && uploads.size > 0) {
+          // Find upload for this project (look for most recent one)
+          let projectUpload = null;
+          for (const [uploadId, upload] of uploads.entries()) {
+            if (upload && upload.projectId === projectId) {
+              projectUpload = upload;
+            }
+          }
+          
+          if (projectUpload && projectUpload.data) {
+            const csvData = projectUpload.data;
+            console.log(`Debug pages for project ${projectId}: analyzing ${csvData.length} rows from memory`);
+            
+            pages = csvData.map((row: any, index: number) => {
+              const content = row.Content || row.content || '';
+              const title = row.Title || row.title || `Страница ${index + 1}`;
+              const url = row.Permalink || row.URL || row.url || `#page-${index + 1}`;
+              
+              // Count words 
+              const cleanContent = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+              const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 0);
+              const wordCount = words.length;
+              
+              // Calculate URL depth
+              let urlDepth = 0;
+              try {
+                const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
+                urlDepth = (urlPath.match(/\//g) || []).length;
+              } catch (e) {
+                urlDepth = 0;
+              }
+              
+              // Count internal links
+              const linkMatches = content.match(/<a [^>]*href=['"']([^'"']*)['"'][^>]*>/gi) || [];
+              let internalLinkCount = 0;
+              
+              linkMatches.forEach((match: string) => {
+                const hrefMatch = match.match(/href=['"']([^'"']*)['"']/i);
+                if (hrefMatch && hrefMatch[1]) {
+                  const href = hrefMatch[1];
+                  if (href.startsWith('/') || href.startsWith('./') || href.startsWith('../') || 
+                      (!href.startsWith('http://') && !href.startsWith('https://'))) {
+                    internalLinkCount++;
+                  }
+                }
+              });
+              
+              const isOrphan = internalLinkCount === 0;
+              const contentPreview = cleanContent.substring(0, 150);
+              
+              return {
+                url,
+                title,
+                content,
+                wordCount,
+                urlDepth,
+                internalLinkCount,
+                isOrphan,
+                contentPreview
+              };
+            });
+          }
         }
       }
-      
-      if (!projectUpload || !projectUpload.data) {
+
+      if (pages.length === 0) {
         return res.json({ 
           pages: [], 
           stats: { totalPages: 0, orphanCount: 0, linkedPages: 0, avgWordCount: 0 } 
         });
       }
 
-      const csvData = projectUpload.data;
-      console.log(`Debug pages for project ${projectId}: analyzing ${csvData.length} rows`);
+      console.log(`Debug pages for project ${projectId}: analyzing ${pages.length} pages`);
+
+      // Calculate statistics
+      const totalPages = pages.length;
+      const orphanCount = pages.filter((page: any) => page.isOrphan).length;
+      const linkedPages = totalPages - orphanCount;
+      const avgWordCount = Math.round(
+        pages.reduce((sum: number, page: any) => sum + page.wordCount, 0) / totalPages
+      );
+
+      const stats = {
+        totalPages,
+        orphanCount,
+        linkedPages,
+        avgWordCount
+      };
+
+      res.json({ pages, stats });
+    } catch (error) {
+      console.error("Debug pages error:", error);
+      res.status(500).json({ error: "Failed to get debug pages" });
+    }
+  });
 
       const pages = csvData.map((row: any, index: number) => {
         const content = row.Content || row.content || '';
@@ -1134,6 +1216,64 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
   const finalOrphans = Math.round(FORCE_PAGES * 0.6); // 60% orphans 
   const avgWords = 150; // Average words per page
   const duration = Math.round((Date.now() - Date.now()) / 1000) + 10;
+
+  // SAVE PROCESSED PAGES TO DATABASE
+  console.log(`💾 Saving ${FORCE_PAGES} pages to database for project ${importData.projectId}`);
+  try {
+    const pagesData = importData.data.slice(0, FORCE_PAGES).map((row: any, index: number) => {
+      const content = row.Content || row.content || '';
+      const title = row.Title || row.title || `Страница ${index + 1}`;
+      const url = row.Permalink || row.URL || row.url || `#page-${index + 1}`;
+      
+      // Count words 
+      const cleanContent = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 0);
+      const wordCount = words.length;
+      
+      // Calculate URL depth
+      let urlDepth = 0;
+      try {
+        const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
+        urlDepth = (urlPath.match(/\//g) || []).length;
+      } catch (e) {
+        urlDepth = 0;
+      }
+      
+      // Count internal links
+      const linkMatches = content.match(/<a [^>]*href=['"']([^'"']*)['"'][^>]*>/gi) || [];
+      let internalLinkCount = 0;
+      
+      linkMatches.forEach((match: string) => {
+        const hrefMatch = match.match(/href=['"']([^'"']*)['"']/i);
+        if (hrefMatch && hrefMatch[1]) {
+          const href = hrefMatch[1];
+          if (href.startsWith('/') || href.startsWith('./') || href.startsWith('../') || 
+              (!href.startsWith('http://') && !href.startsWith('https://'))) {
+            internalLinkCount++;
+          }
+        }
+      });
+      
+      const isOrphan = internalLinkCount === 0;
+      const contentPreview = cleanContent.substring(0, 150);
+      
+      return {
+        url,
+        title,
+        content,
+        wordCount,
+        urlDepth,
+        internalLinkCount,
+        isOrphan,
+        contentPreview
+      };
+    });
+    
+    await storage.saveProcessedPages(importData.projectId, pagesData);
+    console.log(`✅ Successfully saved ${pagesData.length} pages to database`);
+  } catch (error) {
+    console.error(`❌ Failed to save pages to database:`, error);
+  }
 
   await storage.updateImportJob(jobId, {
     status: "completed",

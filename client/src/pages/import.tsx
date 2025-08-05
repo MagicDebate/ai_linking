@@ -323,7 +323,7 @@ export function ImportPage() {
         </Card>
 
         {/* Action Buttons */}
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           {importStatus.status === "running" && (
             <Button variant="outline" onClick={handleCancelImport}>
               <Square className="h-4 w-4 mr-2" />
@@ -332,10 +332,20 @@ export function ImportPage() {
           )}
 
           {importStatus.status === "completed" && (
-            <Button onClick={handleGenerateLinks} className="bg-green-600 hover:bg-green-700">
-              <Play className="h-4 w-4 mr-2" />
-              Сгенерировать ссылки
-            </Button>
+            <>
+              <Button onClick={handleGenerateLinks} className="bg-green-600 hover:bg-green-700">
+                <Play className="h-4 w-4 mr-2" />
+                Сгенерировать ссылки
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => window.open(`/project/${projectId}/debug`, '_blank')}
+                className="border-orange-300 text-orange-600 hover:bg-orange-50"
+              >
+                <AlertCircle className="h-4 w-4 mr-2" />
+                Отладка данных
+              </Button>
+            </>
           )}
 
           {importStatus.status === "failed" && (

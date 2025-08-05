@@ -5,6 +5,7 @@ import {
   notifications,
   projectApiKeys,
   imports,
+  pagesRaw,
   type User, 
   type InsertUser,
   type Project,
@@ -19,7 +20,8 @@ import {
   type InsertImport
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
+import crypto from "crypto";
 
 // Global type declaration for import jobs
 declare global {
@@ -59,9 +61,13 @@ export interface IStorage {
   // Import Jobs
   createImportJob(jobData: any): Promise<any>;
   getImportJobStatus(projectId: string, jobId?: string): Promise<any>;
-  updateImportJob(jobId: string, updates: any): Promise<void>;
+  updateImportJob(jobId: string, updates: any): Promise<any>;
   cancelImportJob(jobId: string): Promise<void>;
   getImportJobLogs(jobId: string): Promise<string[] | null>;
+  
+  // Pages management
+  saveProcessedPages(projectId: string, pagesData: any[]): Promise<void>;
+  getProjectPages(projectId: string): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -305,6 +311,62 @@ export class DatabaseStorage implements IStorage {
     
     const job = global.importJobs.get(jobId);
     return job ? job.logs || [] : null;
+  }
+
+  // Pages management for debug functionality
+  async saveProcessedPages(projectId: string, pagesData: any[]): Promise<void> {
+    // Use a consistent batch ID for this import
+    const batchId = crypto.randomUUID();
+    
+    // Save new pages data with a consistent jobId
+    if (pagesData.length > 0) {
+      const pagesToInsert = pagesData.map((page, index) => ({
+        jobId: batchId, // Use same ID for all pages in this batch
+        url: page.url || `#page-${index + 1}`,
+        rawHtml: page.content || '',
+        meta: sql`${JSON.stringify({
+          title: page.title || `Страница ${index + 1}`,
+          wordCount: page.wordCount || 0,
+          urlDepth: page.urlDepth || 0,
+          internalLinkCount: page.internalLinkCount || 0,
+          isOrphan: page.isOrphan || false,
+          contentPreview: page.contentPreview || ''
+        })}`,
+        importBatchId: batchId
+      }));
+      
+      // Delete existing pages for this project first
+      await db.execute(sql`DELETE FROM pages_raw WHERE import_batch_id IN (
+        SELECT DISTINCT import_batch_id FROM pages_raw pr 
+        INNER JOIN import_jobs ij ON pr.job_id = ij.job_id::text
+        WHERE ij.project_id = ${projectId}
+      )`);
+      
+      await db.insert(pagesRaw).values(pagesToInsert);
+    }
+  }
+
+  async getProjectPages(projectId: string): Promise<any[]> {
+    const pages = await db.execute(sql`
+      SELECT pr.* FROM pages_raw pr 
+      INNER JOIN import_jobs ij ON pr.job_id = ij.job_id::text
+      WHERE ij.project_id = ${projectId}
+      ORDER BY pr.created_at DESC
+    `);
+    
+    return (pages.rows || []).map((page: any) => {
+      const meta = typeof page.meta === 'string' ? JSON.parse(page.meta) : page.meta;
+      return {
+        url: page.url,
+        title: meta?.title || 'Без названия',
+        content: page.raw_html,
+        wordCount: meta?.wordCount || 0,
+        urlDepth: meta?.urlDepth || 0,
+        internalLinkCount: meta?.internalLinkCount || 0,
+        isOrphan: meta?.isOrphan || false,
+        contentPreview: meta?.contentPreview || (page.raw_html || '').substring(0, 150)
+      };
+    });
   }
 }
 

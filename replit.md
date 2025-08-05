@@ -8,6 +8,9 @@ This is a comprehensive SaaS SEO service platform that automates internal linkin
 - **Implemented Step 2 import wizard** - CSV/JSON upload with field mapping and WordPress plugin option
 - **Enhanced database schema** - Added projects, user progress, notifications, API keys, and imports tables
 - **Created comprehensive dashboard** - Project list, progress sidebar, FAQ section, notification banner
+- **Fixed data persistence issue** - Import data now saves to database instead of just memory
+- **Added debug functionality** - Debug button on import page and project page with filtering system
+- **Implemented Russian language interface** - All user-facing text converted to Russian as requested
 
 # User Preferences
 
