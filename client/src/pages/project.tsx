@@ -35,7 +35,8 @@ import {
   DollarSign,
   LifeBuoy,
   Network,
-  ChevronDown
+  ChevronDown,
+  Bug
 } from "lucide-react";
 
 interface FieldMapping {
@@ -444,11 +445,22 @@ export default function ProjectPage() {
                 </h1>
                 <p className="text-gray-600">{project.domain}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-500">
-                  Статус: {project.status === "READY" ? "Готов" : "В очереди"}
-                </span>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm text-gray-500">
+                    Статус: {project.status === "READY" ? "Готов" : "В очереди"}
+                  </span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.open(`/project/${projectId}/debug`, '_blank')}
+                  className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                >
+                  <Bug className="w-4 h-4 mr-2" />
+                  Отладка данных
+                </Button>
               </div>
             </div>
 

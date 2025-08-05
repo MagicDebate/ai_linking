@@ -224,15 +224,7 @@ export default function Dashboard() {
                   <p className="text-gray-600">Управляйте внутренними ссылками в один клик</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => window.open('/debug/pages', '_blank')}
-                    className="border-orange-300 text-orange-600 hover:bg-orange-50"
-                  >
-                    <Bug className="w-4 h-4 mr-2" />
-                    Отладка: 384 страницы
-                  </Button>
+                  {/* Removed global debug button - moved to project page */}
                 </div>
 
               </div>

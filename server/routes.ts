@@ -905,10 +905,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Debug endpoint to view page data
-  app.get("/api/debug/pages", authenticateToken, async (req: any, res) => {
+  // Debug endpoint to view page data for specific project
+  app.get("/api/debug/pages/:projectId", authenticateToken, async (req: any, res) => {
     try {
-      // Get the most recent upload data for this user
+      const { projectId } = req.params;
+      
+      // Get upload data for this specific project
       const uploads = (global as any).uploads;
       if (!uploads || uploads.size === 0) {
         return res.json({ 
@@ -917,55 +919,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Get the latest upload data
-      const uploadEntries = Array.from(uploads.entries());
-      const latestUpload = uploadEntries[uploadEntries.length - 1];
+      // Find upload for this project (look for most recent one)
+      let projectUpload = null;
+      for (const [uploadId, upload] of uploads.entries()) {
+        if (upload && upload.projectId === projectId) {
+          projectUpload = upload;
+        }
+      }
       
-      if (!latestUpload || !latestUpload[1] || !latestUpload[1].data) {
+      if (!projectUpload || !projectUpload.data) {
         return res.json({ 
           pages: [], 
           stats: { totalPages: 0, orphanCount: 0, linkedPages: 0, avgWordCount: 0 } 
         });
       }
 
-      const csvData = latestUpload[1].data;
-      console.log(`Debug pages: analyzing ${csvData.length} rows from latest upload`);
+      const csvData = projectUpload.data;
+      console.log(`Debug pages for project ${projectId}: analyzing ${csvData.length} rows`);
 
       const pages = csvData.map((row: any, index: number) => {
         const content = row.Content || row.content || '';
         const title = row.Title || row.title || `Страница ${index + 1}`;
         const url = row.Permalink || row.URL || row.url || `#page-${index + 1}`;
         
-        // Count words
-        const words = content.trim().split(/\s+/).filter((word: string) => word.trim().length > 0);
+        // Count words - improved word counting
+        const cleanContent = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 0);
         const wordCount = words.length;
         
-        // Check for internal links
-        const hasInternalLinks = content.includes('<a ') || 
-                                content.includes('href=') || 
-                                content.includes('[') ||
-                                /https?:\/\/[^\s]+/.test(content);
+        // Calculate URL depth (number of slashes after domain)
+        let urlDepth = 0;
+        try {
+          const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
+          urlDepth = (urlPath.match(/\//g) || []).length;
+        } catch (e) {
+          urlDepth = 0;
+        }
         
-        // Count links in content
-        const linkMatches = content.match(/<a [^>]*href/gi) || [];
-        const urlMatches = content.match(/https?:\/\/[^\s]+/g) || [];
-        const linkCount = linkMatches.length + urlMatches.length;
+        // Count internal links more accurately
+        const linkMatches = content.match(/<a [^>]*href=['"']([^'"']*)['"'][^>]*>/gi) || [];
+        let internalLinkCount = 0;
+        
+        linkMatches.forEach((match: string) => {
+          const hrefMatch = match.match(/href=['"']([^'"']*)['"']/i);
+          if (hrefMatch && hrefMatch[1]) {
+            const href = hrefMatch[1];
+            // Count as internal if it's relative or same domain
+            if (href.startsWith('/') || href.startsWith('./') || href.startsWith('../') || 
+                (!href.startsWith('http://') && !href.startsWith('https://'))) {
+              internalLinkCount++;
+            }
+          }
+        });
         
         // Determine if orphan (no internal links)
-        const isOrphan = !hasInternalLinks || linkCount === 0;
+        const isOrphan = internalLinkCount === 0;
         
         // Create content preview
-        const contentPreview = content.replace(/<[^>]*>/g, '').trim().substring(0, 100) + 
-                              (content.length > 100 ? '...' : '');
+        const contentPreview = cleanContent.substring(0, 100) + (cleanContent.length > 100 ? '...' : '');
 
         return {
           url,
           title,
-          content,
+          content: cleanContent,
           wordCount,
-          hasLinks: hasInternalLinks,
+          urlDepth,
+          internalLinkCount,
           isOrphan,
-          linkCount,
           contentPreview
         };
       });

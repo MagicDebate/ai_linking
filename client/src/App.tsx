@@ -8,7 +8,7 @@ import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
 import ProjectPage from "@/pages/project";
 import { ImportPage } from "@/pages/import";
-import DebugPages from "@/pages/debug-pages";
+import DebugPages from "@/pages/debug-pages-new";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -38,7 +38,7 @@ function Router() {
             {(params) => <ProjectPage projectId={params.id} />}
           </Route>
           <Route path="/project/:id/import" component={ImportPage} />
-          <Route path="/debug/pages" component={DebugPages} />
+          <Route path="/project/:projectId/debug" component={DebugPages} />
         </>
       ) : (
         <>

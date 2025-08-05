@@ -1,40 +1,67 @@
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ExternalLink, Link as LinkIcon } from "lucide-react";
-import { Link } from "wouter";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, ExternalLink, Link as LinkIcon, Filter } from "lucide-react";
+import { Link, useParams } from "wouter";
 
 interface PageData {
   url: string;
   title: string;
   content: string;
   wordCount: number;
-  hasLinks: boolean;
+  urlDepth: number;
+  internalLinkCount: number;
   isOrphan: boolean;
-  linkCount: number;
   contentPreview: string;
 }
 
 export default function DebugPages() {
   const { user } = useAuth();
-
-  // Получить список страниц из последнего импорта
-  const { data: pagesData, isLoading } = useQuery({
-    queryKey: ['/api/debug/pages'],
-    enabled: !!user,
+  const params = useParams();
+  const projectId = params.projectId;
+  
+  // Filter states
+  const [filters, setFilters] = useState({
+    minWords: '',
+    maxWords: '',
+    urlDepth: '',
+    minLinks: '',
+    maxLinks: '',
+    orphanOnly: false
   });
+
+  // Получить список страниц для конкретного проекта
+  const { data: pagesData, isLoading } = useQuery({
+    queryKey: [`/api/debug/pages/${projectId}`],
+    enabled: !!user && !!projectId,
+  });
+
+  // Filter pages based on filters
+  const filteredPages = pagesData?.pages?.filter((page: PageData) => {
+    if (filters.minWords && page.wordCount < parseInt(filters.minWords)) return false;
+    if (filters.maxWords && page.wordCount > parseInt(filters.maxWords)) return false;
+    if (filters.urlDepth && page.urlDepth !== parseInt(filters.urlDepth)) return false;
+    if (filters.minLinks && page.internalLinkCount < parseInt(filters.minLinks)) return false;
+    if (filters.maxLinks && page.internalLinkCount > parseInt(filters.maxLinks)) return false;
+    if (filters.orphanOnly && !page.isOrphan) return false;
+    return true;
+  }) || [];
 
   if (isLoading) {
     return (
       <div className="container mx-auto p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/dashboard">
+            <Link href={`/project/${projectId}`}>
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Назад к дашборду
+              К проекту
             </Link>
           </Button>
           <h1 className="text-2xl font-bold">Отладка страниц</h1>
