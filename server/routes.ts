@@ -1011,10 +1011,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   urlDepth = 0; // Root page
                 } else {
                   // Split by slash and count non-empty segments
-                  const segments = cleanPath.split('/').filter(s => s.length > 0);
-                  urlDepth = segments.length;
+                  const pathSegments = cleanPath.split('/').filter((s: string) => s.length > 0);
+                  urlDepth = pathSegments.length;
                 }
-                console.log(`📏 URL depth calculation: ${url} -> path: "${cleanPath}" -> segments: ${segments} -> depth: ${urlDepth}`);
+                console.log(`📏 URL depth calculation: ${url} -> path: "${cleanPath}" -> segments: ${pathSegments} -> depth: ${urlDepth}`);
               } catch (e) {
                 urlDepth = 0;
               }
@@ -1147,7 +1147,7 @@ function calculateRelevanceScore(sourcePage: any, targetPage: any): number {
 
 // Content processing pipeline
 class ContentProcessor {
-  constructor(private storage: IStorage) {}
+  constructor(private storage: DatabaseStorage) {}
 
   async processContent(jobId: string, projectId: string, importId: string) {
     console.log(`🚀 Starting real content processing for job ${jobId}`);
@@ -1218,7 +1218,6 @@ class ContentProcessor {
       throw new Error("Import data or file path not found");
     }
 
-    const fs = require('fs');
     const fileContent = fs.readFileSync(importData.filePath, 'utf-8');
     const fieldMapping = JSON.parse(importData.fieldMapping || '{}');
     
@@ -1307,7 +1306,7 @@ class ContentProcessor {
       cleanHtml = cleanHtml.replace(/<!--[\s\S]*?-->/g, '');
       
       const cleanText = cleanHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-      const wordCount = cleanText.split(/\s+/).filter(word => word.length > 0).length;
+      const wordCount = cleanText.split(/\s+/).filter((word: string) => word.length > 0).length;
       
       // Save to pages_clean table
       const pageCleanResult = await db.insert(pagesClean).values({
@@ -1530,7 +1529,7 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
     console.error(`❌ Content processing failed:`, error);
     await storage.updateImportJob(jobId, {
       status: "failed",
-      errorMessage: error.message,
+      errorMessage: error instanceof Error ? error.message : String(error),
       finishedAt: sql`now()`
     });
   }
