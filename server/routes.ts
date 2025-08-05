@@ -752,17 +752,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orphanCount: 0
       });
 
-      // CRITICAL: Start processing in next tick to ensure job is saved
-      setTimeout(() => {
-        processImportJobAsync(jobId, importId, scenarios, scope, rules).catch(err => {
-          console.error(`Import job ${jobId} failed:`, err);
-          storage.updateImportJob(jobId, {
-            status: "failed",
-            errorMessage: err.message,
-            finishedAt: new Date()
-          });
+      // CRITICAL: Immediately start processing with CSV validation
+      console.log(`🆘 FORCE CALLING processImportJobAsync for jobId: ${jobId}`);
+      console.log(`🆘 Parameters: importId=${importId}, scenarios=${JSON.stringify(scenarios)}`);
+      
+      processImportJobAsync(jobId, importId, scenarios, scope, rules).catch(err => {
+        console.error(`💥 Import job ${jobId} failed:`, err);
+        storage.updateImportJob(jobId, {
+          status: "failed",
+          errorMessage: err.message,
+          finishedAt: new Date()
         });
-      }, 100);
+      });
 
       const responseData = { 
         success: true, 
