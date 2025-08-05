@@ -721,7 +721,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         importId,
         status: "running",
         phase: "loading",
-        percent: 0
+        percent: 0,
+        pagesTotal: 0, // Will be updated when CSV data is processed
+        pagesDone: 0,
+        blocksDone: 0,
+        orphanCount: 0
       });
 
       console.log(`Job created:`, importJob);
@@ -946,10 +950,14 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
     }
 
     const { data: csvRows } = csvData;
-    console.log(`Found ${csvRows.length} rows in CSV data`);
+    console.log(`📊 CSV Analysis for job ${jobId}:`);
+    console.log(`   - Import ID: ${importId}`);
+    console.log(`   - Found ${csvRows.length} rows in CSV data`);
+    console.log(`   - First row keys:`, csvRows.length > 0 ? Object.keys(csvRows[0]) : 'none');
 
     // Calculate real statistics
     const pagesTotal = csvRows.length;
+    console.log(`   - Setting pagesTotal to: ${pagesTotal}`);
     let totalBlocks = 0;
     let totalWords = 0;
     let orphanCount = 0;
@@ -1044,12 +1052,13 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
     const progressPerPhase = 100 / phases.length;
 
     // Set initial status with real data
+    console.log(`💾 Updating job ${jobId} with pagesTotal: ${pagesTotal}`);
     await storage.updateImportJob(jobId, {
       status: "running",
       phase: "loading",
       percent: 0,
       pagesTotal: pagesTotal,
-      logs: [`Запуск импорта для jobId: ${jobId}`]
+      logs: [`Запуск импорта для jobId: ${jobId} с ${pagesTotal} страницами`]
     });
 
     for (let i = 0; i < phases.length; i++) {
