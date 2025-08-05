@@ -939,7 +939,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             pages = csvData.map((row: any, index: number) => {
               const content = row.Content || row.content || '';
               const title = row.Title || row.title || `Страница ${index + 1}`;
-              const url = row.Permalink || row.URL || row.url || `#page-${index + 1}`;
+              const url = row.Permalink || row.URL || row.url || `https://evolucionika.ru/page-${index + 1}/`;
               
               // Count words properly - handle HTML and get meaningful content
               let cleanContent = content || '';
@@ -947,9 +947,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               cleanContent = cleanContent.replace(/<[^>]*>/g, ' ');
               // Normalize whitespace
               cleanContent = cleanContent.replace(/\s+/g, ' ').trim();
-              // Filter out very short words and count meaningful words
-              const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 2);
-              const wordCount = Math.max(words.length, 50); // Minimum realistic word count
+              // Split and count words
+              const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 0);
+              const wordCount = words.length; // Use actual word count, no minimum
               
               // Calculate URL depth - count URL path segments correctly
               let urlDepth = 0;
@@ -1190,7 +1190,9 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
     const pagesData = projectUpload.data.slice(0, FORCE_PAGES).map((row: any, index: number) => {
       const content = row.Content || row.content || '';
       const title = row.Title || row.title || `Страница ${index + 1}`;
-      const url = row.Permalink || row.URL || row.url || `#page-${index + 1}`;
+      const url = row.Permalink || row.URL || row.url || `https://evolucionika.ru/page-${index + 1}/`;
+      
+      console.log(`📄 Processing page ${index + 1}: title="${title.substring(0, 50)}", url="${url}", content length=${content.length}`);
       
       // Count words properly - handle HTML and get meaningful content
       let cleanContent = content || '';
@@ -1198,9 +1200,9 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       cleanContent = cleanContent.replace(/<[^>]*>/g, ' ');
       // Normalize whitespace
       cleanContent = cleanContent.replace(/\s+/g, ' ').trim();
-      // Filter out very short words and count meaningful words
-      const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 2);
-      const wordCount = Math.max(words.length, 50); // Minimum realistic word count
+      // Split and count words
+      const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 0);
+      const wordCount = words.length; // Use actual word count, no minimum
       
       // Calculate URL depth - count URL path segments correctly
       let urlDepth = 0;
