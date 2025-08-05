@@ -551,11 +551,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Stored ${fullData.length} rows for uploadId: ${uploadId}`);
       console.log(`📋 CSV Headers:`, headers);
       console.log(`📋 First row data:`, fullData[0]);
-      console.log(`📋 Preview rows:`, rows.slice(0, 2));
       
-      // Check if Permalink field has any data
+      // Check if Permalink field has any data AFTER processing
       const permalinkData = fullData.slice(0, 10).map(row => row.Permalink || 'EMPTY');
-      console.log(`🔍 First 10 Permalink values:`, permalinkData);
+      console.log(`🔍 First 10 Permalink values AFTER processing:`, permalinkData);
+      
+      // Generate preview from PROCESSED data, not raw CSV
+      const previewRows = fullData.slice(0, 5).map(row => 
+        headers.map(header => String(row[header] || ''))
+      );
+      console.log(`📋 Preview rows from PROCESSED data:`, previewRows.slice(0, 2));
       
       // Check raw CSV lines - only for CSV files
       if (fileName.endsWith('.csv')) {
@@ -576,7 +581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         processedAt: null,
       });
 
-      res.json({ uploadId, preview: { headers, rows } });
+      res.json({ uploadId, preview: { headers, rows: previewRows } });
     } catch (error) {
       console.error("Upload error:", error);
       res.status(500).json({ message: "Upload failed" });
