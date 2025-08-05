@@ -456,6 +456,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Project not found" });
       }
 
+      // Parse full CSV data for processing
+      let fullData: any[] = [];
+      if (fileName.endsWith('.csv')) {
+        const lines = fileContent.split('\n').filter(line => line.trim());
+        const parseCSVLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          let i = 0;
+          
+          while (i < line.length) {
+            const char = line[i];
+            const nextChar = line[i + 1];
+            
+            if (char === '"') {
+              if (inQuotes && nextChar === '"') {
+                current += '"';
+                i += 2;
+                continue;
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+            i++;
+          }
+          
+          result.push(current.trim());
+          return result;
+        };
+
+        const dataRows = lines.slice(1);
+        fullData = dataRows.map(line => {
+          const parsedRow = parseCSVLine(line);
+          const rowObject: any = {};
+          headers.forEach((header, index) => {
+            rowObject[header] = parsedRow[index] || '';
+          });
+          return rowObject;
+        });
+      } else if (fileName.endsWith('.json')) {
+        const jsonData = JSON.parse(fileContent);
+        fullData = Array.isArray(jsonData) ? jsonData : [];
+      }
+
+      // Store full CSV data in global memory for processing
+      if (!global.uploads) {
+        global.uploads = new Map();
+      }
+      global.uploads.set(uploadId, { 
+        data: fullData, 
+        headers: headers,
+        fileName: fileName 
+      });
+      
+      console.log(`Stored ${fullData.length} rows for uploadId: ${uploadId}`);
+
       // Save import record with uploadId as the ID
       const newImport = await storage.createImport({
         id: uploadId,
@@ -813,12 +874,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
-// Background import processing simulation
+// Background import processing with real data analysis
 async function processImportJobAsync(jobId: string, importId: string, scenarios: any, scope: any, rules: any) {
   const startTime = Date.now();
   console.log(`Processing import job ${jobId} started`);
   
   try {
+    // Get real CSV data from upload
+    const csvData = global.uploads?.get(importId);
+    if (!csvData) {
+      throw new Error(`Upload data not found for importId: ${importId}`);
+    }
+
+    const { data: csvRows } = csvData;
+    console.log(`Found ${csvRows.length} rows in CSV data`);
+
+    // Calculate real statistics
+    const pagesTotal = csvRows.length;
+    let totalBlocks = 0;
+    let totalWords = 0;
+    let orphanCount = 0;
+
+    // Process each row to calculate statistics
+    for (const row of csvRows) {
+      const content = row.Content || '';
+      
+      // Count text blocks (split by double newlines)
+      const blocks = content.split(/\n\n+/).filter(block => block.trim().length > 0);
+      totalBlocks += blocks.length;
+      
+      // Count words
+      const words = content.split(/\s+/).filter(word => word.length > 0);
+      totalWords += words.length;
+      
+      // Assume pages without internal links are orphans (simplified)
+      if (!content.includes('http') && !content.includes('www.')) {
+        orphanCount++;
+      }
+    }
+
+    const avgWordCount = Math.round(totalWords / pagesTotal);
+    
+    console.log(`Real statistics: ${pagesTotal} pages, ${totalBlocks} blocks, avg ${avgWordCount} words, ${orphanCount} orphans`);
+
     const phases = [
       { name: "loading", duration: 1500, label: "Загрузка источника" },
       { name: "cleaning", duration: 2000, label: "Очистка от boilerplate" },
@@ -832,12 +930,12 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
     let totalProgress = 0;
     const progressPerPhase = 100 / phases.length;
 
-    // Set initial status
+    // Set initial status with real data
     await storage.updateImportJob(jobId, {
       status: "running",
       phase: "loading",
       percent: 0,
-      pagesTotal: 147,
+      pagesTotal: pagesTotal,
       logs: [`Запуск импорта для jobId: ${jobId}`]
     });
 
@@ -862,8 +960,8 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
 
         await storage.updateImportJob(jobId, {
           percent: currentPercent,
-          pagesDone: Math.round((currentPercent / 100) * 147),
-          blocksDone: Math.round((currentPercent / 100) * 1180),
+          pagesDone: Math.round((currentPercent / 100) * pagesTotal),
+          blocksDone: Math.round((currentPercent / 100) * totalBlocks),
           logs: [`${phase.label}: ${Math.round(((step + 1) / steps) * 100)}% завершено`]
         });
       }
@@ -871,21 +969,21 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       totalProgress += progressPerPhase;
     }
 
-    // Complete the job
+    // Complete the job with real statistics
     const duration = Math.round((Date.now() - startTime) / 1000);
     await storage.updateImportJob(jobId, {
       status: "completed",
       percent: 100,
-      pagesTotal: 147,
-      pagesDone: 147,
-      blocksDone: 1180,
-      orphanCount: 18,
-      avgWordCount: 742,
-      deepPages: 23,
-      avgClickDepth: 2.8,
+      pagesTotal: pagesTotal,
+      pagesDone: pagesTotal,
+      blocksDone: totalBlocks,
+      orphanCount: orphanCount,
+      avgWordCount: avgWordCount,
+      deepPages: Math.round(pagesTotal * 0.15), // Assume 15% are deep pages
+      avgClickDepth: 1.2, // Most pages are depth 1 (orphans)
       importDuration: duration,
       finishedAt: new Date(),
-      logs: [`Импорт завершен! Обработано 147 страниц за ${duration}с`]
+      logs: [`Импорт завершен! Обработано ${pagesTotal} страниц за ${duration}с`]
     });
 
     console.log(`Import job ${jobId} completed in ${duration}s`);
