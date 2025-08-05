@@ -314,9 +314,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Pages management for debug functionality
-  async saveProcessedPages(projectId: string, pagesData: any[]): Promise<void> {
-    // Use a consistent batch ID for this import
-    const batchId = crypto.randomUUID();
+  async saveProcessedPages(projectId: string, pagesData: any[], jobId?: string): Promise<void> {
+    // Use provided jobId or generate new one
+    const batchId = jobId || crypto.randomUUID();
     
     // Save new pages data with a consistent jobId
     if (pagesData.length > 0) {
@@ -349,8 +349,8 @@ export class DatabaseStorage implements IStorage {
   async getProjectPages(projectId: string): Promise<any[]> {
     const pages = await db.execute(sql`
       SELECT pr.* FROM pages_raw pr 
-      INNER JOIN import_jobs ij ON pr.job_id = ij.job_id::text
-      WHERE ij.project_id = ${projectId}
+      INNER JOIN import_jobs ij ON pr.job_id = ij.job_id
+      WHERE ij.project_id::text = ${projectId}
       ORDER BY pr.created_at DESC
     `);
     

@@ -1145,20 +1145,22 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
   // SAVE PROCESSED PAGES TO DATABASE - GET DATA FROM UPLOADS
   console.log(`💾 Saving ${FORCE_PAGES} pages to database for project ${projectId}`);
   try {
-    // Get upload data for this project
+    // Get upload data for this import
     const uploads = (global as any).uploads;
     let projectUpload = null;
     if (uploads && uploads.size > 0) {
       for (const [uploadId, upload] of uploads.entries()) {
-        if (upload && upload.projectId === projectId) {
+        if (upload && (upload.projectId === projectId || uploadId === importId)) {
           projectUpload = upload;
+          console.log(`💾 Found upload data for ${uploadId}: ${upload.data ? upload.data.length : 0} rows`);
           break;
         }
       }
     }
     
     if (!projectUpload || !projectUpload.data || !Array.isArray(projectUpload.data)) {
-      console.error(`❌ No valid data array found for project ${projectId}`);
+      console.error(`❌ No valid data array found for project ${projectId}, importId ${importId}`);
+      console.log(`❌ Available uploads:`, uploads ? Array.from(uploads.keys()) : 'none');
       throw new Error('No valid data array found');
     }
     
@@ -1212,7 +1214,7 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       };
     });
     
-    await storage.saveProcessedPages(projectId, pagesData);
+    await storage.saveProcessedPages(projectId, pagesData, jobId);
     console.log(`✅ Successfully saved ${pagesData.length} pages to database`);
   } catch (error) {
     console.error(`❌ Failed to save pages to database:`, error);
