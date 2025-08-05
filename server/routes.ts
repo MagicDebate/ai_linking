@@ -950,7 +950,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               let urlDepth = 0;
               try {
                 const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
-                urlDepth = (urlPath.match(/\//g) || []).length;
+                // Remove leading and trailing slashes, then count remaining slashes + 1
+                const cleanPath = urlPath.replace(/^\/+|\/+$/g, '');
+                if (cleanPath === '') {
+                  urlDepth = 0; // Root page
+                } else {
+                  urlDepth = cleanPath.split('/').length;
+                }
               } catch (e) {
                 urlDepth = 0;
               }
@@ -1179,7 +1185,13 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       let urlDepth = 0;
       try {
         const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
-        urlDepth = (urlPath.match(/\//g) || []).length;
+        // Remove leading and trailing slashes, then count remaining slashes + 1
+        const cleanPath = urlPath.replace(/^\/+|\/+$/g, '');
+        if (cleanPath === '') {
+          urlDepth = 0; // Root page
+        } else {
+          urlDepth = cleanPath.split('/').length;
+        }
       } catch (e) {
         urlDepth = 0;
       }

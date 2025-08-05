@@ -294,11 +294,23 @@ export default function DebugPages() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm truncate max-w-xs">{page.title}</span>
-                          <ExternalLink className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          <a 
+                            href={page.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-500 hover:text-blue-700"
+                          >
+                            <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                          </a>
                         </div>
-                        <div className="text-xs text-gray-500 font-mono truncate max-w-xs">
+                        <a 
+                          href={page.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:text-blue-700 font-mono truncate max-w-xs block"
+                        >
                           {page.url}
-                        </div>
+                        </a>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
