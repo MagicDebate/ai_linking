@@ -941,8 +941,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const title = row.Title || row.title || '';
               const url = row.Permalink || row.URL || row.url || '';
               
+              // Debug field mapping for first few rows
+              if (index < 5) {
+                console.log(`🔍 Debug row ${index + 1} fields:`, Object.keys(row));
+                console.log(`🔍 Debug row ${index + 1} Permalink: "${row.Permalink}"`);
+              }
+              
               // Skip rows without real URL data
               if (!url || url.trim() === '') {
+                return null;
+              }
+              
+              // Skip if URL doesn't look like a real URL
+              if (!url.startsWith('http') && !url.startsWith('/') && !url.includes('.')) {
                 return null;
               }
               
@@ -1197,8 +1208,20 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       const title = row.Title || row.title || '';
       const url = row.Permalink || row.URL || row.url || '';
       
+      // Debug field mapping
+      console.log(`🔍 Row ${index + 1} fields:`, Object.keys(row));
+      console.log(`🔍 Row ${index + 1} Permalink: "${row.Permalink}"`);
+      console.log(`🔍 Row ${index + 1} title: "${title.substring(0, 30)}"`);
+      
       // Skip rows without real URL data
       if (!url || url.trim() === '') {
+        console.log(`❌ Skipping row ${index + 1} - no valid URL`);
+        return null;
+      }
+      
+      // Skip if URL doesn't look like a real URL
+      if (!url.startsWith('http') && !url.startsWith('/') && !url.includes('.')) {
+        console.log(`❌ Skipping row ${index + 1} - URL doesn't look valid: "${url}"`);
         return null;
       }
       
