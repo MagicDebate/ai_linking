@@ -380,26 +380,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "CSV file is empty" });
         }
 
-        // Simple CSV parsing - split by comma, handle basic quotes
-        headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-        
-        // Take first few complete lines for preview
-        const previewLines = [];
-        for (let i = 1; i < lines.length && previewLines.length < 5; i++) {
-          const line = lines[i];
-          if (line.includes(',')) {
-            previewLines.push(line);
+        // Proper CSV parsing with multiline support
+        const properCSVParse = (csvText: string) => {
+          const results: string[][] = [];
+          const lines = csvText.split('\n');
+          let currentRow: string[] = [];
+          let currentField = '';
+          let inQuotes = false;
+          let i = 0;
+          
+          while (i < csvText.length) {
+            const char = csvText[i];
+            const nextChar = csvText[i + 1];
+            
+            if (char === '"') {
+              if (inQuotes && nextChar === '"') {
+                currentField += '"';
+                i += 2;
+                continue;
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              currentRow.push(currentField.trim());
+              currentField = '';
+            } else if ((char === '\n' || char === '\r') && !inQuotes) {
+              currentRow.push(currentField.trim());
+              if (currentRow.some(field => field.length > 0)) {
+                results.push(currentRow);
+              }
+              currentRow = [];
+              currentField = '';
+              if (char === '\r' && nextChar === '\n') i++;
+            } else {
+              currentField += char;
+            }
+            i++;
           }
+          
+          if (currentField || currentRow.length > 0) {
+            currentRow.push(currentField.trim());
+            if (currentRow.some(field => field.length > 0)) {
+              results.push(currentRow);
+            }
+          }
+          
+          return results;
+        };
+        
+        const parsed = properCSVParse(fileContent);
+        if (parsed.length === 0) {
+          return res.status(400).json({ message: "CSV parsing failed" });
         }
         
-        rows = previewLines.map(line => {
-          const fields = line.split(',');
-          // Ensure we have exactly the same number of fields as headers
-          while (fields.length < headers.length) {
-            fields.push('');
+        headers = parsed[0].map(h => h.trim());
+        console.log(`📋 Parsed headers:`, headers);
+        
+        // Take first few data rows for preview
+        rows = parsed.slice(1, 6).map(row => {
+          // Ensure row has same length as headers
+          while (row.length < headers.length) {
+            row.push('');
           }
-          return fields.slice(0, headers.length).map(f => f.trim().replace(/^"|"$/g, ''));
+          return row.slice(0, headers.length);
         });
+        
+        console.log(`📋 Preview data rows:`, rows.slice(0, 2));
       } else if (fileName.endsWith('.json')) {
         // Parse JSON
         try {
@@ -428,17 +474,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Project not found" });
       }
 
-      // Parse full CSV data for processing - simple approach
+      // Parse full CSV data using the same proper parser
       let fullData: any[] = [];
       if (fileName.endsWith('.csv')) {
-        const lines = fileContent.split('\n').filter(line => line.trim());
-        const dataRows = lines.slice(1);
+        // Use the same parsing function
+        const properCSVParse = (csvText: string) => {
+          const results: string[][] = [];
+          let currentRow: string[] = [];
+          let currentField = '';
+          let inQuotes = false;
+          let i = 0;
+          
+          while (i < csvText.length) {
+            const char = csvText[i];
+            const nextChar = csvText[i + 1];
+            
+            if (char === '"') {
+              if (inQuotes && nextChar === '"') {
+                currentField += '"';
+                i += 2;
+                continue;
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              currentRow.push(currentField.trim());
+              currentField = '';
+            } else if ((char === '\n' || char === '\r') && !inQuotes) {
+              currentRow.push(currentField.trim());
+              if (currentRow.some(field => field.length > 0)) {
+                results.push(currentRow);
+              }
+              currentRow = [];
+              currentField = '';
+              if (char === '\r' && nextChar === '\n') i++;
+            } else {
+              currentField += char;
+            }
+            i++;
+          }
+          
+          if (currentField || currentRow.length > 0) {
+            currentRow.push(currentField.trim());
+            if (currentRow.some(field => field.length > 0)) {
+              results.push(currentRow);
+            }
+          }
+          
+          return results;
+        };
         
-        fullData = dataRows.map(line => {
-          const fields = line.split(',');
+        const parsed = properCSVParse(fileContent);
+        const dataRows = parsed.slice(1);
+        
+        fullData = dataRows.map(row => {
           const rowObject: any = {};
           headers.forEach((header, index) => {
-            rowObject[header] = (fields[index] || '').trim().replace(/^"|"$/g, '');
+            rowObject[header] = (row[index] || '').trim();
           });
           return rowObject;
         });
