@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useRoute } from "wouter";
+import { useRoute, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,9 @@ import {
   Database,
   Link as LinkIcon,
   FileText,
-  TrendingUp
+  TrendingUp,
+  ArrowLeft,
+  Home
 } from "lucide-react";
 
 interface ImportStatus {
@@ -219,6 +221,27 @@ export function ImportPage() {
 
   return (
     <div className="container mx-auto py-8 max-w-4xl">
+      {/* Navigation Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard">
+            <Button variant="outline" size="sm">
+              <Home className="w-4 h-4 mr-2" />
+              Главная
+            </Button>
+          </Link>
+          <Link href={`/project/${projectId}`}>
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              К проекту
+            </Button>
+          </Link>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          Проект: {projectId?.slice(0, 8)}...
+        </div>
+      </div>
+
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">

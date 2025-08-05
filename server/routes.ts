@@ -1019,81 +1019,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-      const pages = csvData.map((row: any, index: number) => {
-        const content = row.Content || row.content || '';
-        const title = row.Title || row.title || `Страница ${index + 1}`;
-        const url = row.Permalink || row.URL || row.url || `#page-${index + 1}`;
-        
-        // Count words - improved word counting
-        const cleanContent = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-        const words = cleanContent.split(/\s+/).filter((word: string) => word.length > 0);
-        const wordCount = words.length;
-        
-        // Calculate URL depth (number of slashes after domain)
-        let urlDepth = 0;
-        try {
-          const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
-          urlDepth = (urlPath.match(/\//g) || []).length;
-        } catch (e) {
-          urlDepth = 0;
-        }
-        
-        // Count internal links more accurately
-        const linkMatches = content.match(/<a [^>]*href=['"']([^'"']*)['"'][^>]*>/gi) || [];
-        let internalLinkCount = 0;
-        
-        linkMatches.forEach((match: string) => {
-          const hrefMatch = match.match(/href=['"']([^'"']*)['"']/i);
-          if (hrefMatch && hrefMatch[1]) {
-            const href = hrefMatch[1];
-            // Count as internal if it's relative or same domain
-            if (href.startsWith('/') || href.startsWith('./') || href.startsWith('../') || 
-                (!href.startsWith('http://') && !href.startsWith('https://'))) {
-              internalLinkCount++;
-            }
-          }
-        });
-        
-        // Determine if orphan (no internal links)
-        const isOrphan = internalLinkCount === 0;
-        
-        // Create content preview
-        const contentPreview = cleanContent.substring(0, 100) + (cleanContent.length > 100 ? '...' : '');
-
-        return {
-          url,
-          title,
-          content: cleanContent,
-          wordCount,
-          urlDepth,
-          internalLinkCount,
-          isOrphan,
-          contentPreview
-        };
-      });
-
-      // Calculate statistics
-      const totalPages = pages.length;
-      const orphanCount = pages.filter((p: any) => p.isOrphan).length;
-      const linkedPages = totalPages - orphanCount;
-      const avgWordCount = totalPages > 0 ? Math.round(pages.reduce((sum: number, p: any) => sum + p.wordCount, 0) / totalPages) : 0;
-
-      const stats = {
-        totalPages,
-        orphanCount,
-        linkedPages,
-        avgWordCount
-      };
-
-      console.log(`Debug stats: ${totalPages} pages, ${orphanCount} orphans, ${linkedPages} linked, avg ${avgWordCount} words`);
-
-      res.json({ pages, stats });
-    } catch (error) {
-      console.error("Debug pages error:", error);
-      res.status(500).json({ error: "Failed to get debug pages data" });
-    }
-  });
-
   const httpServer = createServer(app);
   return httpServer;
 }
@@ -1217,10 +1142,28 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
   const avgWords = 150; // Average words per page
   const duration = Math.round((Date.now() - Date.now()) / 1000) + 10;
 
-  // SAVE PROCESSED PAGES TO DATABASE
-  console.log(`💾 Saving ${FORCE_PAGES} pages to database for project ${importData.projectId}`);
+  // SAVE PROCESSED PAGES TO DATABASE - GET DATA FROM UPLOADS
+  console.log(`💾 Saving ${FORCE_PAGES} pages to database for project ${projectId}`);
   try {
-    const pagesData = importData.data.slice(0, FORCE_PAGES).map((row: any, index: number) => {
+    // Get upload data for this project
+    const uploads = (global as any).uploads;
+    let projectUpload = null;
+    if (uploads && uploads.size > 0) {
+      for (const [uploadId, upload] of uploads.entries()) {
+        if (upload && upload.projectId === projectId) {
+          projectUpload = upload;
+          break;
+        }
+      }
+    }
+    
+    if (!projectUpload || !projectUpload.data || !Array.isArray(projectUpload.data)) {
+      console.error(`❌ No valid data array found for project ${projectId}`);
+      throw new Error('No valid data array found');
+    }
+    
+    console.log(`💾 Found upload data: ${projectUpload.data.length} rows`);
+    const pagesData = projectUpload.data.slice(0, FORCE_PAGES).map((row: any, index: number) => {
       const content = row.Content || row.content || '';
       const title = row.Title || row.title || `Страница ${index + 1}`;
       const url = row.Permalink || row.URL || row.url || `#page-${index + 1}`;
@@ -1269,7 +1212,7 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       };
     });
     
-    await storage.saveProcessedPages(importData.projectId, pagesData);
+    await storage.saveProcessedPages(projectId, pagesData);
     console.log(`✅ Successfully saved ${pagesData.length} pages to database`);
   } catch (error) {
     console.error(`❌ Failed to save pages to database:`, error);
