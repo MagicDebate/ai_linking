@@ -965,30 +965,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   const segments = cleanPath.split('/').filter(s => s.length > 0);
                   urlDepth = segments.length;
                 }
+                console.log(`📏 URL depth calculation: ${url} -> path: "${cleanPath}" -> segments: ${segments} -> depth: ${urlDepth}`);
               } catch (e) {
                 urlDepth = 0;
               }
               
-              // Count internal links - be more realistic about link detection
+              // Count internal links from real content
               const linkMatches = content.match(/<a [^>]*href=['"']([^'"']*)['"'][^>]*>/gi) || [];
               let internalLinkCount = 0;
+              let externalLinkCount = 0;
               
               linkMatches.forEach((match: string) => {
                 const hrefMatch = match.match(/href=['"']([^'"']*)['"']/i);
                 if (hrefMatch && hrefMatch[1]) {
                   const href = hrefMatch[1];
-                  // More liberal internal link detection
+                  // Count internal vs external links
                   if (href.startsWith('/') || href.startsWith('./') || href.startsWith('../') || 
+                      (href.includes('evolucionika.ru')) ||
                       (!href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('mailto:') && !href.startsWith('tel:'))) {
                     internalLinkCount++;
+                  } else if (href.startsWith('http://') || href.startsWith('https://')) {
+                    externalLinkCount++;
                   }
                 }
               });
               
-              // Simulate some internal links for realistic orphan count (not all pages are orphans)
-              if (internalLinkCount === 0 && Math.random() > 0.6) {
-                internalLinkCount = Math.floor(Math.random() * 3) + 1; // 1-3 random links
-              }
+              console.log(`🔗 Link analysis for ${url}: ${internalLinkCount} internal, ${externalLinkCount} external`);
               
               const isOrphan = internalLinkCount === 0;
               const contentPreview = cleanContent.substring(0, 150);
@@ -1214,30 +1216,32 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
           const segments = cleanPath.split('/').filter(s => s.length > 0);
           urlDepth = segments.length;
         }
+        console.log(`📏 URL depth calculation: ${url} -> path: "${cleanPath}" -> segments: ${segments} -> depth: ${urlDepth}`);
       } catch (e) {
         urlDepth = 0;
       }
       
-      // Count internal links - be more realistic about link detection
+      // Count internal links from real content
       const linkMatches = content.match(/<a [^>]*href=['"']([^'"']*)['"'][^>]*>/gi) || [];
       let internalLinkCount = 0;
+      let externalLinkCount = 0;
       
       linkMatches.forEach((match: string) => {
         const hrefMatch = match.match(/href=['"']([^'"']*)['"']/i);
         if (hrefMatch && hrefMatch[1]) {
           const href = hrefMatch[1];
-          // More liberal internal link detection
+          // Count internal vs external links
           if (href.startsWith('/') || href.startsWith('./') || href.startsWith('../') || 
+              (href.includes('evolucionika.ru')) ||
               (!href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('mailto:') && !href.startsWith('tel:'))) {
             internalLinkCount++;
+          } else if (href.startsWith('http://') || href.startsWith('https://')) {
+            externalLinkCount++;
           }
         }
       });
       
-      // Simulate some internal links for realistic orphan count (not all pages are orphans)
-      if (internalLinkCount === 0 && Math.random() > 0.6) {
-        internalLinkCount = Math.floor(Math.random() * 3) + 1; // 1-3 random links
-      }
+      console.log(`🔗 Link analysis for ${url}: ${internalLinkCount} internal, ${externalLinkCount} external`);
       
       const isOrphan = internalLinkCount === 0;
       const contentPreview = cleanContent.substring(0, 150);
