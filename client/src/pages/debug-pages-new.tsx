@@ -54,16 +54,21 @@ export default function DebugPages() {
     enabled: !!user && !!projectId,
   });
 
-  // Filter pages based on filters
+  // Filter pages based on filters - ALWAYS SHOW ALL PAGES by default
   const filteredPages = pagesData?.pages?.filter((page: PageData) => {
     if (filters.minWords && page.wordCount < parseInt(filters.minWords)) return false;
     if (filters.maxWords && page.wordCount > parseInt(filters.maxWords)) return false;
     if (filters.urlDepth && filters.urlDepth !== 'all' && page.urlDepth !== parseInt(filters.urlDepth)) return false;
     if (filters.minLinks && page.internalLinkCount < parseInt(filters.minLinks)) return false;
     if (filters.maxLinks && page.internalLinkCount > parseInt(filters.maxLinks)) return false;
+    // ONLY filter orphans if specifically requested
     if (filters.orphanOnly && !page.isOrphan) return false;
     return true;
   }) || [];
+  
+  console.log("DEBUG: All pages from API:", pagesData?.pages?.length);
+  console.log("DEBUG: Filtered pages:", filteredPages.length);
+  console.log("DEBUG: orphanOnly filter:", filters.orphanOnly);
 
   const clearFilters = () => {
     setFilters({

@@ -1029,7 +1029,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log(`Debug pages for project ${projectId}: analyzing ${pages.length} pages`);
+      console.log(`🚀 DEBUG API: Returning ALL ${pages.length} pages for project ${projectId}`);
+      console.log(`🚀 DEBUG API: First 3 pages:`, pages.slice(0, 3).map(p => ({ title: p.title?.substring(0, 30), isOrphan: p.isOrphan })));
 
       // Calculate statistics
       const totalPages = pages.length;
