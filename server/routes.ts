@@ -1212,7 +1212,11 @@ class ContentProcessor {
 
   private async updateProgress(jobId: string, phase: string, percent: number, message: string) {
     console.log(`📈 ${phase}: ${percent}% - ${message}`);
-    await this.storage.updateImportJob(jobId, { phase, logs: [message] });
+    await this.storage.updateImportJob(jobId, { 
+      phase, 
+      percent,
+      logs: [message] 
+    });
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 
