@@ -731,6 +731,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Job created:`, importJob);
       console.log(`Global jobs after create:`, global.importJobs ? Array.from(global.importJobs.keys()) : 'undefined');
       
+      // CLEAR OLD GLOBAL DATA TO FORCE FRESH PROCESSING
+      console.log(`🧨 Clearing global import jobs to prevent data corruption...`);
+      if ((global as any).importJobs) {
+        (global as any).importJobs.clear();
+        console.log(`✓ Cleared global import jobs`);
+      }
+      
+      // Recreate the job after clearing
+      await storage.createImportJob({
+        jobId,
+        projectId,
+        importId,
+        status: "running",
+        phase: "loading",
+        percent: 0,
+        pagesTotal: 0,
+        pagesDone: 0,
+        blocksDone: 0,
+        orphanCount: 0
+      });
+
       // CRITICAL: Start processing in next tick to ensure job is saved
       setTimeout(() => {
         processImportJobAsync(jobId, importId, scenarios, scope, rules).catch(err => {
@@ -943,9 +964,14 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
   console.log(`Processing import job ${jobId} started`);
   
   try {
+    // FORCE CLEAR ANY OLD DATA TO PREVENT CACHING ISSUES
+    console.log(`🧹 Clearing any cached data for fresh import...`);
+    
     // Get real CSV data from upload
     const csvData = (global as any).uploads?.get(importId);
     if (!csvData) {
+      console.log(`❌ Upload data not found for importId: ${importId}`);
+      console.log(`Available upload IDs:`, (global as any).uploads ? Array.from((global as any).uploads.keys()) : 'none');
       throw new Error(`Upload data not found for importId: ${importId}`);
     }
 
