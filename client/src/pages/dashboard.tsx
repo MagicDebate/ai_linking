@@ -26,7 +26,8 @@ import {
   X,
   ExternalLink,
   Lightbulb,
-  Upload
+  Upload,
+  Bug
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -465,6 +466,24 @@ export default function Dashboard() {
                     </span>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+            
+            {/* Debug section */}
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="text-sm">Отладка</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => window.open('/debug/pages', '_blank')}
+                >
+                  <Bug className="w-4 h-4 mr-2" />
+                  Посмотреть данные страниц
+                </Button>
               </CardContent>
             </Card>
           </div>

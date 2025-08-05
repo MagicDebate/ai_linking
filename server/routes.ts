@@ -1047,4 +1047,91 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
   return { success: true, pagesTotal: FORCE_PAGES, orphanCount: finalOrphans };
 }
 
+// Debug endpoint to view page data
+app.get("/api/debug/pages", authenticateToken, async (req: any, res) => {
+  try {
+    // Get the most recent upload data for this user
+    const uploads = (global as any).uploads;
+    if (!uploads || uploads.size === 0) {
+      return res.json({ 
+        pages: [], 
+        stats: { totalPages: 0, orphanCount: 0, linkedPages: 0, avgWordCount: 0 } 
+      });
+    }
+
+    // Get the latest upload data
+    const uploadEntries = Array.from(uploads.entries());
+    const latestUpload = uploadEntries[uploadEntries.length - 1];
+    
+    if (!latestUpload || !latestUpload[1] || !latestUpload[1].data) {
+      return res.json({ 
+        pages: [], 
+        stats: { totalPages: 0, orphanCount: 0, linkedPages: 0, avgWordCount: 0 } 
+      });
+    }
+
+    const csvData = latestUpload[1].data;
+    console.log(`Debug pages: analyzing ${csvData.length} rows from latest upload`);
+
+    const pages = csvData.map((row: any, index: number) => {
+      const content = row.Content || row.content || '';
+      const title = row.Title || row.title || `Страница ${index + 1}`;
+      const url = row.Permalink || row.URL || row.url || `#page-${index + 1}`;
+      
+      // Count words
+      const words = content.trim().split(/\s+/).filter((word: string) => word.trim().length > 0);
+      const wordCount = words.length;
+      
+      // Check for internal links
+      const hasInternalLinks = content.includes('<a ') || 
+                              content.includes('href=') || 
+                              content.includes('[') ||
+                              /https?:\/\/[^\s]+/.test(content);
+      
+      // Count links in content
+      const linkMatches = content.match(/<a [^>]*href/gi) || [];
+      const urlMatches = content.match(/https?:\/\/[^\s]+/g) || [];
+      const linkCount = linkMatches.length + urlMatches.length;
+      
+      // Determine if orphan (no internal links)
+      const isOrphan = !hasInternalLinks || linkCount === 0;
+      
+      // Create content preview
+      const contentPreview = content.replace(/<[^>]*>/g, '').trim().substring(0, 100) + 
+                            (content.length > 100 ? '...' : '');
+
+      return {
+        url,
+        title,
+        content,
+        wordCount,
+        hasLinks: hasInternalLinks,
+        isOrphan,
+        linkCount,
+        contentPreview
+      };
+    });
+
+    // Calculate statistics
+    const totalPages = pages.length;
+    const orphanCount = pages.filter((p: any) => p.isOrphan).length;
+    const linkedPages = totalPages - orphanCount;
+    const avgWordCount = totalPages > 0 ? Math.round(pages.reduce((sum: number, p: any) => sum + p.wordCount, 0) / totalPages) : 0;
+
+    const stats = {
+      totalPages,
+      orphanCount,
+      linkedPages,
+      avgWordCount
+    };
+
+    console.log(`Debug stats: ${totalPages} pages, ${orphanCount} orphans, ${linkedPages} linked, avg ${avgWordCount} words`);
+
+    res.json({ pages, stats });
+  } catch (error) {
+    console.error("Debug pages error:", error);
+    res.status(500).json({ error: "Failed to get debug pages data" });
+  }
+});
+
 
