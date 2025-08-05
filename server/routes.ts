@@ -1152,13 +1152,16 @@ class ContentProcessor {
 
   async processContent(jobId: string, projectId: string, importId: string) {
     console.log(`🚀 Starting real content processing for job ${jobId}`);
+    console.log(`📋 Input parameters: jobId=${jobId}, projectId=${projectId}, importId=${importId}`);
     
     // Phase 1: Load CSV data
+    console.log(`📥 Phase 1: Loading CSV data...`);
     await this.updateProgress(jobId, "loading", 0, "Читаем CSV");
     const csvData = await this.loadCSVData(importId);
     if (!csvData) {
       throw new Error("Failed to load CSV data");
     }
+    console.log(`📥 CSV data loaded: ${csvData.length} records`);
     
     await this.updateProgress(jobId, "loading", 100, `CSV загружен: ${csvData.length} записей`);
     
@@ -1539,12 +1542,17 @@ class ContentProcessor {
 
 async function processImportJobAsync(jobId: string, importId: string, scenarios: any, scope: any, rules: any, projectId: string) {
   console.log(`🚀 Starting real content processing for job ${jobId}`);
+  console.log(`📋 Parameters: importId=${importId}, projectId=${projectId}`);
   
   try {
+    console.log(`📦 Creating ContentProcessor instance...`);
     const processor = new ContentProcessor(storage);
+    console.log(`🎯 Starting processContent...`);
     await processor.processContent(jobId, projectId, importId);
+    console.log(`✅ processContent completed successfully`);
   } catch (error) {
     console.error(`❌ Content processing failed:`, error);
+    console.error(`❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
     await storage.updateImportJob(jobId, {
       status: "failed",
       errorMessage: error instanceof Error ? error.message : String(error),
