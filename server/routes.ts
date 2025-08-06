@@ -829,7 +829,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             before: realAvgDepth, 
             after: realAvgDepth // Depth doesn't change from adding internal links
           },
-          linksAdded: Number(stats.accepted) || 0,
+          linksAdded: Number(stats.total) || 0,
           duplicatesRemoved: 0, // No duplicate removal implemented
           broken404Fixed: { before: 0, after: 0 } // No 404 checking implemented
         },
@@ -1033,12 +1033,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Search for page in database
       const page = await db
         .select({
-          title: pagesClean.cleanTitle,
-          content: pagesClean.cleanContent,
-          description: pagesClean.cleanTitle
+          title: sql<string>`COALESCE(${pagesRaw.meta}->>'title', ${pagesRaw.meta}->>'post_title', 'Заголовок не найден')`,
+          content: sql<string>`COALESCE(${pagesRaw.meta}->>'content', ${pagesRaw.meta}->>'post_content', ${pagesRaw.rawHtml}, 'Содержимое не найдено')`,
+          description: sql<string>`COALESCE(${pagesRaw.meta}->>'excerpt', ${pagesRaw.meta}->>'meta_description', 'Описание не найдено')`
         })
-        .from(pagesClean)
-        .where(eq(pagesClean.cleanUrl, url))
+        .from(pagesRaw)
+        .where(eq(pagesRaw.url, url))
         .limit(1);
       
       if (page.length === 0) {
