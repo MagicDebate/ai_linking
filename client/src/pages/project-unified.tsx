@@ -53,7 +53,7 @@ interface Project {
 
 interface FieldMapping {
   publishedDate?: string;
-  [key: string]: string;
+  [key: string]: string | undefined;
 }
 
 interface CsvPreview {
@@ -543,7 +543,7 @@ export default function UnifiedProjectPage() {
   ];
 
   return (
-    <Layout>
+    <Layout title={project.name}>
       <div className="max-w-4xl mx-auto p-6 space-y-6">
         {/* Project Header */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
@@ -981,6 +981,11 @@ export default function UnifiedProjectPage() {
                 // Ищем текущий джоб из списка
                 const currentJob = importJobsList?.find((job: any) => job.jobId === jobId) || importStatus;
                 
+                // Если импорт завершен, автоматически переходим к следующему шагу
+                if (currentJob && currentJob.status === 'completed' && currentStep === 4) {
+                  setTimeout(() => setCurrentStep(5), 1000);
+                }
+                
                 if (!currentJob) {
                   return (
                     <div className="space-y-6">
@@ -1032,19 +1037,19 @@ export default function UnifiedProjectPage() {
                     {currentJob.status === 'completed' && (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                         <div className="text-center p-3 bg-gray-50 rounded-lg">
-                          <p className="text-2xl font-bold text-gray-900">{currentJob.pagesTotal}</p>
+                          <p className="text-2xl font-bold text-gray-900">{currentJob.pagesTotal || 0}</p>
                           <p className="text-sm text-gray-600">Страниц</p>
                         </div>
                         <div className="text-center p-3 bg-gray-50 rounded-lg">
-                          <p className="text-2xl font-bold text-gray-900">{currentJob.blocksDone}</p>
+                          <p className="text-2xl font-bold text-gray-900">{currentJob.blocksDone || 0}</p>
                           <p className="text-sm text-gray-600">Блоков</p>
                         </div>
                         <div className="text-center p-3 bg-gray-50 rounded-lg">
-                          <p className="text-2xl font-bold text-red-600">{currentJob.orphanCount}</p>
+                          <p className="text-2xl font-bold text-red-600">{currentJob.orphanCount || 0}</p>
                           <p className="text-sm text-gray-600">Сирот</p>
                         </div>
                         <div className="text-center p-3 bg-gray-50 rounded-lg">
-                          <p className="text-2xl font-bold text-gray-900">{currentJob.avgClickDepth}</p>
+                          <p className="text-2xl font-bold text-gray-900">{currentJob.avgClickDepth || 0}</p>
                           <p className="text-sm text-gray-600">Глубина</p>
                         </div>
                       </div>
