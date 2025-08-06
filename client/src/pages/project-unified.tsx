@@ -989,6 +989,17 @@ export default function UnifiedProjectPage() {
                         </div>
                       </div>
                     </div>
+                    
+                    <div className="flex justify-start mt-6">
+                      <Button 
+                        variant="outline"
+                        size="lg"
+                        className="px-8 py-3 border-2 font-medium"
+                        onClick={() => setCurrentStep(2)}
+                      >
+                        ← Назад
+                      </Button>
+                    </div>
                   </>
                 );
               })()}
