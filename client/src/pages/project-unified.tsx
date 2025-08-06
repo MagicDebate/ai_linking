@@ -687,112 +687,7 @@ export default function UnifiedProjectPage() {
           </Card>
         )}
 
-        {/* Step 3: Scenarios */}
-        {currentStep === 3 && (() => {
-          const completedJob = importJobsList?.find((job: any) => job.status === 'completed');
-          
-          return (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5" />
-                  Генерация внутренних ссылок
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-blue-800 font-medium">🎯 Готов к генерации</p>
-                  <p className="text-blue-700 text-sm mt-1">
-                    Будет обработано {completedJob?.orphanCount || 0} страниц-сирот с применением сценария фикса сирот
-                  </p>
-                </div>
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Запустить генерацию ссылок</h3>
-                
-                <div className="flex gap-4 items-center">
-                  <Button 
-                    size="lg"
-                    className="bg-green-600 hover:bg-green-700 text-white font-medium px-8 py-3"
-                    onClick={async () => {
-                      const confirmed = window.confirm(
-                        "Вы уверены? Текущие результаты генерации будут удалены и заменены новыми."
-                      );
-                      
-                      if (!confirmed) return;
-                      
-                      try {
-                        // Сначала очищаем предыдущие результаты
-                        await fetch(`/api/projects/${projectId}/links`, {
-                          method: "DELETE",
-                          credentials: "include"
-                        });
-
-                        const response = await fetch(`/api/projects/${projectId}/generate-links`, {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                          },
-                          credentials: "include",
-                          body: JSON.stringify({
-                            projectId: projectId,
-                            scenarios: { orphanFix: true },
-                            rules: { 
-                              maxLinks: 3, 
-                              depthThreshold: 5,
-                              moneyPages: [],
-                              stopAnchors: ["читать далее", "подробнее"],
-                              dedupeLinks: true,
-                              cssClass: "",
-                              relAttribute: "",
-                              targetAttribute: ""
-                            },
-                            check404Policy: "delete"
-                          }),
-                        });
-
-                        if (!response.ok) {
-                          throw new Error("Failed to start generation");
-                        }
-
-                        toast({
-                          title: "Новая генерация запущена",
-                          description: "Предыдущие результаты очищены, создание новых ссылок началось"
-                        });
-                        
-                        // Переходим на шаг 6 для отслеживания прогресса
-                        setCurrentStep(6);
-                      } catch (error) {
-                        console.error("Generation start error:", error);
-                        toast({
-                          title: "Ошибка",
-                          description: "Не удалось запустить генерацию ссылок"
-                        });
-                      }
-                    }}
-                  >
-                    <Zap className="mr-2 h-4 w-4" />
-                    Запустить генерацию
-                  </Button>
-                  
-                  <Button 
-                    variant="outline"
-                    size="lg"
-                    className="px-8 py-3 border-2 font-medium"
-                    onClick={() => {
-                      // Очищаем результаты генерации при переходе назад
-                      setGenerationResults(null);
-                      setCurrentStep(5);
-                    }}
-                  >
-                    ← Назад
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          );
-        })()}
 
         {/* Step 4: Import Progress */}
         {currentStep === 4 && (
@@ -953,14 +848,59 @@ export default function UnifiedProjectPage() {
                         <Button 
                           size="lg" 
                           className="h-auto p-4 flex flex-col items-start text-left bg-green-600 hover:bg-green-700"
-                          onClick={() => setCurrentStep(3)}
+                          onClick={async () => {
+                            const confirmed = window.confirm(
+                              "Запустить генерацию ссылок? Предыдущие результаты будут удалены."
+                            );
+                            
+                            if (!confirmed) return;
+                            
+                            try {
+                              // Очищаем предыдущие результаты
+                              await fetch(`/api/projects/${projectId}/links`, {
+                                method: "DELETE",
+                                credentials: "include"
+                              });
+
+                              const response = await fetch(`/api/projects/${projectId}/generate-links`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                credentials: "include",
+                                body: JSON.stringify({
+                                  projectId: projectId,
+                                  scenarios: { orphanFix: true },
+                                  rules: { 
+                                    maxLinks: 3, 
+                                    depthThreshold: 5,
+                                    moneyPages: [],
+                                    stopAnchors: ["читать далее", "подробнее"],
+                                    dedupeLinks: true
+                                  }
+                                })
+                              });
+
+                              if (!response.ok) throw new Error("Generation failed");
+
+                              toast({
+                                title: "Генерация запущена",
+                                description: "Создание внутренних ссылок началось"
+                              });
+                              
+                              // Остаемся на том же шаге - генерация идет в фоне
+                            } catch (error) {
+                              toast({
+                                title: "Ошибка",
+                                description: "Не удалось запустить генерацию"
+                              });
+                            }
+                          }}
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <Zap className="h-5 w-5" />
-                            <span className="font-medium">Перейти к генерации</span>
+                            <span className="font-medium">Запустить генерацию</span>
                           </div>
                           <p className="text-sm opacity-80">
-                            Настроить и запустить создание внутренних ссылок
+                            Создать внутренние ссылки для страниц-сирот
                           </p>
                         </Button>
                         
@@ -1146,13 +1086,7 @@ export default function UnifiedProjectPage() {
                 Запустить новую генерацию
               </Button>
               
-              <Button 
-                variant="outline"
-                onClick={() => setCurrentStep(3)}
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                Изменить настройки
-              </Button>
+
             </div>
           </CardContent>
         </Card>
