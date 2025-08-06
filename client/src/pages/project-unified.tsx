@@ -773,9 +773,9 @@ export default function UnifiedProjectPage() {
                   
                   <Button 
                     variant="outline"
-                    onClick={() => setCurrentStep(5)}
+                    onClick={() => setCurrentStep(2)}
                   >
-                    Назад к импорту
+                    Назад
                   </Button>
                 </div>
               </div>
