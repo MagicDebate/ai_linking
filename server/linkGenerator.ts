@@ -85,9 +85,9 @@ export class LinkGenerator {
       
       await this.updateProgress(runId, 'embedding', 70, 0, 0);
 
-      // Phase 3: Generate Candidates (70-80%)
+      // Phase 3: Smart Link Generation (70-80%)
       await this.updateProgress(runId, 'generating', 75, 0, 0);
-      const { generated, rejected } = await this.generateCandidates(runId, pages, params);
+      const { generated, rejected } = await this.smartLinkGeneration(runId, pages, params);
       
       await this.updateProgress(runId, 'generating', 80, generated, rejected);
 
@@ -212,80 +212,233 @@ export class LinkGenerator {
     }
   }
 
-  private async generateCandidates(runId: string, pages: any[], params: GenerationParams) {
-    let generated = 0;
-    let rejected = 0;
+  // ШАГ 3: УМНАЯ ГЕНЕРАЦИЯ ССЫЛОК ПО НОВОМУ АЛГОРИТМУ
+  private async smartLinkGeneration(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
+    let totalGenerated = 0;
+    let totalRejected = 0;
 
     const scenarios = params.scenarios;
     const rules = params.rules;
 
-    // Process all pages for comprehensive linking
-    const totalCombinations = pages.length * pages.length;
-    let processedCombinations = 0;
+    console.log(`🧠 Starting smart link generation for ${pages.length} donor pages`);
+    console.log(`⚙️ Rules: maxLinks=${rules.maxLinks}, scenarios=${Object.keys(scenarios).filter(k => (scenarios as any)[k]).join(', ')}`);
 
-    for (const sourcePage of pages) {
-      for (const targetPage of pages) {
-        processedCombinations++;
-        
-        // Update progress every 1000 combinations
-        if (processedCombinations % 1000 === 0) {
-          const percent = 70 + Math.floor((processedCombinations / totalCombinations) * 20);
-          await this.updateProgress(runId, 'linking', percent, generated, rejected);
+    // ШАГ 1: Обход страниц-доноров
+    for (let i = 0; i < pages.length; i++) {
+      const donorPage = pages[i];
+      
+      // 🔍 ПРОВЕРЯЕМ ЛИМИТ ЗАРАНЕЕ
+      const currentLinksCount = await this.getCurrentLinksCount(runId, donorPage.id);
+      if (currentLinksCount >= rules.maxLinks) {
+        console.log(`⏭️  Page ${donorPage.url} already has ${currentLinksCount} links (max: ${rules.maxLinks}), skipping`);
+        continue;
+      }
+
+      console.log(`\n🎯 Processing donor page ${i+1}/${pages.length}: ${donorPage.url}`);
+      console.log(`   Current links: ${currentLinksCount}/${rules.maxLinks}`);
+
+      // Определяем какие сценарии применимы к этой странице
+      const applicableScenarios = this.getApplicableScenarios(donorPage, scenarios, rules);
+      if (applicableScenarios.length === 0) {
+        console.log(`   ❌ No applicable scenarios for this donor page`);
+        continue;
+      }
+
+      console.log(`   ✅ Applicable scenarios: ${applicableScenarios.join(', ')}`);
+
+      // 🎯 ИЩЕМ ПО СМЫСЛУ ДЕСЯТОК САМЫХ БЛИЗКИХ ЦЕЛЕЙ
+      const topTargets = await this.findTopTargets(donorPage, pages, 10);
+      console.log(`   🔍 Found ${topTargets.length} potential targets`);
+
+      let linksCreatedFromThisPage = currentLinksCount;
+
+      // Обрабатываем каждую потенциальную цель
+      for (const target of topTargets) {
+        if (linksCreatedFromThisPage >= rules.maxLinks) {
+          console.log(`   🛑 Reached max links limit (${rules.maxLinks}) for donor page`);
+          break;
         }
-        if (sourcePage.id === targetPage.id) continue;
 
-        // Determine if this link should be generated
-        const shouldGenerate = this.shouldGenerateLink(sourcePage, targetPage, scenarios, rules);
+        // ШАГ 2: ПРИМЕНЕНИЕ ГЛОБАЛЬНЫХ ПРАВИЛ
+        const linkResult = await this.tryCreateLink(runId, donorPage, target, applicableScenarios[0], rules);
         
-        if (!shouldGenerate.generate) continue;
-
-        // Generate simple anchor text
-        const anchorText = this.generateSimpleAnchorText(sourcePage, targetPage);
-        
-        // Check constraints
-        const violation = await this.checkConstraints(runId, sourcePage, targetPage, anchorText, rules);
-        
-        if (violation) {
-          rejected++;
-          await db
-            .insert(linkCandidates)
-            .values({
-              runId,
-              sourcePageId: sourcePage.id,
-              targetPageId: targetPage.id,
-              sourceUrl: sourcePage.url,
-              targetUrl: targetPage.url,
-              anchorText,
-              scenario: shouldGenerate.scenario,
-              position: 0,
-              isRejected: true,
-              rejectionReason: violation,
-              cssClass: rules.cssClass,
-              relAttribute: rules.relAttribute,
-              targetAttribute: rules.targetAttribute
-            });
+        if (linkResult.created) {
+          totalGenerated++;
+          linksCreatedFromThisPage++;
+          console.log(`   ✅ Created link: ${donorPage.url} → ${target.url} (${linkResult.anchor})`);
         } else {
-          generated++;
-          await db
-            .insert(linkCandidates)
-            .values({
-              runId,
-              sourcePageId: sourcePage.id,
-              targetPageId: targetPage.id,
-              sourceUrl: sourcePage.url,
-              targetUrl: targetPage.url,
-              anchorText,
-              scenario: shouldGenerate.scenario,
-              position: 0,
-              cssClass: rules.cssClass,
-              relAttribute: rules.relAttribute,
-              targetAttribute: rules.targetAttribute
-            });
+          totalRejected++;
+          console.log(`   ❌ Rejected link: ${linkResult.reason}`);
         }
+      }
+
+      // Update progress
+      if (i % 10 === 0) {
+        const percent = 70 + Math.floor((i / pages.length) * 10);
+        await this.updateProgress(runId, 'linking', percent, totalGenerated, totalRejected);
       }
     }
 
-    return { generated, rejected };
+    console.log(`\n🏁 Smart generation completed: ${totalGenerated} generated, ${totalRejected} rejected`);
+    return { generated: totalGenerated, rejected: totalRejected };
+  }
+
+  // Получить текущее количество ссылок с данной страницы
+  private async getCurrentLinksCount(runId: string, sourcePageId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(linkCandidates)
+      .where(and(
+        eq(linkCandidates.runId, runId),
+        eq(linkCandidates.sourcePageId, sourcePageId),
+        eq(linkCandidates.isRejected, false)
+      ));
+    
+    return result[0]?.count || 0;
+  }
+
+  // Определить применимые сценарии для страницы
+  private getApplicableScenarios(donorPage: any, scenarios: any, rules: any): string[] {
+    const applicable: string[] = [];
+
+    // Orphan Fix - для сирот
+    if (scenarios.orphanFix && donorPage.isOrphan) {
+      applicable.push('orphan');
+    }
+
+    // Depth Lift - для глубоких страниц
+    if (scenarios.depthLift && donorPage.clickDepth >= rules.depthThreshold) {
+      applicable.push('depth');
+    }
+
+    // Commercial Routing - для денежных страниц
+    if (scenarios.commercialRouting && this.isMoneyPage(donorPage.url, rules.moneyPages)) {
+      applicable.push('money');
+    }
+
+    // Head Consolidation - для высокоавторитетных страниц
+    if (scenarios.headConsolidation && donorPage.inDegree > 5) {
+      applicable.push('head');
+    }
+
+    // Cluster Cross Link - для кластерной перелинковки
+    if (scenarios.clusterCrossLink) {
+      applicable.push('cross');
+    }
+
+    return applicable;
+  }
+
+  // Найти топ-10 релевантных целей по семантике
+  private async findTopTargets(donorPage: any, allPages: any[], limit: number): Promise<any[]> {
+    // Простая семантическая близость на основе общих ключевых слов
+    const donorKeywords = this.extractSimpleKeywords(donorPage.cleanHtml || '', '');
+    
+    const scoredTargets = allPages
+      .filter(page => page.id !== donorPage.id)
+      .map(targetPage => {
+        const targetKeywords = this.extractSimpleKeywords(targetPage.cleanHtml || '', '');
+        const similarity = this.calculateKeywordSimilarity(donorKeywords, targetKeywords);
+        
+        return {
+          ...targetPage,
+          similarity
+        };
+      })
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit);
+
+    return scoredTargets;
+  }
+
+  // Попытаться создать ссылку с проверкой всех правил
+  private async tryCreateLink(runId: string, donorPage: any, targetPage: any, scenario: string, rules: any): Promise<{ created: boolean, anchor?: string, reason?: string }> {
+    // Генерируем анкор
+    const anchorText = this.generateSimpleAnchorText(donorPage, targetPage);
+
+    // Проверяем все правила
+    const checks = [
+      this.checkDuplicateUrl(runId, donorPage.id, targetPage.url),
+      this.checkStopAnchors(anchorText, rules.stopAnchors),
+      // Дополнительные проверки можно добавить здесь
+    ];
+
+    const rejectionReason = await Promise.all(checks).then(results => results.find(r => r !== null));
+
+    if (rejectionReason) {
+      // Сохраняем отклоненную ссылку для анализа
+      await db.insert(linkCandidates).values({
+        runId,
+        sourcePageId: donorPage.id,
+        targetPageId: targetPage.id,
+        sourceUrl: donorPage.url,
+        targetUrl: targetPage.url,
+        anchorText,
+        scenario,
+        similarity: targetPage.similarity || 0.5,
+        isRejected: true,
+        rejectionReason,
+        position: 0,
+        cssClass: rules.cssClass,
+        relAttribute: rules.relAttribute,
+        targetAttribute: rules.targetAttribute
+      });
+
+      return { created: false, reason: rejectionReason };
+    }
+
+    // Создаем принятую ссылку
+    await db.insert(linkCandidates).values({
+      runId,
+      sourcePageId: donorPage.id,
+      targetPageId: targetPage.id,
+      sourceUrl: donorPage.url,
+      targetUrl: targetPage.url,
+      anchorText,
+      scenario,
+      similarity: targetPage.similarity || 0.7,
+      isRejected: false,
+      position: 0,
+      cssClass: rules.cssClass,
+      relAttribute: rules.relAttribute,
+      targetAttribute: rules.targetAttribute
+    });
+
+    return { created: true, anchor: anchorText };
+  }
+
+  // Проверка на дублирующий URL
+  private async checkDuplicateUrl(runId: string, sourcePageId: string, targetUrl: string): Promise<string | null> {
+    const duplicate = await db
+      .select()
+      .from(linkCandidates)
+      .where(and(
+        eq(linkCandidates.runId, runId),
+        eq(linkCandidates.sourcePageId, sourcePageId),
+        eq(linkCandidates.targetUrl, targetUrl),
+        eq(linkCandidates.isRejected, false)
+      ))
+      .limit(1);
+
+    return duplicate.length > 0 ? 'duplicate_url' : null;
+  }
+
+  // Проверка стоп-анкоров
+  private checkStopAnchors(anchorText: string, stopAnchors: string[]): string | null {
+    if (stopAnchors?.some((stop: string) => anchorText.toLowerCase().includes(stop.toLowerCase()))) {
+      return 'stop_anchor';
+    }
+    return null;
+  }
+
+  // Простое вычисление семантической близости
+  private calculateKeywordSimilarity(keywords1: string[], keywords2: string[]): number {
+    if (!keywords1.length || !keywords2.length) return 0;
+
+    const intersection = keywords1.filter(k => keywords2.includes(k));
+    const union = Array.from(new Set([...keywords1, ...keywords2]));
+    
+    return intersection.length / union.length;
   }
 
   private shouldGenerateLink(sourcePage: any, targetPage: any, scenarios: Record<string, boolean>, rules: any) {
