@@ -162,20 +162,77 @@ export default function UnifiedProjectPage() {
     enabled: !!projectId
   });
 
-  // Auto-determine correct step based on URL and import status
+  // Get saved configuration to restore state
+  const { data: savedConfig } = useQuery({
+    queryKey: ['/api/import-config', projectId],
+    queryFn: async () => {
+      const response = await fetch(`/api/import-config/${projectId}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: !!projectId
+  });
+
+  // Get import details to check if we have uploaded files
+  const { data: importsList } = useQuery({
+    queryKey: ['/api/imports', projectId],
+    queryFn: async () => {
+      const response = await fetch(`/api/imports?projectId=${projectId}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!projectId
+  });
+
+  // Auto-determine correct step based on URL, import status and saved config
   useEffect(() => {
     // Если это URL генерации ссылок - переходим к генерации
     if (location.includes('/generate')) {
       setCurrentStep(5);
-    } else if (importJobsList && importJobsList.length > 0) {
-      // Есть импорты - показываем соответствующий статус
+      return;
+    }
+
+    // Проверяем завершенные импорты
+    if (importJobsList && importJobsList.length > 0) {
       const lastJob = importJobsList[0];
       if (lastJob.status === 'completed') {
         setCurrentStep(5);
+        return;
       }
-      // Убираем автоматический переход на импорт - пользователь сам решает когда запускать
     }
-  }, [importJobsList, location]);
+
+    // Восстанавливаем состояние на основе сохраненных данных
+    if (savedConfig && importsList) {
+      // Если есть сохраненная конфигурация и загруженный файл
+      const lastImport = importsList.find((imp: any) => imp.status === 'mapped');
+      
+      if (lastImport && savedConfig) {
+        // Восстанавливаем данные из сохраненной конфигурации
+        setCsvPreview({
+          headers: Object.keys(savedConfig.fieldMapping || {}),
+          rows: [] // Заголовки достаточно для продолжения
+        });
+        setFieldMapping(savedConfig.fieldMapping || {});
+        setUploadId(lastImport.id);
+        setSelectedScenarios(savedConfig.selectedScenarios || ['orphanFix']);
+        
+        // Определяем на какой шаг перейти
+        if (savedConfig.fieldMapping && Object.keys(savedConfig.fieldMapping).length > 0) {
+          if (savedConfig.selectedScenarios && savedConfig.selectedScenarios.length > 0) {
+            setCurrentStep(3); // Готов к запуску импорта
+          } else {
+            setCurrentStep(3); // Нужно выбрать сценарии
+          }
+        } else {
+          setCurrentStep(2); // Нужно настроить поля
+        }
+      }
+    }
+  }, [importJobsList, location, savedConfig, importsList]);
 
   // Get import status for active job
   const { data: importStatus } = useQuery<ImportStatus>({

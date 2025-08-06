@@ -1520,6 +1520,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get saved import configuration for a project
+  app.get("/api/import-config/:projectId", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      
+      const config = await db
+        .select()
+        .from(projectImportConfigs)
+        .where(and(
+          eq(projectImportConfigs.projectId, projectId),
+          eq(projectImportConfigs.isLastUsed, true)
+        ))
+        .limit(1);
+      
+      if (config.length === 0) {
+        return res.status(404).json({ error: "No saved configuration found" });
+      }
+      
+      res.json(config[0]);
+    } catch (error) {
+      console.error("Get import config error:", error);
+      res.status(500).json({ error: "Failed to get import configuration" });
+    }
+  });
+
+  // Get imports list for a project  
+  app.get("/api/imports", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.query;
+      
+      if (!projectId) {
+        return res.status(400).json({ error: "Project ID is required" });
+      }
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      
+      const importsList = await db
+        .select()
+        .from(imports)
+        .where(eq(imports.projectId, projectId as string))
+        .orderBy(desc(imports.createdAt));
+      
+      res.json(importsList);
+    } catch (error) {
+      console.error("Get imports error:", error);
+      res.status(500).json({ error: "Failed to get imports" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
