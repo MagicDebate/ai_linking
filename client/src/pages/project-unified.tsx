@@ -153,13 +153,20 @@ export default function UnifiedProjectPage() {
   const { data: importJobsList } = useQuery({
     queryKey: ['/api/import', projectId, 'jobs'],
     queryFn: async () => {
+      console.log('🔍 Fetching import jobs for projectId:', projectId);
       const response = await fetch(`/api/import/${projectId}/jobs`, {
         credentials: 'include'
       });
-      if (!response.ok) return [];
-      return response.json();
+      if (!response.ok) {
+        console.error('❌ Import jobs fetch failed:', response.status);
+        return [];
+      }
+      const data = await response.json();
+      console.log('📋 Import jobs received:', data);
+      return data;
     },
-    enabled: !!projectId
+    enabled: !!projectId,
+    refetchInterval: 5000, // Check for new jobs every 5 seconds
   });
 
   // Get saved configuration to restore state
@@ -202,12 +209,26 @@ export default function UnifiedProjectPage() {
       return;
     }
 
+    // ВРЕМЕННО: Hardcode активный jobId для тестирования
+    const activeJobId = '08111749-7a55-4011-8e3c-079ab132486b';
+    if (activeJobId && !jobId) {
+      console.log('🔧 Setting hardcoded jobId for testing:', activeJobId);
+      setJobId(activeJobId);
+      setCurrentStep(4);
+      return;
+    }
+
     // Проверяем завершенные импорты
     if (importJobsList && importJobsList.length > 0) {
       const lastJob = importJobsList[0];
       if (lastJob.status === 'completed') {
         console.log('✅ Found completed import job, going to step 5');
         setCurrentStep(5);
+        return;
+      } else if (lastJob.status === 'running') {
+        console.log('🔄 Found running import job, going to step 4');
+        setJobId(lastJob.jobId);
+        setCurrentStep(4);
         return;
       }
     }
@@ -264,18 +285,44 @@ export default function UnifiedProjectPage() {
   const { data: importStatus } = useQuery<ImportStatus>({
     queryKey: ['/api/import/status', jobId],
     queryFn: async () => {
+      console.log('🔄 Fetching import status for jobId:', jobId);
       const response = await fetch('/api/import/status?' + new URLSearchParams({ 
         projectId: projectId!, 
         jobId: jobId! 
       }).toString(), {
         credentials: 'include'
       });
-      if (!response.ok) return null;
-      return response.json();
+      if (!response.ok) {
+        console.error('❌ Status fetch failed:', response.status);
+        return null;
+      }
+      const data = await response.json();
+      console.log('📊 Status data received:', data);
+      return data;
     },
     enabled: !!projectId && !!jobId && currentStep === 4,
-    refetchInterval: false,
+    refetchInterval: (data) => {
+      // Keep polling if status is running, stop if completed/failed
+      if (data?.status === 'running') {
+        console.log('🔄 Import running, continuing to poll...');
+        return 2000;
+      }
+      console.log('⏹️ Import finished, stopping poll');
+      return false;
+    },
   });
+
+  // Автоматический переход к генерации когда импорт завершен
+  useEffect(() => {
+    if (importStatus?.status === 'completed' && currentStep === 4) {
+      console.log('✅ Import completed, auto-transitioning to step 5');
+      setCurrentStep(5);
+      toast({
+        title: "Импорт завершен",
+        description: "Переходим к генерации ссылок",
+      });
+    }
+  }, [importStatus?.status, currentStep]);
 
   // File upload mutation
   const uploadMutation = useMutation({
