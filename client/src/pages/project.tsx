@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +41,8 @@ import {
   Clock,
   Database,
   Square,
-  ChevronUp
+  ChevronUp,
+  Zap
 } from "lucide-react";
 
 interface FieldMapping {
@@ -315,8 +316,7 @@ function ImportProgressStep({ projectId, jobId: initialJobId, onBack }: { projec
                   size="lg"
                   className="bg-green-600 hover:bg-green-700 text-white px-8 py-3"
                   onClick={() => {
-                    // Navigate to link generation step
-                    window.location.href = `/project/${projectId}/generate`;
+                    setLocation(`/project/${projectId}/generate`);
                   }}
                 >
                   <LinkIcon className="h-5 w-5 mr-2" />
@@ -445,6 +445,7 @@ interface LinkingRules {
 
 export default function ProjectPage() {
   const [, params] = useRoute("/project/:id");
+  const [, setLocation] = useLocation();
   const projectId = params?.id;
   const { toast } = useToast();
   const queryClient = useQueryClient();

@@ -13,8 +13,10 @@ import {
   clearTokenCookies, 
   authenticateToken 
 } from "./auth";
-import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, embeddings, edges, graphMeta, pagesRaw } from "@shared/schema";
-import { sql } from "drizzle-orm";
+import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, embeddings, edges, graphMeta, pagesRaw, generationRuns, linkCandidates } from "@shared/schema";
+import { LinkGenerator } from "./linkGenerator";
+import { progressStreamManager } from "./progressStream";
+import { sql, eq, and, desc } from "drizzle-orm";
 import { db } from "./db"; 
 import { DatabaseStorage } from "./storage";
 import multer from "multer";
@@ -735,7 +737,171 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate links endpoint
+  // ========== LINK GENERATION API ==========
+
+  // Start link generation
+  app.post("/api/generate/start", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId, importId, scenarios, scope, rules } = req.body;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Create link generator with progress callback
+      const generator = new LinkGenerator((update) => {
+        progressStreamManager.broadcastProgress(update);
+      });
+
+      // Start generation in background
+      generator.generateLinks({
+        projectId,
+        importId,
+        scenarios,
+        rules,
+        scope
+      }).then((runId) => {
+        progressStreamManager.broadcastCompletion(runId, true, "Generation completed");
+      }).catch((error) => {
+        console.error("Generation failed:", error);
+        progressStreamManager.broadcastCompletion("error", false, error.message);
+      });
+
+      res.json({ success: true, message: "Generation started" });
+    } catch (error) {
+      console.error("Generation start error:", error);
+      res.status(500).json({ error: "Failed to start generation" });
+    }
+  });
+
+  // Stream generation progress (Server-Sent Events)
+  app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
+    const { runId } = req.params;
+    
+    try {
+      // Validate run belongs to user's project
+      const run = await db
+        .select({ projectId: generationRuns.projectId })
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
+
+      if (!run.length) {
+        return res.status(404).json({ error: "Generation run not found" });
+      }
+
+      const project = await storage.getProjectById(run[0].projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Add client to progress stream
+      progressStreamManager.addClient(runId, res);
+      
+    } catch (error) {
+      console.error("Progress stream error:", error);
+      res.status(500).json({ error: "Failed to setup progress stream" });
+    }
+  });
+
+  // Get generation runs for project
+  app.get("/api/generate/runs/:projectId", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const runs = await db
+        .select()
+        .from(generationRuns)
+        .where(eq(generationRuns.projectId, projectId))
+        .orderBy(desc(generationRuns.startedAt));
+
+      res.json(runs);
+    } catch (error) {
+      console.error("Get runs error:", error);
+      res.status(500).json({ error: "Failed to get generation runs" });
+    }
+  });
+
+  // Get link candidates for draft review
+  app.get("/api/draft/:runId", authenticateToken, async (req: any, res) => {
+    try {
+      const { runId } = req.params;
+      const { scenario, page, limit = 50, offset = 0 } = req.query;
+      
+      // Validate run belongs to user's project
+      const run = await db
+        .select({ projectId: generationRuns.projectId })
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
+
+      if (!run.length) {
+        return res.status(404).json({ error: "Generation run not found" });
+      }
+
+      const project = await storage.getProjectById(run[0].projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Build filter conditions
+      let whereConditions = [eq(linkCandidates.runId, runId)];
+      
+      if (scenario && scenario !== 'all') {
+        whereConditions.push(eq(linkCandidates.scenario, scenario as string));
+      }
+      
+      if (page && page !== 'all') {
+        whereConditions.push(eq(linkCandidates.sourceUrl, page as string));
+      }
+
+      // Get candidates with pagination
+      const candidates = await db
+        .select()
+        .from(linkCandidates)
+        .where(and(...whereConditions))
+        .limit(Number(limit))
+        .offset(Number(offset))
+        .orderBy(linkCandidates.createdAt);
+
+      // Get total count
+      const totalCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(linkCandidates)
+        .where(and(...whereConditions));
+
+      // Get scenario statistics
+      const stats = await db
+        .select({
+          scenario: linkCandidates.scenario,
+          total: sql<number>`count(*)`,
+          accepted: sql<number>`count(*) filter (where is_rejected = false)`,
+          rejected: sql<number>`count(*) filter (where is_rejected = true)`
+        })
+        .from(linkCandidates)
+        .where(eq(linkCandidates.runId, runId))
+        .groupBy(linkCandidates.scenario);
+
+      res.json({
+        candidates,
+        total: totalCount[0]?.count || 0,
+        stats
+      });
+    } catch (error) {
+      console.error("Draft review error:", error);
+      res.status(500).json({ error: "Failed to get draft data" });
+    }
+  });
+
+  // Generate links endpoint (LEGACY - keeping for backwards compatibility)
   // Start import job for Step 4
   app.post("/api/import/start", authenticateToken, async (req: any, res) => {
     try {
