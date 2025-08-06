@@ -40,12 +40,12 @@ export class LinkGenerator {
 
   constructor(projectId: string) {
     this.projectId = projectId;
-    // Initialize OpenAI with fallback
+    // Initialize OpenAI with faster model for production
     try {
       this.openai = new OpenAI({ 
         apiKey: process.env.OPENAI_API_KEY_2 || process.env.OPENAI_API_KEY 
       });
-      console.log('OpenAI connection successful');
+      console.log('OpenAI connection successful (using gpt-3.5-turbo for speed)');
     } catch (error) {
       console.error('OpenAI initialization failed:', error);
       throw error;
@@ -172,7 +172,7 @@ export class LinkGenerator {
       .from(pagesClean)
       .innerJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
       .where(eq(graphMeta.jobId, job.jobId))
-      .limit(50); // Limit for stability
+      .limit(30); // Reduced limit for faster processing
 
     return pages;
   }
@@ -217,8 +217,8 @@ export class LinkGenerator {
     const scenarios = params.scenarios;
     const rules = params.rules;
 
-    // Limit combinations for stability
-    const limitedPages = pages.slice(0, 20);
+    // Limit combinations for speed
+    const limitedPages = pages.slice(0, 15);
 
     for (const sourcePage of limitedPages) {
       for (const targetPage of limitedPages) {
