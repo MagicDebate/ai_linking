@@ -989,19 +989,12 @@ export default function UnifiedProjectPage() {
                 </p>
               </div>
 
-              <div className="flex justify-between">
+              <div className="flex justify-center">
                 <Button 
                   variant="outline" 
                   onClick={() => setCurrentStep(5)}
                 >
-                  Назад к результатам
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  onClick={() => setCurrentStep(3)}
-                >
-                  Изменить настройки
+                  ← Назад к импорту
                 </Button>
               </div>
             </CardContent>
