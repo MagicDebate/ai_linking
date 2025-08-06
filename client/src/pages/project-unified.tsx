@@ -169,12 +169,10 @@ export default function UnifiedProjectPage() {
     } else if (importJobsList && importJobsList.length > 0) {
       // Есть импорты - показываем соответствующий статус
       const lastJob = importJobsList[0];
-      if (lastJob.status === 'running' || lastJob.status === 'pending') {
-        setCurrentStep(4);
-        setJobId(lastJob.id);
-      } else if (lastJob.status === 'completed') {
+      if (lastJob.status === 'completed') {
         setCurrentStep(5);
       }
+      // Убираем автоматический переход на импорт - пользователь сам решает когда запускать
     }
   }, [importJobsList, location]);
 
@@ -192,12 +190,7 @@ export default function UnifiedProjectPage() {
       return response.json();
     },
     enabled: !!projectId && !!jobId && currentStep === 4,
-    refetchInterval: (data) => {
-      if (!data || ['completed', 'failed', 'canceled'].includes(data?.status)) {
-        return false;
-      }
-      return 2000;
-    },
+    refetchInterval: false,
   });
 
   // File upload mutation
