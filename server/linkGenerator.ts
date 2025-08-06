@@ -4,11 +4,13 @@ import {
   linkCandidates, 
   pageEmbeddings, 
   pagesClean,
+  pagesRaw,
   brokenUrls,
   importJobs,
-  graphMeta
+  graphMeta,
+  blocks
 } from '@shared/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
 
