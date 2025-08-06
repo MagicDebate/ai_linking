@@ -19,8 +19,8 @@ export default function Layout({ children, title }: LayoutProps) {
               )}
             </div>
             <nav className="flex space-x-8">
-              <a href="/dashboard" className="text-gray-600 hover:text-gray-900">Проекты</a>
-              <a href="#" className="text-gray-600 hover:text-gray-900">Помощь</a>
+              <a href="/dashboard" className="text-gray-600 hover:text-gray-900">Дашборд</a>
+              <a href="#" className="text-gray-600 hover:text-gray-900">Справка</a>
             </nav>
           </div>
         </div>
