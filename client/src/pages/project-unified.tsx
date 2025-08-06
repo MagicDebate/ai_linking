@@ -1201,7 +1201,7 @@ export default function UnifiedProjectPage() {
                         credentials: "include"
                       });
 
-                      const response = await fetch(`/api/projects/${projectId}/generate-links`, {
+                      const response = await fetch(`/api/link-generation`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         credentials: "include",

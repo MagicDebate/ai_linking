@@ -1109,10 +1109,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // COMPATIBLE ENDPOINT for frontend
   app.post("/api/link-generation", authenticateToken, async (req: any, res) => {
     try {
+      console.log('🔥 Link generation request received:', JSON.stringify(req.body, null, 2));
+      console.log('🔥 User:', req.user?.id);
+      
       const { projectId, scenarios, rules, check404Policy } = req.body;
+      
+      if (!projectId) {
+        console.log('❌ Missing projectId');
+        return res.status(400).json({ error: "Missing projectId" });
+      }
       
       // Validate project belongs to user
       const project = await storage.getProjectById(projectId);
+      console.log('🔥 Project found:', project ? 'YES' : 'NO');
       if (!project || project.userId !== req.user.id) {
         return res.status(404).json({ error: "Project not found" });
       }
