@@ -209,13 +209,15 @@ export default function UnifiedProjectPage() {
       return;
     }
 
-    // ВРЕМЕННО: Hardcode активный jobId для тестирования
-    const activeJobId = '08111749-7a55-4011-8e3c-079ab132486b';
-    if (activeJobId && !jobId) {
-      console.log('🔧 Setting hardcoded jobId for testing:', activeJobId);
-      setJobId(activeJobId);
-      setCurrentStep(4);
-      return;
+    // Проверяем активные джобы из списка
+    if (importJobsList && importJobsList.length > 0) {
+      const runningJob = importJobsList.find((job: any) => job.status === 'running');
+      if (runningJob && !jobId) {
+        console.log('🔧 Found running job, setting jobId:', runningJob.jobId);
+        setJobId(runningJob.jobId);
+        setCurrentStep(4);
+        return;
+      }
     }
 
     // Проверяем завершенные импорты
