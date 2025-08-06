@@ -1171,12 +1171,7 @@ export default function UnifiedProjectPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-800 font-medium">🎯 Экран генерации</p>
-                <p className="text-blue-700 text-sm mt-1">
-                  Управление генерацией внутренних ссылок
-                </p>
-              </div>
+              
 
               {/* Results Section - показываем ТОЛЬКО результаты генерации */}
               <Results projectId={project.id} />
