@@ -1,4 +1,7 @@
-import { ReactNode } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useLogout } from "@/hooks/useAuth";
+import { ChevronDown, LogOut, Settings, User } from "lucide-react";
 
 interface LayoutProps {
   children: ReactNode;
@@ -6,6 +9,29 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, title }: LayoutProps) {
+  const { user } = useAuth();
+  const logout = useLogout();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    logout.mutate();
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
@@ -18,10 +44,49 @@ export default function Layout({ children, title }: LayoutProps) {
                 <span className="ml-4 text-lg text-gray-600">— {title}</span>
               )}
             </div>
-            <nav className="flex space-x-8">
-              <a href="/dashboard" className="text-gray-600 hover:text-gray-900">Дашборд</a>
-              <a href="#" className="text-gray-600 hover:text-gray-900">Справка</a>
-            </nav>
+            
+            {/* User Menu */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none"
+              >
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                  <User className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-sm font-medium">{user?.email}</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                  <div className="px-4 py-2 text-sm text-gray-500 border-b border-gray-100">
+                    {user?.email}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      // Navigate to settings if needed
+                    }}
+                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Настройки
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      handleLogout();
+                    }}
+                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Выйти
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
