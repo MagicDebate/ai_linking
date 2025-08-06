@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Layout from "@/components/Layout";
 import { useAuth, useLogout } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -150,39 +151,29 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-200 h-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
-          <div className="flex items-center justify-between h-full">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-blue-600 cursor-pointer">
-                SEO LinkBuilder
-              </h1>
-            </div>
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  {user?.email}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Настройки
-                </DropdownMenuItem>
-                <Separator className="my-1" />
-                <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Выход
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </header>
+    <Layout title="Дашборд">
+      {/* User Menu - Move to Layout later if needed */}
+      <div className="absolute top-4 right-4 z-10">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              {user?.email}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem>
+              <Settings className="h-4 w-4 mr-2" />
+              Настройки
+            </DropdownMenuItem>
+            <Separator className="my-1" />
+            <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+              <LogOut className="h-4 w-4 mr-2" />
+              Выход
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       {/* Notification Banner */}
       {!notificationDismissed && (
@@ -479,6 +470,6 @@ export default function Dashboard() {
       
       {/* Import Wizard */}
 
-    </div>
+    </Layout>
   );
 }
