@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import Layout from "@/components/Layout";
+import { Results } from "@/components/Results";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1049,6 +1050,9 @@ export default function UnifiedProjectPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Results Section */}
+        <Results projectId={project.id} />
       </div>
     </Layout>
   );
