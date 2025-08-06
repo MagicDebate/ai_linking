@@ -775,7 +775,7 @@ export default function UnifiedProjectPage() {
                     variant="outline"
                     size="lg"
                     className="px-8 py-3 border-2 font-medium"
-                    onClick={() => setCurrentStep(2)}
+                    onClick={() => setCurrentStep(5)}
                   >
                     ← Назад
                   </Button>
@@ -995,7 +995,7 @@ export default function UnifiedProjectPage() {
                         variant="outline"
                         size="lg"
                         className="px-8 py-3 border-2 font-medium"
-                        onClick={() => setCurrentStep(2)}
+                        onClick={() => setCurrentStep(1)}
                       >
                         ← Назад
                       </Button>
