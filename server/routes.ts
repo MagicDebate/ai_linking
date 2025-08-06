@@ -1052,11 +1052,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           contentPreview: (row.content || '').substring(0, 150)
         }));
         
+        const orphanCount = pages.filter(p => p.isOrphan).length;
+        const linkedPages = pages.length - orphanCount;
+        const avgWordCount = pages.length > 0 ? Math.round(pages.reduce((sum, p) => sum + p.wordCount, 0) / pages.length) : 0;
+        
         return res.json({ 
           success: true, 
           pages: pages,
-          totalCount: pages.length,
-          orphanCount: pages.filter(p => p.isOrphan).length
+          stats: {
+            totalPages: pages.length,
+            orphanCount: orphanCount,
+            linkedPages: linkedPages,
+            avgWordCount: avgWordCount
+          }
         });
       } else {
         // Fallback to old method
