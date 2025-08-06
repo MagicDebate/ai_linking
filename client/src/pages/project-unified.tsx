@@ -35,7 +35,9 @@ import {
   Database,
   Zap,
   ExternalLink,
-  RotateCcw
+  RotateCcw,
+  Search,
+  AlertTriangle
 } from "lucide-react";
 
 interface Project {
@@ -317,15 +319,30 @@ export default function UnifiedProjectPage() {
 
   // Автоматический переход к генерации когда импорт завершен
   useEffect(() => {
+    // Проверяем из importJobsList если importStatus недоступен
+    if (currentStep === 4 && importJobsList && importJobsList.length > 0) {
+      const completedJob = importJobsList.find((job: any) => job.status === 'completed');
+      if (completedJob) {
+        console.log('✅ Import completed (from jobsList), transitioning to step 5');
+        setCurrentStep(5);
+        toast({
+          title: "Импорт завершен",
+          description: "Переходим к генерации ссылок",
+        });
+        return;
+      }
+    }
+    
+    // Fallback - проверяем importStatus
     if (importStatus?.status === 'completed' && currentStep === 4) {
-      console.log('✅ Import completed, auto-transitioning to step 5');
+      console.log('✅ Import completed (from status), transitioning to step 5');
       setCurrentStep(5);
       toast({
         title: "Импорт завершен",
         description: "Переходим к генерации ссылок",
       });
     }
-  }, [importStatus?.status, currentStep]);
+  }, [importStatus?.status, currentStep, importJobsList]);
 
   // File upload mutation
   const uploadMutation = useMutation({
@@ -746,72 +763,81 @@ export default function UnifiedProjectPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {importStatus ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{PHASE_LABELS[importStatus.phase] || importStatus.phase}</p>
-                      <p className="text-sm text-gray-600">
-                        {importStatus.status === 'completed' ? 'Импорт завершен' : 
-                         importStatus.status === 'failed' ? `Ошибка: ${importStatus.errorMessage || 'Неизвестная ошибка'}` :
-                         `${importStatus.percent}% выполнено`}
-                      </p>
+              {(() => {
+                // Ищем текущий джоб из списка
+                const currentJob = importJobsList?.find((job: any) => job.jobId === jobId) || importStatus;
+                
+                if (!currentJob) {
+                  return (
+                    <div className="text-center py-8">
+                      <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+                      <p>Запуск импорта...</p>
                     </div>
-                    {importStatus.status === 'running' && (
-                      <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />
+                  );
+                }
+                
+                return (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{PHASE_LABELS[currentJob.phase] || currentJob.phase}</p>
+                        <p className="text-sm text-gray-600">
+                          {currentJob.status === 'completed' ? 'Импорт завершен' : 
+                           currentJob.status === 'failed' ? `Ошибка: ${currentJob.errorMessage || 'Неизвестная ошибка'}` :
+                           `${currentJob.percent}% выполнено`}
+                        </p>
+                      </div>
+                      {currentJob.status === 'running' && (
+                        <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />
+                      )}
+                      {currentJob.status === 'failed' && (
+                        <AlertCircle className="h-5 w-5 text-red-600" />
+                      )}
+                    </div>
+                    
+                    <Progress value={currentJob.percent} className="w-full" />
+                    
+                    {currentJob.status === 'completed' && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                        <div className="text-center p-3 bg-gray-50 rounded-lg">
+                          <p className="text-2xl font-bold text-gray-900">{currentJob.pagesTotal}</p>
+                          <p className="text-sm text-gray-600">Страниц</p>
+                        </div>
+                        <div className="text-center p-3 bg-gray-50 rounded-lg">
+                          <p className="text-2xl font-bold text-gray-900">{currentJob.blocksDone}</p>
+                          <p className="text-sm text-gray-600">Блоков</p>
+                        </div>
+                        <div className="text-center p-3 bg-gray-50 rounded-lg">
+                          <p className="text-2xl font-bold text-red-600">{currentJob.orphanCount}</p>
+                          <p className="text-sm text-gray-600">Сирот</p>
+                        </div>
+                        <div className="text-center p-3 bg-gray-50 rounded-lg">
+                          <p className="text-2xl font-bold text-gray-900">{currentJob.avgClickDepth}</p>
+                          <p className="text-sm text-gray-600">Глубина</p>
+                        </div>
+                      </div>
                     )}
-                    {importStatus.status === 'failed' && (
-                      <AlertCircle className="h-5 w-5 text-red-600" />
+                    
+                    {currentJob.status === 'completed' && (
+                      <div className="flex justify-end">
+                        <Button onClick={() => setCurrentStep(5)}>
+                          <Zap className="h-4 w-4 mr-2" />
+                          Генерировать ссылки
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {currentJob.status === 'failed' && (
+                      <div className="flex justify-end">
+                        <Button onClick={() => setCurrentStep(3)} variant="outline">
+                          <RotateCcw className="h-4 w-4 mr-2" />
+                          Запустить заново
+                        </Button>
+                      </div>
                     )}
                   </div>
-                  
-                  <Progress value={importStatus.percent} className="w-full" />
-                  
-                  {importStatus.status === 'completed' && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <p className="text-2xl font-bold text-gray-900">{importStatus.pagesTotal}</p>
-                        <p className="text-sm text-gray-600">Страниц</p>
-                      </div>
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <p className="text-2xl font-bold text-gray-900">{importStatus.blocksDone}</p>
-                        <p className="text-sm text-gray-600">Блоков</p>
-                      </div>
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <p className="text-2xl font-bold text-red-600">{importStatus.orphanCount}</p>
-                        <p className="text-sm text-gray-600">Сирот</p>
-                      </div>
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <p className="text-2xl font-bold text-gray-900">{importStatus.avgClickDepth}</p>
-                        <p className="text-sm text-gray-600">Глубина</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {importStatus.status === 'completed' && (
-                    <div className="flex justify-end">
-                      <Button onClick={() => setCurrentStep(5)}>
-                        <Zap className="h-4 w-4 mr-2" />
-                        Генерировать ссылки
-                      </Button>
-                    </div>
-                  )}
-                  
-                  {importStatus.status === 'failed' && (
-                    <div className="flex justify-end">
-                      <Button onClick={() => setCurrentStep(3)} variant="outline">
-                        <RotateCcw className="h-4 w-4 mr-2" />
-                        Запустить заново
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-                  <p>Запуск импорта...</p>
-                </div>
-              )}
+                );
+              })()}
             </CardContent>
           </Card>
         )}
@@ -826,39 +852,103 @@ export default function UnifiedProjectPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <p className="text-gray-600">
-                Данные импортированы. Теперь можно генерировать внутренние ссылки.
-              </p>
-              
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 mr-3" />
-                  <div>
-                    <p className="font-medium text-green-900">Импорт завершен успешно</p>
-                    <p className="text-sm text-green-700">Все данные обработаны и готовы для генерации ссылок</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <Button onClick={() => {
-                  // В будущем здесь будет логика генерации ссылок
-                  toast({
-                    title: "Функция в разработке",
-                    description: "Генерация ссылок будет доступна в следующих версиях"
-                  });
-                }}>
-                  <Play className="h-4 w-4 mr-2" />
-                  Генерировать ссылки
-                </Button>
+              {(() => {
+                // Получаем данные завершенного импорта
+                const completedJob = importJobsList?.find((job: any) => job.status === 'completed');
                 
-                <Button variant="outline" asChild>
-                  <a href={`/project/${projectId}/debug`}>
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Просмотр данных
-                  </a>
-                </Button>
-              </div>
+                return (
+                  <>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center mb-3">
+                        <CheckCircle2 className="h-5 w-5 text-green-600 mr-3" />
+                        <div>
+                          <p className="font-medium text-green-900">Импорт завершен успешно</p>
+                          <p className="text-sm text-green-700">Все данные обработаны и готовы для генерации ссылок</p>
+                        </div>
+                      </div>
+                      
+                      {completedJob && (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                          <div className="text-center p-3 bg-white rounded-lg">
+                            <p className="text-2xl font-bold text-gray-900">{completedJob.pagesTotal}</p>
+                            <p className="text-sm text-gray-600">Страниц импортировано</p>
+                          </div>
+                          <div className="text-center p-3 bg-white rounded-lg">
+                            <p className="text-2xl font-bold text-blue-600">{completedJob.blocksDone}</p>
+                            <p className="text-sm text-gray-600">Блоков контента</p>
+                          </div>
+                          <div className="text-center p-3 bg-white rounded-lg">
+                            <p className="text-2xl font-bold text-red-600">{completedJob.orphanCount}</p>
+                            <p className="text-sm text-gray-600">Страниц-сирот</p>
+                          </div>
+                          <div className="text-center p-3 bg-white rounded-lg">
+                            <p className="text-2xl font-bold text-green-600">{completedJob.avgClickDepth}</p>
+                            <p className="text-sm text-gray-600">Средняя глубина</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Выберите действие:</h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Button 
+                          size="lg" 
+                          className="h-auto p-4 flex flex-col items-start text-left"
+                          onClick={() => {
+                            toast({
+                              title: "Функция в разработке",
+                              description: "Генерация ссылок будет доступна в следующих версиях"
+                            });
+                          }}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Zap className="h-5 w-5" />
+                            <span className="font-medium">Генерировать ссылки</span>
+                          </div>
+                          <p className="text-sm opacity-80">
+                            Создать предложения внутренних ссылок на основе выбранных сценариев
+                          </p>
+                        </Button>
+                        
+                        <Button 
+                          variant="outline"
+                          size="lg"
+                          className="h-auto p-4 flex flex-col items-start text-left"
+                          asChild
+                        >
+                          <a href={`/project/${projectId}/debug`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <ExternalLink className="h-5 w-5" />
+                              <span className="font-medium">Просмотр данных</span>
+                            </div>
+                            <p className="text-sm opacity-80">
+                              Изучить импортированные страницы и структуру сайта
+                            </p>
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-start">
+                        <AlertTriangle className="h-5 w-5 text-blue-600 mr-3 mt-0.5" />
+                        <div>
+                          <p className="font-medium text-blue-900 mb-1">Рекомендации по результатам анализа:</p>
+                          <ul className="text-sm text-blue-800 space-y-1">
+                            {completedJob?.orphanCount > 0 && (
+                              <li>• Найдено {completedJob.orphanCount} страниц-сирот - рекомендуется создать входящие ссылки</li>
+                            )}
+                            <li>• Средняя глубина страниц: {completedJob?.avgClickDepth || 1} клик от главной</li>
+                            <li>• Готово {completedJob?.blocksDone || 0} векторизованных блоков для поиска семантических связей</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </CardContent>
           </Card>
         )}
