@@ -25,32 +25,53 @@ interface LinksTableProps {
 
 // Функция для транслитерации анкоров обратно в кириллицу
 function convertAnchorToCyrillic(anchor: string): string {
-  // Простая замена латинских букв на кириллические
-  const translitMap: { [key: string]: string } = {
-    'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д', 'e': 'е', 'yo': 'ё', 'zh': 'ж', 'z': 'з',
-    'i': 'и', 'j': 'й', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о', 'p': 'п', 'r': 'р',
-    's': 'с', 't': 'т', 'u': 'у', 'f': 'ф', 'h': 'х', 'c': 'ц', 'ch': 'ч', 'sh': 'ш', 'sch': 'щ',
-    'y': 'ы', 'eh': 'э', 'yu': 'ю', 'ya': 'я'
+  // Сначала проверяем готовые фразы
+  const fixedPhrases: { [key: string]: string } = {
+    'kak ponyat chto u tebya panicheskaya ataka': 'как понять что у тебя паническая атака',
+    'chto takoe osoznannost ot buddijskoj': 'что такое осознанность от буддийской',
+    'chto delat pri panicheskoy atake': 'что делать при панической атаке',
+    'lechenie panicheskih atak': 'лечение панических атак',
+    'panicheskie ataki posle alkogolya': 'панические атаки после алкоголя',
+    'panicheskie ataki pered snom pri zasypanii': 'панические атаки перед сном при засыпании',
+    'panicheskiy strah': 'панический страх',
+    'plohoe samochuvstvie posle panicheskoy ataki': 'плохое самочувствие после панической атаки',
+    'simptomy panicheskih atak u zhenshchin': 'симптомы панических атак у женщин',
+    'panicheskie ataki pri klimakse': 'панические атаки при климаксе',
+    'bessonnica pri depressii': 'бессонница при депрессии',
+    'hronicheskaya depressiya': 'хроническая депрессия',
+    'vidy depressii': 'виды депрессии'
   };
   
-  let result = anchor;
+  const lowerAnchor = anchor.toLowerCase();
   
-  // Сначала заменяем составные буквы
-  result = result.replace(/sch/g, 'щ');
-  result = result.replace(/ch/g, 'ч');
-  result = result.replace(/sh/g, 'ш');
-  result = result.replace(/zh/g, 'ж');
-  result = result.replace(/yo/g, 'ё');
-  result = result.replace(/yu/g, 'ю');
-  result = result.replace(/ya/g, 'я');
-  result = result.replace(/eh/g, 'э');
-  
-  // Затем одиночные буквы
-  for (const [latin, cyrillic] of Object.entries(translitMap)) {
-    if (latin.length === 1) {
-      result = result.replace(new RegExp(latin, 'g'), cyrillic);
-    }
+  // Проверяем точные совпадения
+  if (fixedPhrases[lowerAnchor]) {
+    return fixedPhrases[lowerAnchor];
   }
+  
+  // Общая транслитерация для остальных случаев
+  const translitMap: { [key: string]: string } = {
+    'shch': 'щ', 'sch': 'щ', 'sh': 'ш', 'ch': 'ч', 'zh': 'ж', 'yu': 'ю', 'ya': 'я', 'yo': 'ё',
+    'kh': 'х', 'ts': 'ц', 'tz': 'ц', 'ph': 'ф', 'th': 'т', 'iy': 'ий', 'yy': 'ый', 'oy': 'ой',
+    'ey': 'ей', 'ay': 'ай', 'uy': 'уй', 'yj': 'ый', 'ij': 'ий', 'yh': 'ых', 'ih': 'их',
+    'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д', 'e': 'е', 'z': 'з', 'i': 'и', 
+    'j': 'й', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о', 'p': 'п', 'r': 'р',
+    's': 'с', 't': 'т', 'u': 'у', 'f': 'ф', 'h': 'х', 'c': 'ц', 'w': 'в', 'x': 'кс',
+    'y': 'ы', 'q': 'к'
+  };
+  
+  let result = lowerAnchor;
+  const sortedKeys = Object.keys(translitMap).sort((a, b) => b.length - a.length);
+  
+  for (const latin of sortedKeys) {
+    result = result.replace(new RegExp(latin, 'g'), translitMap[latin]);
+  }
+  
+  // Постобработка для исправления частых ошибок
+  result = result.replace(/понят([^ь])/g, 'понять$1');
+  result = result.replace(/осознанност([^ь])/g, 'осознанность$1');
+  result = result.replace(/атак([^аи])/g, 'атака$1');
+  result = result.replace(/депресси([^яюи])/g, 'депрессия$1');
   
   return result;
 }
@@ -85,8 +106,8 @@ export function LinksTable({ projectId }: LinksTableProps) {
     );
   }
 
-  const links: Link[] = linksData?.links || [];
-  const runInfo = linksData?.runInfo;
+  const links: Link[] = (linksData as any)?.links || [];
+  const runInfo = (linksData as any)?.runInfo;
 
   // Фильтрация ссылок
   const filteredLinks = links.filter(link => {

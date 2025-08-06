@@ -527,8 +527,7 @@ export class LinkGenerator {
     // Clean up the segment
     let anchor = lastSegment
       .replace(/[-_]/g, ' ')
-      .replace(/\.[^/.]+$/, '')
-      .substring(0, 50);
+      .replace(/\.[^/.]+$/, '');
     
     if (anchor.length < 3) {
       anchor = 'перейти к разделу';
