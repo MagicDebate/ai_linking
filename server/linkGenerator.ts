@@ -529,65 +529,32 @@ export class LinkGenerator {
 
   private async generateSmartAnchorText(sourcePage: any, targetPage: any): Promise<{ anchor: string, modifiedContent?: string }> {
     try {
-      // Получаем блоки контента для источника вместо парсинга HTML
+      // Получаем блоки контента для источника
       const sourceBlocks = await db
         .select()
         .from(blocks)
         .where(eq(blocks.pageId, sourcePage.id))
-        .limit(10);
+        .limit(5); // Уменьшаем количество блоков
 
       const sourceContent = sourceBlocks
         .map(block => block.text)
         .join(' ')
-        .substring(0, 1000);
+        .substring(0, 500); // Уменьшаем объем контента
 
       const targetTitle = targetPage.title || this.extractTitle(targetPage.cleanHtml || '');
       
-      // Сначала ищем существующий подходящий текст
+      // Сначала ищем существующий подходящий текст в блоках
       const contentAnchor = this.findAnchorInContent(sourceContent, targetTitle);
       if (contentAnchor) {
         console.log(`📌 Found existing anchor: "${contentAnchor}"`);
         return { anchor: contentAnchor };
       }
 
-      // Если не нашли, используем AI для создания естественной вставки
-      const response = await this.openai.chat.completions.create({
-        model: "gpt-3.5-turbo", // Используем более быструю модель
-        messages: [
-          {
-            role: "system", 
-            content: "Ты SEO-специалист. Нужно вставить ссылку в текст естественным способом. Либо найди подходящую фразу в тексте, либо предложи как переписать одно предложение, чтобы органично вставить анкор."
-          },
-          {
-            role: "user", 
-            content: `ИСХОДНЫЙ ТЕКСТ:\n"${sourceContent}"\n\nТЕМА ССЫЛКИ: "${targetTitle}"\n\nВарианты:\n1. Найди подходящую фразу ИЗ ТЕКСТА для анкора\n2. Или предложи как переписать одно предложение для вставки анкора\n\nФормат ответа:\nТИП: existing/rewrite\nАНКОР: [анкорный текст]\nПРЕДЛОЖЕНИЕ: [если нужно переписать - новое предложение с анкором]`
-          }
-        ],
-        max_tokens: 100,
-        temperature: 0.3
-      });
-
-      const aiResponse = response.choices[0]?.message?.content?.trim();
-      if (aiResponse) {
-        const typeMatch = aiResponse.match(/ТИП:\s*(existing|rewrite)/i);
-        const anchorMatch = aiResponse.match(/АНКОР:\s*(.+?)(?:\n|$)/i);
-        const sentenceMatch = aiResponse.match(/ПРЕДЛОЖЕНИЕ:\s*(.+?)(?:\n|$)/i);
-        
-        if (anchorMatch) {
-          const anchor = anchorMatch[1].trim();
-          const type = typeMatch?.[1] || 'existing';
-          
-          if (type === 'existing' && sourceContent.toLowerCase().includes(anchor.toLowerCase())) {
-            console.log(`🤖 AI found existing anchor: "${anchor}"`);
-            return { anchor };
-          } else if (type === 'rewrite' && sentenceMatch) {
-            console.log(`✏️ AI suggests rewrite with anchor: "${anchor}"`);
-            return { 
-              anchor, 
-              modifiedContent: sentenceMatch[1].trim() 
-            };
-          }
-        }
+      // Быстрая генерация анкора без OpenAI для скорости
+      const quickAnchor = this.generateQuickSmartAnchor(sourceContent, targetTitle);
+      if (quickAnchor) {
+        console.log(`⚡ Quick smart anchor: "${quickAnchor}"`);
+        return { anchor: quickAnchor };
       }
       
       // Фаллбек к простому анкору
@@ -595,10 +562,40 @@ export class LinkGenerator {
       return { anchor: fallbackAnchor };
       
     } catch (error) {
-      console.log('OpenAI anchor generation failed, using fallback:', error);
+      console.log('Smart anchor generation failed, using fallback:', error);
       const fallbackAnchor = this.generateSimpleAnchorText(sourcePage, targetPage);
       return { anchor: fallbackAnchor };
     }
+  }
+
+  // Быстрая генерация умных анкоров без OpenAI
+  private generateQuickSmartAnchor(sourceContent: string, targetTitle: string): string | null {
+    const contentWords = sourceContent.toLowerCase().split(/\s+/);
+    const titleWords = targetTitle.toLowerCase().split(/\s+/).filter(word => word.length > 3);
+    
+    // Ищем пересечения слов
+    for (const titleWord of titleWords) {
+      const wordIndex = contentWords.findIndex(word => word.includes(titleWord));
+      if (wordIndex !== -1) {
+        // Берем контекст вокруг найденного слова
+        const start = Math.max(0, wordIndex - 2);
+        const end = Math.min(contentWords.length, wordIndex + 3);
+        const contextWords = contentWords.slice(start, end);
+        
+        const anchor = contextWords.join(' ').replace(/[^\w\s]/g, '').trim();
+        if (anchor.length > 5 && anchor.length < 50) {
+          return anchor;
+        }
+      }
+    }
+    
+    // Если прямого совпадения нет, создаем анкор на основе ключевых слов
+    const firstTitleWord = titleWords[0];
+    if (firstTitleWord && contentWords.some(word => word.includes(firstTitleWord.substring(0, 4)))) {
+      return `подробнее о ${firstTitleWord}`;
+    }
+    
+    return null;
   }
 
   // Поиск подходящего анкорного текста прямо в контенте источника
