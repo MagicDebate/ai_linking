@@ -190,8 +190,14 @@ export default function UnifiedProjectPage() {
 
   // Auto-determine correct step based on URL, import status and saved config
   useEffect(() => {
+    console.log('🔄 State restoration effect triggered');
+    console.log('📊 savedConfig:', savedConfig);
+    console.log('📊 importsList:', importsList);
+    console.log('📊 importJobsList:', importJobsList);
+    
     // Если это URL генерации ссылок - переходим к генерации
     if (location.includes('/generate')) {
+      console.log('🎯 URL contains /generate, going to step 5');
       setCurrentStep(5);
       return;
     }
@@ -200,37 +206,57 @@ export default function UnifiedProjectPage() {
     if (importJobsList && importJobsList.length > 0) {
       const lastJob = importJobsList[0];
       if (lastJob.status === 'completed') {
+        console.log('✅ Found completed import job, going to step 5');
         setCurrentStep(5);
         return;
       }
     }
 
     // Восстанавливаем состояние на основе сохраненных данных
-    if (savedConfig && importsList) {
-      // Если есть сохраненная конфигурация и загруженный файл
-      const lastImport = importsList.find((imp: any) => imp.status === 'mapped');
+    if (savedConfig) {
+      console.log('🔧 Found saved config, restoring state...');
+      console.log('📁 Config field mapping:', savedConfig.fieldMapping);
+      console.log('🎛️ Config scenarios:', savedConfig.selectedScenarios);
       
-      if (lastImport && savedConfig) {
-        // Восстанавливаем данные из сохраненной конфигурации
+      // Восстанавливаем данные из сохраненной конфигурации
+      if (savedConfig.fieldMapping && Object.keys(savedConfig.fieldMapping).length > 0) {
+        console.log('📋 Restoring field mapping and CSV preview');
         setCsvPreview({
-          headers: Object.keys(savedConfig.fieldMapping || {}),
+          headers: Object.values(savedConfig.fieldMapping),
           rows: [] // Заголовки достаточно для продолжения
         });
-        setFieldMapping(savedConfig.fieldMapping || {});
-        setUploadId(lastImport.id);
-        setSelectedScenarios(savedConfig.selectedScenarios || ['orphanFix']);
-        
-        // Определяем на какой шаг перейти
-        if (savedConfig.fieldMapping && Object.keys(savedConfig.fieldMapping).length > 0) {
-          if (savedConfig.selectedScenarios && savedConfig.selectedScenarios.length > 0) {
-            setCurrentStep(3); // Готов к запуску импорта
-          } else {
-            setCurrentStep(3); // Нужно выбрать сценарии
-          }
-        } else {
-          setCurrentStep(2); // Нужно настроить поля
+        setFieldMapping(savedConfig.fieldMapping);
+      }
+      
+      if (savedConfig.selectedScenarios && savedConfig.selectedScenarios.length > 0) {
+        console.log('🎯 Restoring selected scenarios');
+        setSelectedScenarios(savedConfig.selectedScenarios);
+      }
+      
+      // Если есть список импортов, найдем последний
+      if (importsList && importsList.length > 0) {
+        const lastImport = importsList.find((imp: any) => imp.status === 'mapped' || imp.status === 'uploaded');
+        if (lastImport) {
+          console.log('📤 Found import, setting uploadId:', lastImport.id);
+          setUploadId(lastImport.id);
         }
       }
+      
+      // Определяем на какой шаг перейти
+      if (savedConfig.fieldMapping && Object.keys(savedConfig.fieldMapping).length > 0) {
+        if (savedConfig.selectedScenarios && savedConfig.selectedScenarios.length > 0) {
+          console.log('🎯 All config ready, going to step 3 (ready to import)');
+          setCurrentStep(3);
+        } else {
+          console.log('🎯 Field mapping ready, going to step 3 (choose scenarios)');
+          setCurrentStep(3);
+        }
+      } else {
+        console.log('🎯 Config found but no field mapping, going to step 2');
+        setCurrentStep(2);
+      }
+    } else {
+      console.log('⚠️ No saved config found, staying at step 1');
     }
   }, [importJobsList, location, savedConfig, importsList]);
 
