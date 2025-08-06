@@ -174,9 +174,9 @@ export default function UnifiedProjectPage() {
 
   // Get saved configuration to restore state
   const { data: savedConfig } = useQuery({
-    queryKey: ['/api/import-config', projectId],
+    queryKey: ['/api/projects', projectId, 'config', 'load'],
     queryFn: async () => {
-      const response = await fetch(`/api/import-config/${projectId}`, {
+      const response = await fetch(`/api/projects/${projectId}/config/load`, {
         credentials: 'include'
       });
       if (!response.ok) return null;
@@ -897,13 +897,24 @@ export default function UnifiedProjectPage() {
                           size="lg" 
                           className="h-auto p-4 flex flex-col items-start text-left"
                           onClick={async () => {
-                            if (!savedConfig || !completedJob) {
+                            console.log('🔍 Checking generation requirements:');
+                            console.log('📊 savedConfig:', savedConfig);
+                            console.log('📋 completedJob:', completedJob);
+                            
+                            if (!completedJob) {
                               toast({
                                 title: "Ошибка",
-                                description: "Не найдена конфигурация или данные импорта"
+                                description: "Не найдены данные завершенного импорта"
                               });
                               return;
                             }
+                            
+                            // Если конфигурация не найдена, используем базовые настройки
+                            const generationConfig = savedConfig || {
+                              selectedScenarios: ['orphanFix'],
+                              scopeSettings: { fullProject: true },
+                              linkingRules: { maxLinks: 5, dedupeLinks: true }
+                            };
 
                             try {
                               const response = await fetch("/api/generate/start", {
@@ -915,12 +926,12 @@ export default function UnifiedProjectPage() {
                                 body: JSON.stringify({
                                   projectId: projectId,
                                   importId: completedJob.importId,
-                                  scenarios: savedConfig.selectedScenarios?.reduce((acc: any, scenario: string) => {
+                                  scenarios: generationConfig.selectedScenarios?.reduce((acc: any, scenario: string) => {
                                     acc[scenario] = true;
                                     return acc;
-                                  }, {}) || {},
-                                  scope: savedConfig.scopeSettings || {},
-                                  rules: savedConfig.linkingRules || {}
+                                  }, {}) || { orphanFix: true },
+                                  scope: generationConfig.scopeSettings || { fullProject: true },
+                                  rules: generationConfig.linkingRules || { maxLinks: 5, dedupeLinks: true }
                                 }),
                               });
 
