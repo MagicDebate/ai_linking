@@ -36,7 +36,7 @@ export class LinkGenerator {
   constructor(progressCallback?: (update: ProgressUpdate) => void) {
     this.progressCallback = progressCallback;
     this.openai = new OpenAI({ 
-      apiKey: process.env.OPENAI_API_KEY 
+      apiKey: process.env.OPENAI_API_KEY_2 || process.env.OPENAI_API_KEY 
     });
     this.openaiEnabled = false;
   }
