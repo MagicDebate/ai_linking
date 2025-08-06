@@ -1027,8 +1027,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Project not found" });
       }
 
-      // Get pages from database first
-      let pages = await storage.getProjectPages(projectId);
+      // Get pages from graph_meta table with real orphan data
+      const graphData = await db.execute(sql`
+        SELECT gm.url, gm.title, gm.word_count, gm.click_depth, 
+               gm.internal_links_count, gm.is_orphan, gm.in_degree, gm.out_degree,
+               pc.clean_html as content
+        FROM graph_meta gm
+        LEFT JOIN pages_clean pc ON gm.page_id = pc.id
+        INNER JOIN import_jobs ij ON gm.job_id = ij.job_id
+        WHERE ij.project_id::text = ${projectId}
+        ORDER BY gm.created_at DESC
+      `);
+      
+      if (graphData.rows && graphData.rows.length > 0) {
+        console.log(`🚀 DEBUG API: Using graph_meta data - ${graphData.rows.length} pages`);
+        pages = graphData.rows.map((row: any) => ({
+          url: row.url,
+          title: row.title || 'Без названия',
+          content: row.content || '',
+          wordCount: row.word_count || 0,
+          urlDepth: row.click_depth || 0,
+          internalLinkCount: row.internal_links_count || 0,
+          isOrphan: row.is_orphan || false,
+          contentPreview: (row.content || '').substring(0, 150)
+        }));
+      } else {
+        // Fallback to old method
+        pages = await storage.getProjectPages(projectId);
+      }
+      
       
       // If no pages in database, fallback to in-memory data
       if (pages.length === 0) {

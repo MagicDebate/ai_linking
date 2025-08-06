@@ -70,8 +70,6 @@ interface ImportStatus {
   pagesDone: number;
   blocksDone: number;
   orphanCount: number;
-  avgWordCount: number;
-  deepPages: number;
   avgClickDepth: number;
   importDuration?: number;
   logs: string[];
@@ -281,7 +279,7 @@ function ImportProgressStep({ projectId, jobId: initialJobId, onBack }: { projec
           </div>
 
           {/* Statistics Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="text-center p-3 bg-gray-50 rounded-lg">
               <div className="text-2xl font-bold text-gray-900">
                 {importStatus.pagesDone}/{importStatus.pagesTotal}
@@ -300,27 +298,50 @@ function ImportProgressStep({ projectId, jobId: initialJobId, onBack }: { projec
               </div>
               <div className="text-sm text-gray-600">блоков</div>
             </div>
-            <div className="text-center p-3 bg-gray-50 rounded-lg">
-              <div className="text-2xl font-bold text-gray-900">
-                {importStatus.avgClickDepth.toFixed(1)}
-              </div>
-              <div className="text-sm text-gray-600">глубина</div>
-            </div>
           </div>
 
-          {/* Additional Stats */}
+          {/* Generate Links Button - Show when completed */}
           {importStatus.status === "completed" && (
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-              <div className="text-center">
-                <div className="text-lg font-semibold">{importStatus.avgWordCount}</div>
-                <div className="text-sm text-gray-600">слов на страницу</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-semibold">{importStatus.deepPages}</div>
-                <div className="text-sm text-gray-600">глубоких страниц</div>
+            <div className="border-t pt-6 mt-6">
+              <div className="text-center space-y-4">
+                <div className="flex items-center justify-center gap-2 text-green-600 mb-4">
+                  <CheckCircle2 className="h-6 w-6" />
+                  <span className="text-lg font-semibold">Импорт завершен успешно!</span>
+                </div>
+                <p className="text-gray-600 mb-6">
+                  Данные обработаны. Теперь можно перейти к генерации внутренних ссылок.
+                </p>
+                <Button 
+                  size="lg"
+                  className="bg-green-600 hover:bg-green-700 text-white px-8 py-3"
+                  onClick={() => {
+                    // Navigate to link generation step
+                    window.location.href = `/project/${projectId}/generate`;
+                  }}
+                >
+                  <LinkIcon className="h-5 w-5 mr-2" />
+                  Сгенерировать ссылки
+                </Button>
               </div>
             </div>
           )}
+
+          {/* Debug Button */}
+          <div className="border-t pt-4">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                window.open(`/project/${projectId}/debug`, '_blank');
+              }}
+              className="w-full"
+            >
+              <Bug className="h-4 w-4 mr-2" />
+              Отладка данных
+            </Button>
+          </div>
+
+
         </CardContent>
       </Card>
 
@@ -338,16 +359,7 @@ function ImportProgressStep({ projectId, jobId: initialJobId, onBack }: { projec
           </Button>
         )}
 
-        {importStatus.status === "completed" && (
-          <Button 
-            variant="outline" 
-            onClick={() => window.open(`/project/${projectId}/debug`, '_blank')}
-            className="border-orange-300 text-orange-600 hover:bg-orange-50"
-          >
-            <Bug className="h-4 w-4 mr-2" />
-            Отладка данных
-          </Button>
-        )}
+
       </div>
 
       {/* Error Message */}
