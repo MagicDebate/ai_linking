@@ -919,6 +919,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all generated links for a project
+  app.get("/api/projects/:id/links", authenticateToken, async (req: any, res) => {
+    try {
+      const projectId = req.params.id;
+      
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Get latest generation run
+      const latestRun = await db
+        .select()
+        .from(generationRuns)
+        .where(eq(generationRuns.projectId, projectId))
+        .orderBy(desc(generationRuns.startedAt))
+        .limit(1);
+
+      if (!latestRun.length) {
+        return res.json({ links: [] });
+      }
+
+      // Get all generated links
+      const links = await db
+        .select({
+          id: linkCandidates.id,
+          sourceUrl: linkCandidates.sourceUrl,
+          targetUrl: linkCandidates.targetUrl,
+          anchorText: linkCandidates.anchorText,
+          scenario: linkCandidates.scenario,
+          similarity: linkCandidates.similarity,
+          isRejected: linkCandidates.isRejected,
+          createdAt: linkCandidates.createdAt
+        })
+        .from(linkCandidates)
+        .where(eq(linkCandidates.runId, latestRun[0].runId))
+        .orderBy(desc(linkCandidates.createdAt));
+
+      res.json({ 
+        links,
+        runInfo: {
+          runId: latestRun[0].runId,
+          status: latestRun[0].status,
+          generated: latestRun[0].generated,
+          rejected: latestRun[0].rejected,
+          startedAt: latestRun[0].startedAt,
+          finishedAt: latestRun[0].finishedAt
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching links:", error);
+      res.status(500).json({ error: "Failed to fetch links" });
+    }
+  });
+
   // Stream generation progress (Server-Sent Events)
   app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
     const { runId } = req.params;

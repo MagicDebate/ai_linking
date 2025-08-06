@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import Layout from "@/components/Layout";
 import { Results } from "@/components/Results";
+import { LinksTable } from "@/components/LinksTable";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

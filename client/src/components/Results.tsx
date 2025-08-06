@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowUp, ArrowDown, Minus, TrendingUp, TrendingDown, Link } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { LinksTable } from '@/components/LinksTable';
 
 interface ResultsProps {
   projectId: string;
@@ -112,10 +113,13 @@ export function Results({ projectId }: ResultsProps) {
     <div className="mt-6 space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Link className="w-5 h-5" />
-            Результаты генерации
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Link className="w-5 h-5" />
+              Результаты генерации
+            </CardTitle>
+            <LinksTable projectId={projectId} />
+          </div>
           <div className="text-sm text-muted-foreground">
             Выполнено: {new Date(report.generatedAt!).toLocaleString('ru-RU')}
             {report.duration && ` • Время: ${report.duration}с`}
