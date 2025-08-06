@@ -13,6 +13,8 @@ This is a comprehensive SaaS SEO service platform that automates internal linkin
 - **Implemented Russian language interface** - All user-facing text converted to Russian as requested
 - **Added link generation system** - Complete pipeline with cosine similarity, draft review, progress tracking
 - **Implemented configuration persistence** - Auto-save/restore import settings to avoid re-entering data
+- **Fixed state restoration system** - Users return to saved progress instead of starting over
+- **Resolved import button issue** - Corrected API endpoint and removed blocking validation
 
 # User Preferences
 
