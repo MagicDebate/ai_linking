@@ -182,16 +182,24 @@ export class LinkGenerator {
     console.log(`Using pre-existing blocks for ${pages.length} pages...`);
     
     // Get blocks from existing import job
-    const job = await db
+    const jobs = await db
       .select()
       .from(importJobs)
-      .where(eq(importJobs.projectId, this.projectId))
+      .where(and(
+        eq(importJobs.projectId, this.projectId),
+        eq(importJobs.status, 'completed')
+      ))
       .orderBy(desc(importJobs.startedAt))
       .limit(1);
 
-    if (!job[0]) {
-      throw new Error('No import job found');
+    console.log(`Found ${jobs.length} completed jobs for project ${this.projectId}`);
+    
+    if (!jobs[0]) {
+      throw new Error(`No completed import job found for project ${this.projectId}`);
     }
+    
+    const job = jobs[0];
+    console.log(`Using job ${job.jobId} with ${job.blocksDone} blocks`);
 
     // Load blocks with page metadata
     const blocksWithPages = await db
@@ -210,7 +218,7 @@ export class LinkGenerator {
       .innerJoin(pagesClean, eq(blocks.pageId, pagesClean.id))
       .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
       .innerJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
-      .where(eq(pagesRaw.jobId, job[0].jobId))
+      .where(eq(pagesRaw.jobId, job.jobId))
       .limit(100); // Start with first 100 blocks for testing
 
     console.log(`Found ${blocksWithPages.length} blocks to analyze`);
