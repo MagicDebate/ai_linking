@@ -152,28 +152,6 @@ export default function Dashboard() {
 
   return (
     <Layout title="Дашборд">
-      {/* User Menu - Move to Layout later if needed */}
-      <div className="absolute top-4 right-4 z-10">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              {user?.email}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem>
-              <Settings className="h-4 w-4 mr-2" />
-              Настройки
-            </DropdownMenuItem>
-            <Separator className="my-1" />
-            <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-              <LogOut className="h-4 w-4 mr-2" />
-              Выход
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
 
       {/* Notification Banner */}
       {!notificationDismissed && (

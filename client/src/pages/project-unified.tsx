@@ -52,6 +52,7 @@ interface Project {
 }
 
 interface FieldMapping {
+  publishedDate?: string;
   [key: string]: string;
 }
 
@@ -242,51 +243,55 @@ export default function UnifiedProjectPage() {
       }
     }
 
-    // Восстанавливаем состояние на основе сохраненных данных
-    if (savedConfig && savedConfig.config && savedConfig.config.fieldMapping) {
-      console.log('🔧 Found saved config, restoring state...');
-      console.log('📁 Config field mapping:', savedConfig.config.fieldMapping);
-      console.log('🎛️ Config scenarios:', savedConfig.config.selectedScenarios);
+    // Восстанавливаем состояние на основе импортов и конфигурации
+    if (importsList && importsList.length > 0) {
+      console.log('🔧 Found imports, restoring state...');
       
-      // Восстанавливаем данные из сохраненной конфигурации
-      if (savedConfig.config.fieldMapping && Object.keys(savedConfig.config.fieldMapping).length > 0) {
-        console.log('📋 Restoring field mapping and CSV preview');
-        setCsvPreview({
-          headers: Object.values(savedConfig.config.fieldMapping),
-          rows: [] // Заголовки достаточно для продолжения
-        });
-        setFieldMapping(savedConfig.config.fieldMapping);
-      }
-      
-      if (savedConfig.config.selectedScenarios && savedConfig.config.selectedScenarios.length > 0) {
-        console.log('🎯 Restoring selected scenarios');
-        setSelectedScenarios(savedConfig.config.selectedScenarios);
-      }
-      
-      // Если есть список импортов, найдем последний
-      if (importsList && importsList.length > 0) {
-        const lastImport = importsList.find((imp: any) => imp.status === 'mapped' || imp.status === 'uploaded');
-        if (lastImport) {
-          console.log('📤 Found import, setting uploadId:', lastImport.id);
-          setUploadId(lastImport.id);
+      // Найдем последний импорт со статусом mapped
+      const lastImport = importsList.find((imp: any) => imp.status === 'mapped');
+      if (lastImport) {
+        console.log('📤 Found mapped import, setting uploadId and data:', lastImport.id);
+        setUploadId(lastImport.id);
+        
+        // Восстанавливаем fieldMapping из импорта
+        if (lastImport.fieldMapping) {
+          try {
+            const mapping = JSON.parse(lastImport.fieldMapping);
+            console.log('📋 Restoring field mapping from import:', mapping);
+            setFieldMapping(mapping);
+            
+            // Восстанавливаем CSV превью из заголовков mapping
+            setCsvPreview({
+              headers: Object.values(mapping),
+              rows: [] // Заголовки достаточно для продолжения
+            });
+          } catch (e) {
+            console.error('❌ Error parsing field mapping:', e);
+          }
         }
       }
       
+      // Если есть сохраненная конфигурация, восстанавливаем scenarios
+      if (savedConfig && savedConfig.config && savedConfig.config.selectedScenarios) {
+        console.log('🎯 Restoring selected scenarios from config');
+        setSelectedScenarios(savedConfig.config.selectedScenarios);
+      }
+      
       // Определяем на какой шаг перейти
-      if (savedConfig.config.fieldMapping && Object.keys(savedConfig.config.fieldMapping).length > 0) {
-        if (savedConfig.config.selectedScenarios && savedConfig.config.selectedScenarios.length > 0) {
-          console.log('🎯 All config ready, going to step 3 (ready to import)');
-          setCurrentStep(3);
+      if (lastImport && lastImport.fieldMapping) {
+        if (savedConfig && savedConfig.config && savedConfig.config.selectedScenarios && savedConfig.config.selectedScenarios.length > 0) {
+          console.log('🎯 All config ready, going to step 4 (ready to import)');
+          setCurrentStep(4);
         } else {
           console.log('🎯 Field mapping ready, going to step 3 (choose scenarios)');
           setCurrentStep(3);
         }
       } else {
-        console.log('🎯 Config found but no field mapping, going to step 2');
+        console.log('🎯 Import found but no field mapping, going to step 2');
         setCurrentStep(2);
       }
     } else {
-      console.log('⚠️ No saved config found, staying at step 1');
+      console.log('⚠️ No imports found, staying at step 1');
       setCurrentStep(1);
     }
   }, [importJobsList, location, savedConfig, importsList]);
@@ -469,10 +474,10 @@ export default function UnifiedProjectPage() {
   };
 
   const handleFieldMapping = () => {
-    if (!fieldMapping.url || !fieldMapping.title || !fieldMapping.content) {
+    if (!fieldMapping.url || !fieldMapping.title || !fieldMapping.content || !fieldMapping.publishedDate) {
       toast({
         title: "Ошибка",
-        description: "Выберите поля URL, Title и Content",
+        description: "Выберите поля URL, Title, Content и Дата публикации",
         variant: "destructive",
       });
       return;
@@ -746,6 +751,20 @@ export default function UnifiedProjectPage() {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    <div>
+                      <Label className="text-sm font-medium">Дата публикации *</Label>
+                      <Select value={fieldMapping.publishedDate || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, publishedDate: value})}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Выберите колонку" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {csvPreview.headers.map((header) => (
+                            <SelectItem key={header} value={header}>{header}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </>
               ) : (
@@ -885,6 +904,54 @@ export default function UnifiedProjectPage() {
                       </div>
                     </div>
                   </div>
+
+                  <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="contentClusters"
+                        checked={selectedScenarios.includes('contentClusters')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedScenarios([...selectedScenarios, 'contentClusters']);
+                          } else {
+                            setSelectedScenarios(selectedScenarios.filter(s => s !== 'contentClusters'));
+                          }
+                        }}
+                      />
+                      <div className="flex-1">
+                        <label htmlFor="contentClusters" className="text-sm font-medium cursor-pointer">
+                          Кластеризация контента
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Создание тематических кластеров связанного контента
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="pillowPages"
+                        checked={selectedScenarios.includes('pillowPages')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedScenarios([...selectedScenarios, 'pillowPages']);
+                          } else {
+                            setSelectedScenarios(selectedScenarios.filter(s => s !== 'pillowPages'));
+                          }
+                        }}
+                      />
+                      <div className="flex-1">
+                        <label htmlFor="pillowPages" className="text-sm font-medium cursor-pointer">
+                          Подушечные страницы
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Создание промежуточных страниц для усиления ссылочного веса
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -916,9 +983,27 @@ export default function UnifiedProjectPage() {
                 
                 if (!currentJob) {
                   return (
-                    <div className="text-center py-8">
-                      <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-                      <p>Запуск импорта...</p>
+                    <div className="space-y-6">
+                      <div className="text-center py-8">
+                        <Button 
+                          onClick={handleStartImport} 
+                          disabled={importMutation.isPending}
+                          size="lg"
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
+                        >
+                          {importMutation.isPending ? (
+                            <div className="flex items-center gap-2">
+                              <RefreshCw className="h-4 w-4 animate-spin" />
+                              Запуск...
+                            </div>
+                          ) : (
+                            "Запустить импорт данных"
+                          )}
+                        </Button>
+                        <p className="text-sm text-gray-600 mt-2">
+                          Нажмите для начала обработки ваших данных
+                        </p>
+                      </div>
                     </div>
                   );
                 }

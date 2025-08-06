@@ -320,11 +320,11 @@ export const fieldMappingSchema = z.object({
   uploadId: z.string(),
   fieldMapping: z.record(z.string(), z.string()).refine(
     (mapping) => {
-      const required = ['url', 'title', 'content', 'description'];
+      const required = ['url', 'title', 'content', 'publishedDate'];
       return required.every(field => mapping[field] && mapping[field].trim() !== '');
     },
     {
-      message: "URL, Title, Content, and Description field mappings are required",
+      message: "URL, Title, Content, and Published Date field mappings are required",
       path: ["fieldMapping"]
     }
   ),
