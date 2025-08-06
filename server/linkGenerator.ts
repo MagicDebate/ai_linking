@@ -366,8 +366,9 @@ export class LinkGenerator {
 
   // Попытаться создать ссылку с проверкой всех правил
   private async tryCreateLink(runId: string, donorPage: any, targetPage: any, scenario: string, rules: any): Promise<{ created: boolean, anchor?: string, reason?: string }> {
-    // Генерируем анкор с помощью OpenAI
-    const anchorText = await this.generateSmartAnchorText(donorPage, targetPage);
+    // Генерируем анкор с помощью улучшенного OpenAI алгоритма
+    const anchorResult = await this.generateSmartAnchorText(donorPage, targetPage);
+    const anchorText = anchorResult.anchor;
 
     // Проверяем все правила
     const checks = [
@@ -400,7 +401,7 @@ export class LinkGenerator {
       return { created: false, reason: rejectionReason };
     }
 
-    // Создаем принятую ссылку
+    // Создаем принятую ссылку с дополнительными данными для вставки
     await db.insert(linkCandidates).values({
       runId,
       sourcePageId: donorPage.id,
@@ -414,7 +415,9 @@ export class LinkGenerator {
       position: 0,
       cssClass: rules.cssClass,
       relAttribute: rules.relAttribute,
-      targetAttribute: rules.targetAttribute
+      targetAttribute: rules.targetAttribute,
+      // Сохраняем информацию о модификации контента если есть
+      modifiedSentence: anchorResult.modifiedContent || null
     });
 
     return { created: true, anchor: anchorText };
@@ -524,53 +527,66 @@ export class LinkGenerator {
     return null;
   }
 
-  private async generateSmartAnchorText(sourcePage: any, targetPage: any): Promise<string> {
+  private async generateSmartAnchorText(sourcePage: any, targetPage: any): Promise<{ anchor: string, modifiedContent?: string }> {
     try {
-      // Извлекаем контент источника для поиска анкорного текста
       const sourceContent = this.extractMainContent(sourcePage.cleanHtml || '');
       const targetTitle = this.extractTitle(targetPage.cleanHtml || '');
       
-      // Ищем подходящий анкорный текст прямо в контенте источника
+      // Сначала ищем существующий подходящий текст
       const contentAnchor = this.findAnchorInContent(sourceContent, targetTitle);
       if (contentAnchor) {
-        console.log(`📌 Found anchor in content: "${contentAnchor}"`);
-        return contentAnchor;
+        console.log(`📌 Found existing anchor: "${contentAnchor}"`);
+        return { anchor: contentAnchor };
       }
 
-      // Если не нашли в контенте, используем AI для создания на основе реального контента
-      if (targetTitle && targetTitle.length > 3) {
-        const response = await this.openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: [
-            {
-              role: "system", 
-              content: "Ты специалист по SEO. Найди или создай естественный анкорный текст из данного контента для ссылки на указанную тему. Анкор должен быть фразой ИЗ ТЕКСТА (2-6 слов), естественной для клика."
-            },
-            {
-              role: "user", 
-              content: `КОНТЕНТ ИСТОЧНИКА:\n"${sourceContent.substring(0, 800)}"\n\nТЕМА ССЫЛКИ: "${targetTitle}"\n\nНайди подходящую фразу ИЗ КОНТЕНТА или создай короткий анкор. Отвечай только анкором:`
-            }
-          ],
-          max_tokens: 30,
-          temperature: 0.3
-        });
+      // Если не нашли, используем AI для создания естественной вставки
+      const response = await this.openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system", 
+            content: "Ты SEO-специалист. Нужно вставить ссылку в текст естественным способом. Либо найди подходящую фразу в тексте, либо предложи как переписать одно предложение, чтобы органично вставить анкор."
+          },
+          {
+            role: "user", 
+            content: `ИСХОДНЫЙ ТЕКСТ:\n"${sourceContent.substring(0, 1000)}"\n\nТЕМА ССЫЛКИ: "${targetTitle}"\n\nВарианты:\n1. Найди подходящую фразу ИЗ ТЕКСТА для анкора\n2. Или предложи как переписать одно предложение для вставки анкора\n\nФормат ответа:\nТИП: existing/rewrite\nАНКОР: [анкорный текст]\nПРЕДЛОЖЕНИЕ: [если нужно переписать - новое предложение с анкором]`
+          }
+        ],
+        max_tokens: 150,
+        temperature: 0.3
+      });
 
-        const aiAnchor = response.choices[0]?.message?.content?.trim();
-        if (aiAnchor && aiAnchor.length > 2 && aiAnchor.length < 80) {
-          // Проверяем, есть ли анкор в контенте
-          if (sourceContent.toLowerCase().includes(aiAnchor.toLowerCase())) {
-            console.log(`🤖 AI found anchor in content: "${aiAnchor}"`);
-            return aiAnchor;
+      const aiResponse = response.choices[0]?.message?.content?.trim();
+      if (aiResponse) {
+        const typeMatch = aiResponse.match(/ТИП:\s*(existing|rewrite)/i);
+        const anchorMatch = aiResponse.match(/АНКОР:\s*(.+?)(?:\n|$)/i);
+        const sentenceMatch = aiResponse.match(/ПРЕДЛОЖЕНИЕ:\s*(.+?)(?:\n|$)/i);
+        
+        if (anchorMatch) {
+          const anchor = anchorMatch[1].trim();
+          const type = typeMatch?.[1] || 'existing';
+          
+          if (type === 'existing' && sourceContent.toLowerCase().includes(anchor.toLowerCase())) {
+            console.log(`🤖 AI found existing anchor: "${anchor}"`);
+            return { anchor };
+          } else if (type === 'rewrite' && sentenceMatch) {
+            console.log(`✏️ AI suggests rewrite with anchor: "${anchor}"`);
+            return { 
+              anchor, 
+              modifiedContent: sentenceMatch[1].trim() 
+            };
           }
         }
       }
       
       // Фаллбек к простому анкору
-      return this.generateSimpleAnchorText(sourcePage, targetPage);
+      const fallbackAnchor = this.generateSimpleAnchorText(sourcePage, targetPage);
+      return { anchor: fallbackAnchor };
       
     } catch (error) {
       console.log('OpenAI anchor generation failed, using fallback:', error);
-      return this.generateSimpleAnchorText(sourcePage, targetPage);
+      const fallbackAnchor = this.generateSimpleAnchorText(sourcePage, targetPage);
+      return { anchor: fallbackAnchor };
     }
   }
 
@@ -715,6 +731,7 @@ export class LinkGenerator {
             updatedHtml,
             link.anchorText,
             link.targetUrl,
+            link.modifiedSentence || undefined,
             link.cssClass || undefined,
             link.relAttribute || undefined,
             link.targetAttribute || undefined
@@ -737,10 +754,7 @@ export class LinkGenerator {
     console.log('🎉 Link insertion completed!');
   }
 
-  private insertLinkIntoHtml(html: string, anchorText: string, targetUrl: string, cssClass?: string, relAttribute?: string, targetAttribute?: string): string {
-    // Find a good place to insert the link in the content
-    // Look for the anchor text in the HTML and wrap it with a link
-    
+  private insertLinkIntoHtml(html: string, anchorText: string, targetUrl: string, modifiedSentence?: string, cssClass?: string, relAttribute?: string, targetAttribute?: string): string {
     // Create the link HTML
     let linkAttributes = `href="${targetUrl}"`;
     if (cssClass) linkAttributes += ` class="${cssClass}"`;
@@ -749,28 +763,85 @@ export class LinkGenerator {
 
     const linkHtml = `<a ${linkAttributes}>${anchorText}</a>`;
 
-    // Try to find exact match of anchor text and replace it
+    // Если есть модифицированное предложение, заменяем целое предложение
+    if (modifiedSentence) {
+      console.log(`✏️ Inserting modified sentence: "${modifiedSentence}"`);
+      
+      // Ищем похожие предложения в тексте для замены
+      const cleanHtml = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+      const sentences = cleanHtml.split(/[.!?]\s+/);
+      
+      // Находим наиболее похожее предложение для замены
+      let bestMatch = '';
+      let bestSimilarity = 0;
+      
+      for (const sentence of sentences) {
+        if (sentence.length > 20) {
+          const similarity = this.calculateStringSimilarity(sentence, modifiedSentence);
+          if (similarity > bestSimilarity) {
+            bestSimilarity = similarity;
+            bestMatch = sentence;
+          }
+        }
+      }
+      
+      // Если нашли похожее предложение, заменяем его
+      if (bestMatch && bestSimilarity > 0.3) {
+        const escapedMatch = bestMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escapedMatch, 'i');
+        const updatedHtml = html.replace(regex, modifiedSentence);
+        if (updatedHtml !== html) {
+          console.log(`✅ Replaced sentence successfully`);
+          return updatedHtml;
+        }
+      }
+    }
+
+    // Стандартная вставка - ищем анкорный текст и оборачиваем в ссылку
     const exactMatch = new RegExp(`\\b${anchorText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
     if (exactMatch.test(html)) {
+      console.log(`🔗 Found exact anchor match, wrapping in link`);
       return html.replace(exactMatch, linkHtml);
     }
 
-    // If exact match fails, insert at the end of the first paragraph
+    // Если точного совпадения нет, ищем частичное совпадение
+    const partialMatch = new RegExp(anchorText.split(' ').map(word => 
+      word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    ).join('.*?'), 'i');
+    
+    if (partialMatch.test(html)) {
+      console.log(`🔗 Found partial anchor match, inserting link`);
+      return html.replace(partialMatch, linkHtml);
+    }
+
+    // Вставляем в конец первого абзаца
     const paragraphMatch = html.match(/<\/p>/i);
     if (paragraphMatch) {
       const insertPos = paragraphMatch.index!;
+      console.log(`📝 Inserting at end of first paragraph`);
       return html.slice(0, insertPos) + ` ${linkHtml}` + html.slice(insertPos);
     }
 
-    // Fallback: insert at the end of content
+    // Фаллбек: вставляем в конец body
     const bodyMatch = html.match(/<\/body>/i);
     if (bodyMatch) {
       const insertPos = bodyMatch.index!;
       return html.slice(0, insertPos) + `<p>${linkHtml}</p>` + html.slice(insertPos);
     }
 
-    // Final fallback: append to end
+    // Финальный фаллбек: добавляем в конец
     return html + `<p>${linkHtml}</p>`;
+  }
+
+  // Вычисление похожести строк для поиска предложений для замены
+  private calculateStringSimilarity(str1: string, str2: string): number {
+    const words1 = str1.toLowerCase().split(/\s+/);
+    const words2 = str2.toLowerCase().split(/\s+/);
+    
+    const intersection = words1.filter(word => words2.includes(word));
+    const union = Array.from(new Set([...words1, ...words2]));
+    
+    return intersection.length / union.length;
   }
 
   private async finalizeDraft(runId: string) {

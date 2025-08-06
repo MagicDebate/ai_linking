@@ -213,6 +213,7 @@ export const linkCandidates = pgTable("link_candidates", {
   cssClass: text("css_class"),
   relAttribute: text("rel_attribute"),
   targetAttribute: text("target_attribute"),
+  modifiedSentence: text("modified_sentence"), // Для хранения переписанного предложения
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
