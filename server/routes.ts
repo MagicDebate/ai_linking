@@ -958,7 +958,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .select()
         .from(importJobs)
         .where(eq(importJobs.projectId, projectId))
-        .orderBy(desc(importJobs.createdAt));
+        .orderBy(desc(importJobs.startedAt));
 
       res.json(jobs);
     } catch (error) {
