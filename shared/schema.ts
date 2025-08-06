@@ -179,11 +179,11 @@ export const generationRuns = pgTable("generation_runs", {
 // Page embeddings for similarity calculations
 export const pageEmbeddings = pgTable("page_embeddings", {
   id: uuid("id").primaryKey().defaultRandom(),
-  pageId: uuid("page_id").references(() => pagesClean.id).notNull().unique(),
+  pageId: uuid("page_id").references(() => pagesClean.id).notNull(),
   jobId: uuid("job_id").references(() => importJobs.jobId).notNull(),
   url: text("url").notNull(),
   title: text("title").notNull(),
-  contentVector: vector("content_vector", { dimensions: 384 }).notNull(), // Sentence-BERT MiniLM embeddings
+  contentVector: text("content_vector").notNull(), // JSON string of keywords/embeddings
   publishedAt: timestamp("published_at"),
   wordCount: integer("word_count").notNull().default(0),
   isDeep: boolean("is_deep").notNull().default(false),

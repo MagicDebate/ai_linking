@@ -9,10 +9,8 @@ import {
   graphMeta
 } from '@shared/schema';
 import { eq, and, sql } from 'drizzle-orm';
-// Simplified without TensorFlow for now
-// import * as tf from '@tensorflow/tfjs-node';
-// import * as use from '@tensorflow-models/universal-sentence-encoder';
 import { randomUUID } from 'crypto';
+import OpenAI from 'openai';
 
 interface GenerationParams {
   projectId: string;
@@ -31,18 +29,30 @@ interface ProgressUpdate {
 }
 
 export class LinkGenerator {
-  private model: any;
+  private openai: OpenAI;
   private progressCallback?: (update: ProgressUpdate) => void;
 
   constructor(progressCallback?: (update: ProgressUpdate) => void) {
     this.progressCallback = progressCallback;
+    this.openai = new OpenAI({ 
+      apiKey: process.env.OPENAI_API_KEY 
+    });
   }
 
   async initialize() {
-    console.log('Initializing link generator...');
-    // Simple text similarity for demo - no ML model needed
-    this.model = { initialized: true };
-    console.log('Link generator initialized successfully');
+    console.log('Initializing OpenAI-powered link generator...');
+    // Test OpenAI connection
+    try {
+      await this.openai.chat.completions.create({
+        model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+        messages: [{ role: "user", content: "Test" }],
+        max_tokens: 1
+      });
+      console.log('OpenAI connection successful');
+    } catch (error: any) {
+      console.error('OpenAI connection failed:', error?.message || error);
+      throw new Error('Failed to initialize OpenAI: ' + (error?.message || error));
+    }
   }
 
   async generateLinks(params: GenerationParams): Promise<string> {
@@ -67,10 +77,8 @@ export class LinkGenerator {
     try {
       await this.updateProgress(runId, 'starting', 0, 0, 0);
 
-      // Initialize model if not loaded
-      if (!this.model) {
-        await this.initialize();
-      }
+      // Initialize OpenAI if not done
+      await this.initialize();
 
       // Step 1: Load and analyze pages
       await this.updateProgress(runId, 'analyzing', 10, 0, 0);
@@ -167,19 +175,23 @@ export class LinkGenerator {
   }
 
   private async generateEmbeddings(runId: string, pages: any[]) {
-    for (const page of pages) {
+    console.log(`Analyzing ${pages.length} pages with OpenAI...`);
+    
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i];
+      
       // Extract main content
       const content = this.extractMainContent(page.cleanHtml);
       const title = this.extractTitle(page.cleanHtml);
       
-      // Simple text representation (no ML embedding)
-      const simpleVector = this.generateSimpleVector(content, title);
+      // Use OpenAI to analyze page content and generate semantic summary
+      const semanticAnalysis = await this.analyzePageContent(content, title);
       
       // Check if page is "deep" based on rules
       const isDeep = page.clickDepth >= 4;
       
-      // Check if page is "money" based on URL patterns
-      const isMoney = this.isMoneyPage(page.url, []);
+      // Check if page is "money" based on URL patterns and OpenAI analysis
+      const isMoney = semanticAnalysis.isMoney || this.isMoneyPage(page.url, []);
       
       await db
         .insert(pageEmbeddings)
@@ -188,38 +200,75 @@ export class LinkGenerator {
           jobId: runId,
           url: page.url,
           title,
-          contentVector: JSON.stringify(simpleVector), // Store as JSON string
+          contentVector: JSON.stringify(semanticAnalysis.keywords), // Store keywords as vector
           wordCount: page.wordCount,
           isDeep,
           isMoney
         });
-    }
-  }
-
-  private generateSimpleVector(content: string, title: string): number[] {
-    // Simple word-based similarity representation (384 dimensions)
-    const words = (content + ' ' + title).toLowerCase().split(/\s+/);
-    const vector = new Array(384).fill(0);
-    
-    // Hash words to vector positions
-    for (const word of words) {
-      if (word.length > 2) {
-        const hash = this.hashString(word) % 384;
-        vector[hash] = Math.min(vector[hash] + 1, 10); // Cap at 10
+        
+      // Update progress every 10 pages
+      if (i % 10 === 0) {
+        const percent = 30 + Math.floor((i / pages.length) * 20); // 30-50% range
+        await this.updateProgress(runId, 'embedding', percent, 0, 0);
       }
     }
-    
-    return vector;
   }
 
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
+  private async analyzePageContent(content: string, title: string) {
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+        messages: [
+          {
+            role: "system",
+            content: "Ты анализируешь содержимое веб-страницы для SEO внутренней перелинковки. Определи ключевые темы, категорию контента и коммерческий потенциал. Отвечай только JSON."
+          },
+          {
+            role: "user",
+            content: `Заголовок: ${title || 'Без заголовка'}\n\nКонтент: ${content.substring(0, 2000)}`
+          }
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 300
+      });
+
+      const analysis = JSON.parse(response.choices[0].message.content);
+      
+      return {
+        keywords: analysis.keywords || [],
+        category: analysis.category || 'general',
+        isMoney: analysis.isMoney || false,
+        topics: analysis.topics || []
+      };
+    } catch (error) {
+      console.error('OpenAI analysis failed:', error);
+      // Fallback to simple analysis
+      return {
+        keywords: this.extractSimpleKeywords(content, title),
+        category: 'general',
+        isMoney: false,
+        topics: []
+      };
     }
-    return Math.abs(hash);
+  }
+
+  private extractSimpleKeywords(content: string, title: string): string[] {
+    // Simple keyword extraction as fallback
+    const words = (content + ' ' + title).toLowerCase()
+      .split(/\s+/)
+      .filter(word => word.length > 3)
+      .filter(word => !/^(что|как|это|для|где|когда|почему|который|можно|нужно|такой|только|очень)$/.test(word));
+    
+    // Get most frequent words
+    const wordCount = new Map();
+    words.forEach(word => {
+      wordCount.set(word, (wordCount.get(word) || 0) + 1);
+    });
+    
+    return Array.from(wordCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([word]) => word);
   }
 
   private async generateCandidates(runId: string, pages: any[], params: GenerationParams) {
@@ -238,8 +287,8 @@ export class LinkGenerator {
         
         if (!shouldGenerate.generate) continue;
 
-        // Generate anchor text
-        const anchorText = this.generateAnchorText(targetPage);
+        // Generate anchor text with OpenAI
+        const anchorText = await this.generateSmartAnchorText(sourcePage, targetPage);
         
         // Check all constraints
         const violation = await this.checkConstraints(runId, sourcePage, targetPage, anchorText, rules);
@@ -398,7 +447,7 @@ export class LinkGenerator {
         eq(linkCandidates.isRejected, false)
       ));
 
-    const uniqueUrls = [...new Set(candidates.map(c => c.targetUrl))];
+    const uniqueUrls = Array.from(new Set(candidates.map(c => c.targetUrl)));
 
     for (const url of uniqueUrls) {
       try {
@@ -450,8 +499,38 @@ export class LinkGenerator {
     return moneyPatterns.some(pattern => url.includes(pattern));
   }
 
+  private async generateSmartAnchorText(sourcePage: any, targetPage: any): Promise<string> {
+    try {
+      const sourceContent = this.extractMainContent(sourcePage.cleanHtml).substring(0, 500);
+      const targetTitle = this.extractTitle(targetPage.cleanHtml);
+      const targetContent = this.extractMainContent(targetPage.cleanHtml).substring(0, 300);
+
+      const response = await this.openai.chat.completions.create({
+        model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+        messages: [
+          {
+            role: "system",
+            content: "Ты создаешь якорные тексты для внутренних ссылок на русском языке. Текст должен быть естественным, 2-4 слова, точно отражать суть целевой страницы и хорошо вписываться в контекст исходной страницы. Отвечай только текстом якоря, без дополнительных слов."
+          },
+          {
+            role: "user",
+            content: `Исходный контекст: ${sourceContent}\n\nЦелевая страница: ${targetTitle}\nКонтент: ${targetContent}`
+          }
+        ],
+        max_tokens: 20,
+        temperature: 0.3
+      });
+
+      const anchorText = response.choices[0].message.content?.trim() || targetTitle;
+      return anchorText.length > 50 ? targetTitle : anchorText;
+    } catch (error) {
+      // Fallback to simple method
+      return this.extractTitle(targetPage.cleanHtml) || 'читать далее';
+    }
+  }
+
   private generateAnchorText(targetPage: any): string {
-    // Simple anchor text generation - should be more sophisticated
+    // Simple fallback anchor text generation
     return this.extractTitle(targetPage.cleanHtml) || 'читать далее';
   }
 }
