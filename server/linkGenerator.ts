@@ -11,6 +11,7 @@ import {
 import { eq, and, sql } from 'drizzle-orm';
 import * as tf from '@tensorflow/tfjs-node';
 import * as use from '@tensorflow-models/universal-sentence-encoder';
+import { randomUUID } from 'crypto';
 
 interface GenerationParams {
   projectId: string;
@@ -43,10 +44,14 @@ export class LinkGenerator {
   }
 
   async generateLinks(params: GenerationParams): Promise<string> {
+    // Generate unique run ID
+    const runId = randomUUID();
+    
     // Create new generation run
     const [run] = await db
       .insert(generationRuns)
       .values({
+        runId: runId,
         projectId: params.projectId,
         importId: params.importId,
         status: 'running',
@@ -56,8 +61,6 @@ export class LinkGenerator {
         scope: params.scope
       })
       .returning();
-
-    const runId = run.runId;
 
     try {
       await this.updateProgress(runId, 'starting', 0, 0, 0);
