@@ -1171,8 +1171,6 @@ export default function UnifiedProjectPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              
-
               {/* Results Section - показываем ТОЛЬКО результаты генерации */}
               <Results projectId={project.id} />
 
