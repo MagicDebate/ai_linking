@@ -458,6 +458,9 @@ export default function ProjectPage() {
   const [uploadId, setUploadId] = useState<string>("");
   const [jobId, setJobId] = useState<string | null>(null);
   const [helpDialog, setHelpDialog] = useState<string | null>(null);
+  const [savedConfigs, setSavedConfigs] = useState<any[]>([]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [configName, setConfigName] = useState("");
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([]);
   const [scopeSettings, setScopeSettings] = useState({
     fullProject: true,
@@ -663,6 +666,113 @@ export default function ProjectPage() {
   });
 
   // Generate mutation - starts Step 4 import process
+  // Load saved configurations on project load
+  const { data: savedConfig } = useQuery({
+    queryKey: ['/api/projects', projectId, 'config', 'load'],
+    queryFn: async () => {
+      const response = await fetch(`/api/projects/${projectId}/config/load`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to load config');
+      return response.json();
+    },
+    enabled: !!projectId
+  });
+
+  // Apply saved configuration when loaded
+  useEffect(() => {
+    if (savedConfig?.config && currentStep === 1) {
+      const config = savedConfig.config;
+      
+      // Auto-populate form fields
+      setFieldMapping(config.fieldMapping || {});
+      setSelectedScenarios(config.selectedScenarios || []);
+      setScopeSettings(config.scopeSettings || {
+        fullProject: true,
+        includePrefix: '',
+        dateAfter: '',
+        manualUrls: ''
+      });
+      
+      // Apply linking rules
+      const rules = config.linkingRules || {};
+      setMaxLinks(rules.maxLinks || 5);
+      setMinDistance(rules.minDistance || 150);
+      setExactPercent(rules.exactPercent || 20);
+      setFreshnessPush(rules.freshnessPush || false);
+      setOldLinksPolicy(rules.oldLinksPolicy || 'enrich');
+      setScenarios(rules.scenarios || {
+        headConsolidation: false,
+        clusterCrossLink: false,
+        commercialRouting: false,
+        orphanFix: false,
+        depthLift: false
+      });
+      
+      toast({
+        title: "Настройки восстановлены",
+        description: `Загружена конфигурация для файла: ${config.fileName}`,
+      });
+    }
+  }, [savedConfig, currentStep, toast]);
+
+  // Save configuration mutation
+  const saveConfigMutation = useMutation({
+    mutationFn: async () => {
+      const rules = {
+        maxLinks,
+        minDistance,
+        exactPercent,
+        cssClass: "",
+        showAdvancedHtml: false,
+        relAttributes: { noopener: false, noreferrer: false, nofollow: false },
+        targetBlank: false,
+        existingClassPolicy: 'add' as const,
+        scenarios,
+        depthThreshold: 3,
+        oldLinksPolicy,
+        dedupeLinks: true,
+        brokenLinksPolicy: 'delete' as const,
+        stopAnchors: [],
+        moneyPages: [],
+        freshnessPush,
+        freshnessThreshold: 30,
+        freshnessLinks: 3
+      };
+
+      const response = await fetch(`/api/projects/${projectId}/config/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          fileName: uploadedFile?.name || 'Настройки импорта',
+          fieldMapping,
+          selectedScenarios,
+          scopeSettings,
+          linkingRules: rules
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to save config');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Конфигурация сохранена",
+        description: "Настройки импорта сохранены для повторного использования.",
+      });
+      setShowSaveDialog(false);
+      setConfigName("");
+    },
+    onError: (error) => {
+      toast({
+        title: "Ошибка сохранения",
+        description: error instanceof Error ? error.message : "Не удалось сохранить конфигурацию",
+        variant: "destructive"
+      });
+    }
+  });
+
   const generateMutation = useMutation({
     mutationFn: async () => {
       console.log('🚀 Starting import with data:', {
@@ -720,6 +830,9 @@ export default function ProjectPage() {
       // Update URL to include jobId for tracking
       window.history.pushState({}, '', `${window.location.pathname}?jobId=${data.jobId}`);
       setCurrentStep(5);
+      
+      // Auto-save configuration on successful start
+      saveConfigMutation.mutate();
     },
     onError: (error: any) => {
       const errorMessage = error.response?.data?.details || error.response?.data?.message || error.message;
@@ -1683,14 +1796,23 @@ export default function ProjectPage() {
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Назад
                   </Button>
-                  <Button 
-                    onClick={handleGenerate}
-                    disabled={selectedScenarios.length === 0 || generateMutation.isPending}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    {generateMutation.isPending ? "Запуск..." : "Сохранить и запустить импорт"}
-                  </Button>
+                  <div className="flex gap-3">
+                    <Button 
+                      variant="outline"
+                      onClick={() => saveConfigMutation.mutate()}
+                      disabled={saveConfigMutation.isPending}
+                    >
+                      {saveConfigMutation.isPending ? "Сохранение..." : "Сохранить настройки"}
+                    </Button>
+                    <Button 
+                      onClick={handleGenerate}
+                      disabled={selectedScenarios.length === 0 || generateMutation.isPending}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      {generateMutation.isPending ? "Запуск..." : "Запустить импорт"}
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}

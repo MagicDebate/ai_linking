@@ -11,6 +11,8 @@ This is a comprehensive SaaS SEO service platform that automates internal linkin
 - **Fixed data persistence issue** - Import data now saves to database instead of just memory
 - **Added debug functionality** - Debug button on import page and project page with filtering system
 - **Implemented Russian language interface** - All user-facing text converted to Russian as requested
+- **Added link generation system** - Complete pipeline with cosine similarity, draft review, progress tracking
+- **Implemented configuration persistence** - Auto-save/restore import settings to avoid re-entering data
 
 # User Preferences
 
@@ -45,6 +47,9 @@ Preferred communication style: Simple, everyday language.
   - **Notifications**: System notifications with dismiss functionality
   - **ProjectApiKeys**: API keys for WordPress plugin integration
   - **Imports**: File upload tracking with field mapping and processing status
+  - **GenerationRuns**: Link generation sessions with status tracking
+  - **LinkCandidates**: Generated link suggestions with rejection/acceptance status
+  - **ProjectImportConfigs**: Saved import configurations for quick reuse
 
 ## Authentication Flow
 - **Local Auth**: Email/password with bcrypt hashing (10 rounds)

@@ -13,7 +13,7 @@ import {
   clearTokenCookies, 
   authenticateToken 
 } from "./auth";
-import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, embeddings, edges, graphMeta, pagesRaw, generationRuns, linkCandidates } from "@shared/schema";
+import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, embeddings, edges, graphMeta, pagesRaw, generationRuns, linkCandidates, projectImportConfigs, insertProjectImportConfigSchema } from "@shared/schema";
 import { LinkGenerator } from "./linkGenerator";
 import { progressStreamManager } from "./progressStream";
 import { sql, eq, and, desc } from "drizzle-orm";
@@ -898,6 +898,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Draft review error:", error);
       res.status(500).json({ error: "Failed to get draft data" });
+    }
+  });
+
+  // ========== IMPORT CONFIG MANAGEMENT ==========
+
+  // Save import configuration for reuse
+  app.post("/api/projects/:projectId/config/save", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      const { fileName, fieldMapping, selectedScenarios, scopeSettings, linkingRules } = req.body;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Mark all existing configs as not last used
+      await db
+        .update(projectImportConfigs)
+        .set({ isLastUsed: false, updatedAt: new Date() })
+        .where(eq(projectImportConfigs.projectId, projectId));
+
+      // Create new config
+      const config = await db
+        .insert(projectImportConfigs)
+        .values({
+          projectId,
+          fileName,
+          fieldMapping,
+          selectedScenarios,
+          scopeSettings,
+          linkingRules,
+          isLastUsed: true
+        })
+        .returning();
+
+      res.json({ success: true, config: config[0] });
+    } catch (error) {
+      console.error("Save config error:", error);
+      res.status(500).json({ error: "Failed to save configuration" });
+    }
+  });
+
+  // Load last used import configuration
+  app.get("/api/projects/:projectId/config/load", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get last used configuration
+      const config = await db
+        .select()
+        .from(projectImportConfigs)
+        .where(and(
+          eq(projectImportConfigs.projectId, projectId),
+          eq(projectImportConfigs.isLastUsed, true)
+        ))
+        .limit(1);
+
+      if (config.length === 0) {
+        return res.json({ config: null });
+      }
+
+      res.json({ config: config[0] });
+    } catch (error) {
+      console.error("Load config error:", error);
+      res.status(500).json({ error: "Failed to load configuration" });
+    }
+  });
+
+  // Get all saved configurations for project
+  app.get("/api/projects/:projectId/configs", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const configs = await db
+        .select()
+        .from(projectImportConfigs)
+        .where(eq(projectImportConfigs.projectId, projectId))
+        .orderBy(desc(projectImportConfigs.updatedAt));
+
+      res.json(configs);
+    } catch (error) {
+      console.error("Get configs error:", error);
+      res.status(500).json({ error: "Failed to get configurations" });
+    }
+  });
+
+  // Delete saved configuration
+  app.delete("/api/projects/:projectId/configs/:configId", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId, configId } = req.params;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      await db
+        .delete(projectImportConfigs)
+        .where(and(
+          eq(projectImportConfigs.id, configId),
+          eq(projectImportConfigs.projectId, projectId)
+        ));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete config error:", error);
+      res.status(500).json({ error: "Failed to delete configuration" });
     }
   });
 

@@ -225,6 +225,20 @@ export const brokenUrls = pgTable("broken_urls", {
   checkedAt: timestamp("checked_at").defaultNow().notNull(),
 });
 
+// Project import configurations for saving and reusing settings
+export const projectImportConfigs = pgTable("project_import_configs", {
+  id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: text("project_id").references(() => projects.id).notNull(),
+  fileName: text("file_name").notNull(),
+  fieldMapping: jsonb("field_mapping").notNull(), // FieldMapping object
+  selectedScenarios: jsonb("selected_scenarios").notNull(), // string[]
+  scopeSettings: jsonb("scope_settings").notNull(), // scope configuration
+  linkingRules: jsonb("linking_rules").notNull(), // LinkingRules object
+  isLastUsed: boolean("is_last_used").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -268,11 +282,19 @@ export const insertPageEmbeddingSchema = createInsertSchema(pageEmbeddings).omit
   createdAt: true,
 });
 
+export const insertProjectImportConfigSchema = createInsertSchema(projectImportConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Generation run types 
 export type GenerationRun = typeof generationRuns.$inferSelect;
 export type LinkCandidate = typeof linkCandidates.$inferSelect;
 export type PageEmbedding = typeof pageEmbeddings.$inferSelect;
 export type PageClean = typeof pagesClean.$inferSelect;
+export type ProjectImportConfig = typeof projectImportConfigs.$inferSelect;
+export type InsertProjectImportConfig = z.infer<typeof insertProjectImportConfigSchema>;
 export type GraphMeta = typeof graphMeta.$inferSelect;
 export type ImportJob = typeof importJobs.$inferSelect;
 
