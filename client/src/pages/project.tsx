@@ -1294,7 +1294,93 @@ export default function ProjectPage() {
                     </div>
                   </div>
 
-                  {/* E. Depth Lift Settings */}
+                  {/* E. General Depth Settings - Always visible */}
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Настройки глубины URL</h4>
+                      <HelpDialog contentKey="depthSettings" />
+                    </div>
+                    
+                    <div className="max-w-md">
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Считать URL глубокими при глубине ≥ {rules.depthThreshold} кликов
+                      </Label>
+                      <Slider
+                        value={[rules.depthThreshold]}
+                        onValueChange={(value) => setRules(prev => ({ ...prev, depthThreshold: value[0] }))}
+                        max={8}
+                        min={2}
+                        step={1}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>2</span>
+                        <span>8</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* F. Freshness Settings - Always visible */}
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Настройки свежести контента</h4>
+                      <HelpDialog contentKey="freshnessSettings" />
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium text-gray-700">
+                          Учитывать свежесть статей при перелинковке
+                        </Label>
+                        <Switch
+                          checked={rules.freshnessPush}
+                          onCheckedChange={(checked) => setRules(prev => ({ ...prev, freshnessPush: checked }))}
+                        />
+                      </div>
+                      
+                      {rules.freshnessPush && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                              Новая статья = опубликована ≤ {rules.freshnessThreshold} дней назад
+                            </Label>
+                            <Slider
+                              value={[rules.freshnessThreshold]}
+                              onValueChange={(value) => setRules(prev => ({ ...prev, freshnessThreshold: value[0] }))}
+                              max={365}
+                              min={1}
+                              step={1}
+                              className="w-full"
+                            />
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <span>1 день</span>
+                              <span>365 дней</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                              Максимум ссылок со старой статьи → новой: {rules.freshnessLinks}
+                            </Label>
+                            <Slider
+                              value={[rules.freshnessLinks]}
+                              onValueChange={(value) => setRules(prev => ({ ...prev, freshnessLinks: value[0] }))}
+                              max={5}
+                              min={0}
+                              step={1}
+                              className="w-full"
+                            />
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <span>0</span>
+                              <span>5</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* G. Depth Lift Settings - Only when scenario enabled */}
                   {rules.scenarios.depthLift && (
                     <div className="border-b border-gray-200 pb-4">
                       <div className="flex items-center justify-between mb-3">
@@ -1322,55 +1408,9 @@ export default function ProjectPage() {
                     </div>
                   )}
 
-                  {/* F. Freshness Push Settings */}
-                  {rules.freshnessPush && (
-                    <div className="border-b border-gray-200 pb-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-md font-medium text-gray-900">Настройки Freshness Push</h4>
-                        <HelpDialog contentKey="freshnessPush" />
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                            Новая статья = опубликована ≤ {rules.freshnessThreshold} дней
-                          </Label>
-                          <Slider
-                            value={[rules.freshnessThreshold]}
-                            onValueChange={(value) => setRules(prev => ({ ...prev, freshnessThreshold: value[0] }))}
-                            max={365}
-                            min={1}
-                            step={1}
-                            className="w-full"
-                          />
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>1</span>
-                            <span>365</span>
-                          </div>
-                        </div>
 
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                            Ссылок со старой статьи → новой: {rules.freshnessLinks}
-                          </Label>
-                          <Slider
-                            value={[rules.freshnessLinks]}
-                            onValueChange={(value) => setRules(prev => ({ ...prev, freshnessLinks: value[0] }))}
-                            max={3}
-                            min={0}
-                            step={1}
-                            className="w-full"
-                          />
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>0</span>
-                            <span>3</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
-                  {/* G. Stop-list and Money Pages */}
+                  {/* H. Stop-list and Money Pages */}
                   <div className="border-b border-gray-200 pb-4">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-md font-medium text-gray-900">Stop-лист и приоритеты</h4>
