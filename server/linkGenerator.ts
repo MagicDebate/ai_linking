@@ -30,6 +30,7 @@ interface ProgressUpdate {
 
 export class LinkGenerator {
   private openai: OpenAI;
+  private openaiEnabled: boolean = false;
   private progressCallback?: (update: ProgressUpdate) => void;
 
   constructor(progressCallback?: (update: ProgressUpdate) => void) {
@@ -37,6 +38,7 @@ export class LinkGenerator {
     this.openai = new OpenAI({ 
       apiKey: process.env.OPENAI_API_KEY 
     });
+    this.openaiEnabled = false;
   }
 
   async initialize() {
