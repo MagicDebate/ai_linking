@@ -1041,7 +1041,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (graphData.rows && graphData.rows.length > 0) {
         console.log(`🚀 DEBUG API: Using graph_meta data - ${graphData.rows.length} pages`);
-        pages = graphData.rows.map((row: any) => ({
+        const pages = graphData.rows.map((row: any) => ({
           url: row.url,
           title: row.title || 'Без названия',
           content: row.content || '',
@@ -1051,9 +1051,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           isOrphan: row.is_orphan || false,
           contentPreview: (row.content || '').substring(0, 150)
         }));
+        
+        return res.json({ 
+          success: true, 
+          pages: pages,
+          totalCount: pages.length,
+          orphanCount: pages.filter(p => p.isOrphan).length
+        });
       } else {
         // Fallback to old method
-        pages = await storage.getProjectPages(projectId);
+        let pages = await storage.getProjectPages(projectId);
       }
       
       
