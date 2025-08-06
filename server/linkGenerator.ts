@@ -172,8 +172,10 @@ export class LinkGenerator {
       .from(pagesClean)
       .innerJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
       .where(eq(graphMeta.jobId, job.jobId))
-      .limit(30); // Reduced limit for faster processing
+      // Remove artificial limits - process all pages
+      // .limit(30); // Removed limit for comprehensive processing
 
+    console.log(`Selected ${pages.length} pages for processing (all pages from import)`);
     return pages;
   }
 
@@ -217,11 +219,19 @@ export class LinkGenerator {
     const scenarios = params.scenarios;
     const rules = params.rules;
 
-    // Limit combinations for speed
-    const limitedPages = pages.slice(0, 15);
+    // Process all pages for comprehensive linking
+    const totalCombinations = pages.length * pages.length;
+    let processedCombinations = 0;
 
-    for (const sourcePage of limitedPages) {
-      for (const targetPage of limitedPages) {
+    for (const sourcePage of pages) {
+      for (const targetPage of pages) {
+        processedCombinations++;
+        
+        // Update progress every 1000 combinations
+        if (processedCombinations % 1000 === 0) {
+          const percent = 70 + Math.floor((processedCombinations / totalCombinations) * 20);
+          await this.updateProgress(runId, 'linking', percent, generated, rejected);
+        }
         if (sourcePage.id === targetPage.id) continue;
 
         // Determine if this link should be generated

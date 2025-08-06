@@ -19,6 +19,11 @@ interface GenerationReport {
     duplicatesRemoved: number;
     broken404Fixed: { before: number; after: number };
   };
+  processingStats?: {
+    totalPages: number;
+    processedPages: number;
+    processedPercentage: number;
+  };
   anchorProfile?: {
     before: { exact: number; partial: number; brand: number; generic: number };
     after: { exact: number; partial: number; brand: number; generic: number };
@@ -33,6 +38,17 @@ interface GenerationReport {
     sources: string[];
     targets: string[];
     flows: Array<{ source: number; target: number; value: number }>;
+  };
+  linkDetails?: Array<{
+    sourceUrl: string;
+    targetUrl: string;
+    anchorText: string;
+    scenario: string;
+  }>;
+  generationStats?: {
+    total: number;
+    accepted: number;
+    rejected: number;
   };
 }
 
@@ -103,6 +119,9 @@ export function Results({ projectId }: ResultsProps) {
           <div className="text-sm text-muted-foreground">
             Выполнено: {new Date(report.generatedAt!).toLocaleString('ru-RU')}
             {report.duration && ` • Время: ${report.duration}с`}
+            {report.processingStats && (
+              ` • Обработано ${report.processingStats.processedPages} из ${report.processingStats.totalPages} страниц (${report.processingStats.processedPercentage}%)`
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -265,7 +284,7 @@ export function Results({ projectId }: ResultsProps) {
       </Card>
 
       {/* Detailed Link Insertions Report */}
-      {results.linkDetails && results.linkDetails.length > 0 && (
+      {report.linkDetails && report.linkDetails.length > 0 && (
         <Card className="mt-6">
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -275,7 +294,7 @@ export function Results({ projectId }: ResultsProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-4 max-h-96 overflow-y-auto">
-              {results.linkDetails.map((link: any, index: number) => (
+              {report.linkDetails.map((link: any, index: number) => (
                 <div key={index} className="border rounded-lg p-4 bg-gray-50">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -300,7 +319,7 @@ export function Results({ projectId }: ResultsProps) {
               ))}
             </div>
             <div className="mt-4 text-sm text-gray-600">
-              Показано {results.linkDetails.length} из {results.generationStats?.accepted || 0} принятых ссылок
+              Показано {report.linkDetails.length} из {report.generationStats?.accepted || 0} принятых ссылок
             </div>
           </CardContent>
         </Card>
