@@ -973,6 +973,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // COMPATIBLE ENDPOINT for frontend
+  app.post("/api/link-generation", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId, scenarios, rules, check404Policy } = req.body;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Create link generator
+      const generator = new LinkGenerator(projectId);
+
+      // Prepare generation parameters
+      const generationParams = {
+        scenarios,
+        rules,
+        check404Policy: check404Policy || 'disabled'
+      };
+
+      // Start generation in background
+      const runId = await generator.generate(generationParams);
+      console.log(`✅ Smart generation started with runId: ${runId}`);
+
+      res.json({ 
+        success: true, 
+        message: "Smart generation started", 
+        runId: runId 
+      });
+    } catch (error) {
+      console.error("Link generation start error:", error);
+      res.status(500).json({ error: "Failed to start link generation" });
+    }
+  });
+
   // Get link candidates for draft review
   app.get("/api/draft/:runId", authenticateToken, async (req: any, res) => {
     try {

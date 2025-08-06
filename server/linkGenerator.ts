@@ -223,9 +223,17 @@ export class LinkGenerator {
     console.log(`🧠 Starting smart link generation for ${pages.length} donor pages`);
     console.log(`⚙️ Rules: maxLinks=${rules.maxLinks}, scenarios=${Object.keys(scenarios).filter(k => (scenarios as any)[k]).join(', ')}`);
 
+    // ШАГ 1: Фильтруем только релевантные страницы-доноры
+    const eligibleDonors = pages.filter(page => {
+      const applicableScenarios = this.getApplicableScenarios(page, scenarios, rules);
+      return applicableScenarios.length > 0;
+    });
+
+    console.log(`🎯 Filtered ${eligibleDonors.length} eligible donors from ${pages.length} total pages`);
+
     // ШАГ 1: Обход страниц-доноров
-    for (let i = 0; i < pages.length; i++) {
-      const donorPage = pages[i];
+    for (let i = 0; i < eligibleDonors.length; i++) {
+      const donorPage = eligibleDonors[i];
       
       // 🔍 ПРОВЕРЯЕМ ЛИМИТ ЗАРАНЕЕ
       const currentLinksCount = await this.getCurrentLinksCount(runId, donorPage.id);
@@ -234,30 +242,25 @@ export class LinkGenerator {
         continue;
       }
 
-      console.log(`\n🎯 Processing donor page ${i+1}/${pages.length}: ${donorPage.url}`);
+      console.log(`\n🎯 Processing donor page ${i+1}/${eligibleDonors.length}: ${donorPage.url}`);
       console.log(`   Current links: ${currentLinksCount}/${rules.maxLinks}`);
 
       // Определяем какие сценарии применимы к этой странице
       const applicableScenarios = this.getApplicableScenarios(donorPage, scenarios, rules);
-      if (applicableScenarios.length === 0) {
-        console.log(`   ❌ No applicable scenarios for this donor page`);
-        continue;
-      }
 
       console.log(`   ✅ Applicable scenarios: ${applicableScenarios.join(', ')}`);
 
       // 🎯 ИЩЕМ ПО СМЫСЛУ ДЕСЯТОК САМЫХ БЛИЗКИХ ЦЕЛЕЙ
-      const topTargets = await this.findTopTargets(donorPage, pages, 10);
+      const topTargets = await this.findTopTargets(donorPage, pages, Math.min(10, rules.maxLinks * 2));
       console.log(`   🔍 Found ${topTargets.length} potential targets`);
 
       let linksCreatedFromThisPage = currentLinksCount;
+      let targetIndex = 0;
 
-      // Обрабатываем каждую потенциальную цель
-      for (const target of topTargets) {
-        if (linksCreatedFromThisPage >= rules.maxLinks) {
-          console.log(`   🛑 Reached max links limit (${rules.maxLinks}) for donor page`);
-          break;
-        }
+      // Обрабатываем каждую потенциальную цель (максимум maxLinks)
+      while (linksCreatedFromThisPage < rules.maxLinks && targetIndex < topTargets.length) {
+        const target = topTargets[targetIndex];
+        targetIndex++;
 
         // ШАГ 2: ПРИМЕНЕНИЕ ГЛОБАЛЬНЫХ ПРАВИЛ
         const linkResult = await this.tryCreateLink(runId, donorPage, target, applicableScenarios[0], rules);
@@ -272,9 +275,13 @@ export class LinkGenerator {
         }
       }
 
-      // Update progress
-      if (i % 10 === 0) {
-        const percent = 70 + Math.floor((i / pages.length) * 10);
+      if (linksCreatedFromThisPage >= rules.maxLinks) {
+        console.log(`   🎯 Completed donor page: created ${linksCreatedFromThisPage} links`);
+      }
+
+      // Update progress more frequently for better UX
+      if (i % 5 === 0) {
+        const percent = 70 + Math.floor((i / eligibleDonors.length) * 10);
         await this.updateProgress(runId, 'linking', percent, totalGenerated, totalRejected);
       }
     }

@@ -308,8 +308,8 @@ export default function UnifiedProjectPage() {
     },
     enabled: !!projectId && !!jobId && currentStep === 4,
     refetchInterval: (data) => {
-      // Keep polling if status is running, stop if completed/failed
-      if (data?.status === 'running') {
+      // Keep polling if status is running, stop if completed/failed  
+      if (data && 'status' in data && data.status === 'running') {
         console.log('🔄 Import running, continuing to poll...');
         return 2000;
       }
@@ -918,7 +918,7 @@ export default function UnifiedProjectPage() {
                             };
 
                             try {
-                              const response = await fetch("/api/generate/start", {
+                              const response = await fetch("/api/link-generation", {
                                 method: "POST",
                                 headers: {
                                   "Content-Type": "application/json",
@@ -926,13 +926,21 @@ export default function UnifiedProjectPage() {
                                 credentials: "include",
                                 body: JSON.stringify({
                                   projectId: projectId,
-                                  importId: completedJob.importId,
                                   scenarios: generationConfig.selectedScenarios?.reduce((acc: any, scenario: string) => {
                                     acc[scenario] = true;
                                     return acc;
                                   }, {}) || { orphanFix: true },
-                                  scope: generationConfig.scopeSettings || { fullProject: true },
-                                  rules: generationConfig.linkingRules || { maxLinks: 5, dedupeLinks: true }
+                                  rules: generationConfig.linkingRules || { 
+                                    maxLinks: 3, 
+                                    depthThreshold: 5,
+                                    moneyPages: [],
+                                    stopAnchors: ["читать далее", "подробнее"],
+                                    dedupeLinks: true,
+                                    cssClass: "",
+                                    relAttribute: "",
+                                    targetAttribute: ""
+                                  },
+                                  check404Policy: "delete"
                                 }),
                               });
 
