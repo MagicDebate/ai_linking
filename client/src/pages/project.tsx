@@ -453,6 +453,7 @@ export default function ProjectPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   
   const [currentStep, setCurrentStep] = useState(1);
+  const [hasCompletedImports, setHasCompletedImports] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
@@ -586,6 +587,19 @@ export default function ProjectPage() {
     enabled: !!projectId,
   });
 
+  // Check import status to determine correct step
+  const { data: importJobsList } = useQuery({
+    queryKey: ['/api/import', projectId, 'jobs'],
+    queryFn: async () => {
+      const response = await fetch(`/api/import/${projectId}/jobs`, {
+        credentials: 'include'
+      });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!projectId
+  });
+
   // File upload mutation
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -679,6 +693,21 @@ export default function ProjectPage() {
     },
     enabled: !!projectId
   });
+
+  // Auto-determine correct step based on import status
+  useEffect(() => {
+    if (importJobsList && importJobsList.length > 0) {
+      const hasCompleted = importJobsList.some((job: any) => job.status === 'completed');
+      if (hasCompleted && currentStep === 1) {
+        setCurrentStep(5); // Go directly to link generation step
+        setHasCompletedImports(true);
+        toast({
+          title: "Импорт завершен",
+          description: "Переходим к генерации ссылок",
+        });
+      }
+    }
+  }, [importJobsList, currentStep, toast]);
 
   // Apply saved configuration when loaded
   useEffect(() => {

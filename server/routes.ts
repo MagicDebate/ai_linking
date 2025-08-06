@@ -13,7 +13,7 @@ import {
   clearTokenCookies, 
   authenticateToken 
 } from "./auth";
-import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, embeddings, edges, graphMeta, pagesRaw, generationRuns, linkCandidates, projectImportConfigs, insertProjectImportConfigSchema } from "@shared/schema";
+import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, embeddings, edges, graphMeta, pagesRaw, generationRuns, linkCandidates, projectImportConfigs, insertProjectImportConfigSchema, importJobs } from "@shared/schema";
 import { LinkGenerator } from "./linkGenerator";
 import { progressStreamManager } from "./progressStream";
 import { sql, eq, and, desc } from "drizzle-orm";
@@ -939,6 +939,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Save config error:", error);
       res.status(500).json({ error: "Failed to save configuration" });
+    }
+  });
+
+  // Get import jobs list for project
+  app.get("/api/import/:projectId/jobs", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get import jobs from importJobs table
+      const jobs = await db
+        .select()
+        .from(importJobs)
+        .where(eq(importJobs.projectId, projectId))
+        .orderBy(desc(importJobs.createdAt));
+
+      res.json(jobs);
+    } catch (error) {
+      console.error("Get import jobs error:", error);
+      res.status(500).json({ error: "Failed to get import jobs" });
     }
   });
 
