@@ -1119,11 +1119,11 @@ export default function UnifiedProjectPage() {
                     });
                   }
                 }}
-                disabled={generationMutation.isPending}
+disabled={false}
                 className="bg-green-600 hover:bg-green-700"
               >
                 <Zap className="mr-2 h-4 w-4" />
-                {generationMutation.isPending ? "Запуск..." : "Запустить новую генерацию"}
+Запустить новую генерацию
               </Button>
               
               <Button 
