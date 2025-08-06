@@ -908,16 +908,7 @@ export default function UnifiedProjectPage() {
                     </div>
 
                     <div className="space-y-4">
-                      <h3 className="text-lg font-medium">Импорт завершен успешно</h3>
-                      
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                        <p className="text-green-800 font-medium">✅ Данные успешно импортированы</p>
-                        <p className="text-green-700 text-sm mt-1">
-                          Найдено {completedJob.orphanCount} страниц-сирот для генерации ссылок
-                        </p>
-                      </div>
-
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                         <h4 className="text-blue-800 font-medium mb-2">📊 Рекомендации по результатам анализа</h4>
                         <div className="space-y-2 text-sm">
                           <p className="text-blue-700">• Рекомендуется запустить сценарий "Фикс сирот" для {completedJob.orphanCount} страниц</p>
@@ -926,68 +917,15 @@ export default function UnifiedProjectPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex justify-end">
                         <Button 
-                          size="lg" 
-                          className="h-auto p-4 flex flex-col items-start text-left bg-green-600 hover:bg-green-700"
-                          onClick={() => {
-                            // Переходим на экран генерации
-                            setCurrentStep(6);
-                          }}
+                          onClick={() => setCurrentStep(6)}
+                          className="bg-green-600 hover:bg-green-700"
                         >
-                          <div className="flex items-center gap-2 mb-2">
-                            <Zap className="h-5 w-5" />
-                            <span className="font-medium">Перейти к генерации</span>
-                          </div>
-                          <p className="text-sm opacity-80">
-                            Настроить и запустить создание внутренних ссылок
-                          </p>
-                        </Button>
-                        
-                        <Button 
-                          variant="outline"
-                          size="lg"
-                          className="h-auto p-4 flex flex-col items-start text-left"
-                          asChild
-                        >
-                          <a href={`/project/${projectId}/debug`}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <ExternalLink className="h-5 w-5" />
-                              <span className="font-medium">Просмотр данных</span>
-                            </div>
-                            <p className="text-sm opacity-80">
-                              Изучить импортированные страницы и структуру сайта
-                            </p>
-                          </a>
+                          <Zap className="h-4 w-4 mr-2" />
+                          Перейти к генерации ссылок
                         </Button>
                       </div>
-                    </div>
-
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <div className="flex items-start">
-                        <AlertTriangle className="h-5 w-5 text-blue-600 mr-3 mt-0.5" />
-                        <div>
-                          <p className="font-medium text-blue-900 mb-1">Рекомендации по результатам анализа:</p>
-                          <ul className="text-sm text-blue-800 space-y-1">
-                            {completedJob?.orphanCount > 0 && (
-                              <li>• Найдено {completedJob.orphanCount} страниц-сирот - рекомендуется создать входящие ссылки</li>
-                            )}
-                            <li>• Средняя глубина страниц: {completedJob?.avgClickDepth || 1} клик от главной</li>
-                            <li>• Готово {completedJob?.blocksDone || 0} векторизованных блоков для поиска семантических связей</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-start mt-6">
-                      <Button 
-                        variant="outline"
-                        size="lg"
-                        className="px-8 py-3 border-2 font-medium"
-                        onClick={() => setCurrentStep(2)}
-                      >
-                        ← Назад
-                      </Button>
                     </div>
                   </>
                 );
