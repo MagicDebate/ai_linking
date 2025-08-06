@@ -360,8 +360,8 @@ export class LinkGenerator {
 
   // Попытаться создать ссылку с проверкой всех правил
   private async tryCreateLink(runId: string, donorPage: any, targetPage: any, scenario: string, rules: any): Promise<{ created: boolean, anchor?: string, reason?: string }> {
-    // Генерируем анкор
-    const anchorText = this.generateSimpleAnchorText(donorPage, targetPage);
+    // Генерируем анкор с помощью OpenAI
+    const anchorText = await this.generateSmartAnchorText(donorPage, targetPage);
 
     // Проверяем все правила
     const checks = [
@@ -518,13 +518,60 @@ export class LinkGenerator {
     return null;
   }
 
+  private async generateSmartAnchorText(sourcePage: any, targetPage: any): Promise<string> {
+    try {
+      // Используем заголовок страницы и описание для создания качественного анкора
+      const targetTitle = targetPage.title || '';
+      const targetContent = targetPage.content || '';
+      const targetUrl = targetPage.url || '';
+      
+      // Если есть заголовок, создаем анкор на его основе
+      if (targetTitle && targetTitle.length > 3) {
+        const response = await this.openai.chat.completions.create({
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "system", 
+              content: "Ты специалист по SEO. Создай короткий естественный анкор для ссылки на русском языке. Анкор должен быть 2-6 слов, отражать суть страницы и быть естественным для вставки в текст. Отвечай только анкором, без дополнительного текста."
+            },
+            {
+              role: "user", 
+              content: `Создай анкор для страницы с заголовком: "${targetTitle}". ${targetContent ? `Описание: ${targetContent.substring(0, 200)}...` : ''}`
+            }
+          ],
+          max_tokens: 50,
+          temperature: 0.3
+        });
+
+        const aiAnchor = response.choices[0]?.message?.content?.trim();
+        if (aiAnchor && aiAnchor.length > 2 && aiAnchor.length < 80) {
+          return aiAnchor;
+        }
+      }
+      
+      // Фаллбек к простому анкору, если AI не сработал
+      return this.generateSimpleAnchorText(sourcePage, targetPage);
+      
+    } catch (error) {
+      console.log('OpenAI anchor generation failed, using fallback:', error);
+      return this.generateSimpleAnchorText(sourcePage, targetPage);
+    }
+  }
+
   private generateSimpleAnchorText(sourcePage: any, targetPage: any): string {
-    // Generate simple anchor text based on URL
+    // Резервный способ создания анкора из заголовка или URL
+    const title = targetPage.title || '';
+    if (title && title.length > 3) {
+      // Берем первые 3-5 слов из заголовка
+      const words = title.split(' ').slice(0, 5);
+      return words.join(' ').toLowerCase();
+    }
+    
+    // Если заголовка нет, берем из URL
     const url = targetPage.url || '';
     const segments = url.split('/').filter(Boolean);
     const lastSegment = segments[segments.length - 1] || 'страница';
     
-    // Clean up the segment
     let anchor = lastSegment
       .replace(/[-_]/g, ' ')
       .replace(/\.[^/.]+$/, '');
