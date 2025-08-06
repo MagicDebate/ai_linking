@@ -263,6 +263,48 @@ export function Results({ projectId }: ResultsProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Detailed Link Insertions Report */}
+      {data.linkDetails && data.linkDetails.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Link className="h-5 w-5 mr-2 text-blue-600" />
+              Детальный отчет по вставленным ссылкам
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {data.linkDetails.map((link: any, index: number) => (
+                <div key={index} className="border rounded-lg p-4 bg-gray-50">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Страница-донор:</p>
+                      <p className="text-sm text-blue-600 break-all">{link.sourceUrl}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Целевая страница:</p>
+                      <p className="text-sm text-green-600 break-all">{link.targetUrl}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-sm font-medium text-gray-600">Анкор ссылки:</p>
+                    <p className="text-sm font-semibold text-gray-900">"{link.anchorText}"</p>
+                  </div>
+                  <div className="mt-2">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {link.scenario === 'orphan' ? 'Фикс сирот' : link.scenario}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 text-sm text-gray-600">
+              Показано {data.linkDetails.length} из {data.generationStats?.accepted || 0} принятых ссылок
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
