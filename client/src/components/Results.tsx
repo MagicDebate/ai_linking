@@ -265,7 +265,7 @@ export function Results({ projectId }: ResultsProps) {
       </Card>
 
       {/* Detailed Link Insertions Report */}
-      {data.linkDetails && data.linkDetails.length > 0 && (
+      {results.linkDetails && results.linkDetails.length > 0 && (
         <Card className="mt-6">
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -275,7 +275,7 @@ export function Results({ projectId }: ResultsProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-4 max-h-96 overflow-y-auto">
-              {data.linkDetails.map((link: any, index: number) => (
+              {results.linkDetails.map((link: any, index: number) => (
                 <div key={index} className="border rounded-lg p-4 bg-gray-50">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -300,7 +300,7 @@ export function Results({ projectId }: ResultsProps) {
               ))}
             </div>
             <div className="mt-4 text-sm text-gray-600">
-              Показано {data.linkDetails.length} из {data.generationStats?.accepted || 0} принятых ссылок
+              Показано {results.linkDetails.length} из {results.generationStats?.accepted || 0} принятых ссылок
             </div>
           </CardContent>
         </Card>

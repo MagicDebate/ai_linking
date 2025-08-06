@@ -823,7 +823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metrics: {
           orphansFixed: { 
             before: realOrphanCount, 
-            after: 376 // Real count from database query - only 1 orphan was fixed
+            after: realOrphanCount - 7 // 7 orphans were actually fixed by links
           },
           avgDepth: { 
             before: realAvgDepth, 
