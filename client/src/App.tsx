@@ -37,7 +37,7 @@ function Router() {
           <Route path="/" component={Dashboard} />
           <Route path="/dashboard" component={Dashboard} />
           <Route path="/project/:id" component={ProjectPage} />
-          <Route path="/project/:id/generate" component={GenerateLinks} />
+          <Route path="/project/:id/generate" component={ProjectPage} />
           <Route path="/project/:projectId/draft/:runId" component={DraftReview} />
           <Route path="/project/:projectId/debug" component={DebugPages} />
         </>

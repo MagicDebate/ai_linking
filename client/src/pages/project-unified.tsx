@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,6 +99,7 @@ const PHASE_LABELS: Record<string, string> = {
 
 export default function UnifiedProjectPage() {
   const [, params] = useRoute("/project/:id");
+  const [location] = useLocation();
   const projectId = params?.id;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -160,15 +161,22 @@ export default function UnifiedProjectPage() {
     enabled: !!projectId
   });
 
-  // Auto-determine correct step based on import status
+  // Auto-determine correct step based on URL and import status
   useEffect(() => {
-    if (importJobsList && importJobsList.length > 0) {
-      const hasCompleted = importJobsList.some((job: any) => job.status === 'completed');
-      if (hasCompleted && currentStep === 1) {
-        setCurrentStep(5); // Go directly to link generation step
+    // Если это URL генерации ссылок или есть завершенные импорты - переходим к генерации
+    if (location.includes('/generate') || (importJobsList && importJobsList.some((job: any) => job.status === 'completed'))) {
+      setCurrentStep(5);
+    } else if (importJobsList && importJobsList.length > 0) {
+      // Есть импорты, но они не завершены - показываем процесс импорта
+      const lastJob = importJobsList[0];
+      if (lastJob.status === 'running' || lastJob.status === 'pending') {
+        setCurrentStep(4);
+        setJobId(lastJob.id);
+      } else if (lastJob.status === 'completed') {
+        setCurrentStep(5);
       }
     }
-  }, [importJobsList, currentStep]);
+  }, [importJobsList, location]);
 
   // Get import status for active job
   const { data: importStatus } = useQuery<ImportStatus>({
@@ -645,11 +653,15 @@ export default function UnifiedProjectPage() {
               </div>
 
               <div className="flex gap-4">
-                <Button asChild>
-                  <a href={`/project/${projectId}/generate`}>
-                    <Play className="h-4 w-4 mr-2" />
-                    Генерировать ссылки
-                  </a>
+                <Button onClick={() => {
+                  // В будущем здесь будет логика генерации ссылок
+                  toast({
+                    title: "Функция в разработке",
+                    description: "Генерация ссылок будет доступна в следующих версиях"
+                  });
+                }}>
+                  <Play className="h-4 w-4 mr-2" />
+                  Генерировать ссылки
                 </Button>
                 
                 <Button variant="outline" asChild>
