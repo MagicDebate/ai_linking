@@ -39,7 +39,8 @@ import {
   ExternalLink,
   RotateCcw,
   Search,
-  AlertTriangle
+  AlertTriangle,
+  Target
 } from "lucide-react";
 
 interface Project {
@@ -531,7 +532,8 @@ export default function UnifiedProjectPage() {
     { number: 2, title: "Настройка полей", completed: currentStep > 2, active: currentStep === 2 },
     { number: 3, title: "Выбор сценариев", completed: currentStep > 3, active: currentStep === 3 },
     { number: 4, title: "Импорт данных", completed: currentStep > 4, active: currentStep === 4 },
-    { number: 5, title: "Генерация ссылок", completed: false, active: currentStep === 5 }
+    { number: 5, title: "Результаты импорта", completed: currentStep > 5, active: currentStep === 5 },
+    { number: 6, title: "Генерация ссылок", completed: false, active: currentStep === 6 }
   ];
 
   return (
@@ -554,6 +556,7 @@ export default function UnifiedProjectPage() {
                     if (step.number === 1) setCurrentStep(1);
                     else if (step.number === 2) setCurrentStep(2);
                     else if (step.number === 3) setCurrentStep(3);
+                    else if (step.number === 4) setCurrentStep(4);
                     else if (step.number === 5) setCurrentStep(5);
                     else if (step.number === 6) setCurrentStep(6);
                   }}
@@ -573,6 +576,7 @@ export default function UnifiedProjectPage() {
                     if (step.number === 1) setCurrentStep(1);
                     else if (step.number === 2) setCurrentStep(2);
                     else if (step.number === 3) setCurrentStep(3);
+                    else if (step.number === 4) setCurrentStep(4);
                     else if (step.number === 5) setCurrentStep(5);
                     else if (step.number === 6) setCurrentStep(6);
                   }}
@@ -638,7 +642,7 @@ export default function UnifiedProjectPage() {
         )}
 
         {/* Step 2: Field Mapping */}
-        {currentStep === 2 && csvPreview && (
+        {currentStep === 2 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -651,55 +655,67 @@ export default function UnifiedProjectPage() {
                 Укажите, какие колонки CSV соответствуют полям сайта
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label className="text-sm font-medium">URL страницы *</Label>
-                  <Select value={fieldMapping.url || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, url: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Выберите колонку" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {csvPreview.headers.map((header) => (
-                        <SelectItem key={header} value={header}>{header}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {csvPreview ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">URL страницы *</Label>
+                    <Select value={fieldMapping.url || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, url: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Выберите колонку" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {csvPreview.headers.map((header) => (
+                          <SelectItem key={header} value={header}>{header}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div>
-                  <Label className="text-sm font-medium">Заголовок (Title) *</Label>
-                  <Select value={fieldMapping.title || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, title: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Выберите колонку" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {csvPreview.headers.map((header) => (
-                        <SelectItem key={header} value={header}>{header}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <div>
+                    <Label className="text-sm font-medium">Заголовок (Title) *</Label>
+                    <Select value={fieldMapping.title || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, title: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Выберите колонку" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {csvPreview.headers.map((header) => (
+                          <SelectItem key={header} value={header}>{header}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div>
-                  <Label className="text-sm font-medium">Контент *</Label>
-                  <Select value={fieldMapping.content || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, content: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Выберите колонку" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {csvPreview.headers.map((header) => (
-                        <SelectItem key={header} value={header}>{header}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div>
+                    <Label className="text-sm font-medium">Контент *</Label>
+                    <Select value={fieldMapping.content || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, content: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Выберите колонку" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {csvPreview.headers.map((header) => (
+                          <SelectItem key={header} value={header}>{header}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-yellow-800 font-medium">Загрузите CSV файл на первом шаге</p>
+                  <p className="text-yellow-700 text-sm mt-1">
+                    Для настройки полей требуется предварительная загрузка CSV файла
+                  </p>
+                </div>
+              )}
 
               <div className="flex justify-between">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
                   Назад
                 </Button>
-                <Button onClick={handleFieldMapping} disabled={mappingMutation.isPending}>
+                <Button 
+                  onClick={handleFieldMapping} 
+                  disabled={mappingMutation.isPending || !csvPreview}
+                >
                   {mappingMutation.isPending ? "Сохранение..." : "Продолжить"}
                 </Button>
               </div>
@@ -708,106 +724,60 @@ export default function UnifiedProjectPage() {
         )}
 
 
-        {/* Step 3: Generation Screen - ТОЛЬКО ГЕНЕРАЦИЯ, БЕЗ ИМПОРТА */}
+        {/* Step 3: Scenario Selection */}
         {currentStep === 3 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Генерация внутренних ссылок
+                <Target className="h-5 w-5" />
+                Выбор сценариев перелинковки
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-800 font-medium">🎯 Экран генерации</p>
-                <p className="text-blue-700 text-sm mt-1">
-                  Управление генерацией внутренних ссылок
-                </p>
+              <p className="text-gray-600">
+                Выберите сценарии для улучшения внутренней перелинковки
+              </p>
+
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="orphanFix"
+                    checked={selectedScenarios.includes('orphanFix')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedScenarios([...selectedScenarios, 'orphanFix']);
+                      } else {
+                        setSelectedScenarios(selectedScenarios.filter(s => s !== 'orphanFix'));
+                      }
+                    }}
+                  />
+                  <label htmlFor="orphanFix" className="text-sm font-medium">
+                    Фикс страниц-сирот
+                  </label>
+                  <Badge variant="secondary">Рекомендуется</Badge>
+                </div>
               </div>
 
-              {/* Results Section - показываем ТОЛЬКО результаты генерации */}
-              <Results projectId={project.id} />
-
-              <div className="flex gap-4 justify-between">
-                <Button 
-                  variant="outline"
-                  size="lg"
-                  className="px-8 py-3 border-2 font-medium"
-                  onClick={() => setCurrentStep(5)}
-                >
-                  ← Назад к импорту
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                  Назад
                 </Button>
-                
-                <Button 
-                  size="lg"
-                  className="bg-green-600 hover:bg-green-700 text-white font-medium px-8 py-3"
-                  onClick={async () => {
-                    const confirmed = window.confirm(
-                      "Запустить новую генерацию? Текущие результаты будут удалены и заменены новыми."
-                    );
-                    
-                    if (!confirmed) return;
-                    
-                    try {
-                      // Очищаем предыдущие результаты
-                      await fetch(`/api/projects/${projectId}/links`, {
-                        method: "DELETE",
-                        credentials: "include"
-                      });
-
-                      const response = await fetch(`/api/projects/${projectId}/generate-links`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        credentials: "include",
-                        body: JSON.stringify({
-                          projectId: projectId,
-                          scenarios: { orphanFix: true },
-                          rules: { 
-                            maxLinks: 3, 
-                            depthThreshold: 5,
-                            moneyPages: [],
-                            stopAnchors: ["читать далее", "подробнее"],
-                            dedupeLinks: true,
-                            cssClass: "",
-                            relAttribute: "",
-                            targetAttribute: ""
-                          },
-                          check404Policy: "delete"
-                        })
-                      });
-
-                      if (!response.ok) throw new Error("Generation failed");
-
-                      toast({
-                        title: "Генерация запущена",
-                        description: "Создание внутренних ссылок началось"
-                      });
-                      
-                      // Переходим на экран отслеживания прогресса
-                      setCurrentStep(6);
-                    } catch (error) {
-                      toast({
-                        title: "Ошибка",
-                        description: "Не удалось запустить генерацию"
-                      });
-                    }
-                  }}
-                >
-                  <Zap className="mr-2 h-4 w-4" />
-                  Запустить заново
+                <Button onClick={() => setCurrentStep(4)} disabled={selectedScenarios.length === 0}>
+                  Продолжить
                 </Button>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Step 4: Import Progress */}
+        {/* Step 4: Import Data */}
         {currentStep === 4 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Database className="h-5 w-5" />
-                Импорт и обработка данных
+                Импорт данных
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -890,13 +860,13 @@ export default function UnifiedProjectPage() {
           </Card>
         )}
 
-        {/* Step 5: Link Generation */}
+        {/* Step 5: Import Results - ТОЛЬКО РЕЗУЛЬТАТЫ ИМПОРТА */}
         {currentStep === 5 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Генерация внутренних ссылок
+                <CheckCircle2 className="h-5 w-5" />
+                Результаты импорта
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -962,7 +932,7 @@ export default function UnifiedProjectPage() {
                           className="h-auto p-4 flex flex-col items-start text-left bg-green-600 hover:bg-green-700"
                           onClick={() => {
                             // Переходим на экран генерации
-                            setCurrentStep(3);
+                            setCurrentStep(6);
                           }}
                         >
                           <div className="flex items-center gap-2 mb-2">
@@ -1026,45 +996,90 @@ export default function UnifiedProjectPage() {
           </Card>
         )}
 
-        {/* Step 6: Generation Progress */}
+        {/* Step 6: Generation Screen - ТОЛЬКО ГЕНЕРАЦИЯ */}
         {currentStep === 6 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <RefreshCw className="h-5 w-5 animate-spin" />
-                Генерация ссылок
+                <Zap className="h-5 w-5" />
+                Генерация внутренних ссылок
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <RefreshCw className="h-5 w-5 text-blue-600 mr-3 animate-spin" />
-                  <div>
-                    <p className="font-medium text-blue-900">Генерация в процессе</p>
-                    <p className="text-sm text-blue-700">Создаем внутренние ссылки на основе ваших настроек...</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span>Анализ страниц...</span>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                </div>
-                
-                <Progress value={25} className="w-full" />
-                
-                <p className="text-sm text-gray-600">
-                  Этот процесс может занять несколько минут в зависимости от количества страниц.
+                <p className="text-blue-800 font-medium">🎯 Экран генерации</p>
+                <p className="text-blue-700 text-sm mt-1">
+                  Управление генерацией внутренних ссылок
                 </p>
               </div>
 
-              <div className="flex justify-center">
+              {/* Results Section - показываем ТОЛЬКО результаты генерации */}
+              <Results projectId={project.id} />
+
+              <div className="flex gap-4 justify-between">
                 <Button 
-                  variant="outline" 
+                  variant="outline"
+                  size="lg"
+                  className="px-8 py-3 border-2 font-medium"
                   onClick={() => setCurrentStep(5)}
                 >
                   ← Назад к импорту
+                </Button>
+                
+                <Button 
+                  size="lg"
+                  className="bg-green-600 hover:bg-green-700 text-white font-medium px-8 py-3"
+                  onClick={async () => {
+                    const confirmed = window.confirm(
+                      "Запустить новую генерацию? Текущие результаты будут удалены и заменены новыми."
+                    );
+                    
+                    if (!confirmed) return;
+                    
+                    try {
+                      // Очищаем предыдущие результаты
+                      await fetch(`/api/projects/${projectId}/links`, {
+                        method: "DELETE",
+                        credentials: "include"
+                      });
+
+                      const response = await fetch(`/api/projects/${projectId}/generate-links`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({
+                          projectId: projectId,
+                          scenarios: { orphanFix: true },
+                          rules: { 
+                            maxLinks: 3, 
+                            depthThreshold: 5,
+                            moneyPages: [],
+                            stopAnchors: ["читать далее", "подробнее"],
+                            dedupeLinks: true,
+                            cssClass: "",
+                            relAttribute: "",
+                            targetAttribute: ""
+                          },
+                          check404Policy: "delete"
+                        })
+                      });
+
+                      if (!response.ok) throw new Error("Generation failed");
+
+                      toast({
+                        title: "Генерация запущена",
+                        description: "Создание внутренних ссылок началось"
+                      });
+                    } catch (error) {
+                      toast({
+                        title: "Ошибка",
+                        description: "Не удалось запустить генерацию"
+                      });
+                    }
+                  }}
+                >
+                  <Zap className="mr-2 h-4 w-4" />
+                  Запустить заново
                 </Button>
               </div>
             </CardContent>
