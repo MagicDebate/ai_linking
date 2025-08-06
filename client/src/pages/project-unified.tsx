@@ -537,7 +537,7 @@ export default function UnifiedProjectPage() {
   ];
 
   return (
-    <Layout title={project.name}>
+    <Layout>
       <div className="max-w-4xl mx-auto p-6 space-y-6">
         {/* Project Header */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
@@ -646,8 +646,8 @@ export default function UnifiedProjectPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Загрузка CSV файла
+                <Settings className="h-5 w-5" />
+                Настройка соответствия полей
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
