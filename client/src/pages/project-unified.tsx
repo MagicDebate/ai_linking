@@ -646,8 +646,8 @@ export default function UnifiedProjectPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Настройка соответствия полей
+                <Upload className="h-5 w-5" />
+                Загрузка CSV файла
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -729,8 +729,8 @@ export default function UnifiedProjectPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Выбор сценариев перелинковки
+                <Upload className="h-5 w-5" />
+                Загрузка CSV файла
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -776,8 +776,8 @@ export default function UnifiedProjectPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Импорт данных
+                <Upload className="h-5 w-5" />
+                Загрузка CSV файла
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -865,8 +865,8 @@ export default function UnifiedProjectPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5" />
-                Результаты импорта
+                <Upload className="h-5 w-5" />
+                Загрузка CSV файла
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -1001,8 +1001,8 @@ export default function UnifiedProjectPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Генерация внутренних ссылок
+                <Upload className="h-5 w-5" />
+                Загрузка CSV файла
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
