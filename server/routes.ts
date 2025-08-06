@@ -994,12 +994,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Search for page in database
       const page = await db
         .select({
-          title: pagesClean.title,
-          content: pagesClean.content,
-          description: pagesClean.description
+          title: pagesClean.cleanTitle,
+          content: pagesClean.cleanContent,
+          description: pagesClean.cleanTitle
         })
         .from(pagesClean)
-        .where(eq(pagesClean.url, url))
+        .where(eq(pagesClean.cleanUrl, url))
         .limit(1);
       
       if (page.length === 0) {

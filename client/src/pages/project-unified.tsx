@@ -1062,6 +1062,80 @@ export default function UnifiedProjectPage() {
 
         {/* Results Section */}
         <Results projectId={project.id} />
+        
+        {/* Generation Controls */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5" />
+              Управление генерацией
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-gray-600">
+              Запустите новую генерацию ссылок с теми же настройками
+            </p>
+            
+            <div className="flex gap-3">
+              <Button 
+                onClick={async () => {
+                  try {
+                    const response = await fetch(`/api/projects/${project.id}/generate-links`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      credentials: "include",
+                      body: JSON.stringify({
+                        projectId: project.id,
+                        scenarios: { orphanFix: true },
+                        rules: { 
+                          maxLinks: 3, 
+                          depthThreshold: 5,
+                          moneyPages: [],
+                          stopAnchors: ["читать далее", "подробнее"],
+                          dedupeLinks: true,
+                          cssClass: "",
+                          relAttribute: "",
+                          targetAttribute: ""
+                        },
+                        check404Policy: "delete"
+                      }),
+                    });
+
+                    if (!response.ok) {
+                      throw new Error("Failed to start generation");
+                    }
+
+                    toast({
+                      title: "Генерация запущена",
+                      description: "Процесс создания ссылок начался"
+                    });
+                  } catch (error) {
+                    console.error("Generation start error:", error);
+                    toast({
+                      title: "Ошибка",
+                      description: "Не удалось запустить генерацию ссылок"
+                    });
+                  }
+                }}
+                disabled={generationMutation.isPending}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Zap className="mr-2 h-4 w-4" />
+                {generationMutation.isPending ? "Запуск..." : "Запустить новую генерацию"}
+              </Button>
+              
+              <Button 
+                variant="outline"
+                onClick={() => setCurrentStep(3)}
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                Изменить настройки
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );
