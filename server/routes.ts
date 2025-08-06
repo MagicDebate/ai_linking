@@ -975,6 +975,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get page content for viewing full article text
+  app.get("/api/projects/:id/page-content", authenticateToken, async (req: any, res) => {
+    try {
+      const projectId = req.params.id;
+      const { url } = req.query;
+      
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ error: 'URL parameter is required' });
+      }
+      
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      // Search for page in database
+      const page = await db
+        .select({
+          title: pagesClean.title,
+          content: pagesClean.content,
+          description: pagesClean.description
+        })
+        .from(pagesClean)
+        .where(eq(pagesClean.url, url))
+        .limit(1);
+      
+      if (page.length === 0) {
+        return res.status(404).json({ error: 'Page not found' });
+      }
+      
+      res.json(page[0]);
+    } catch (error) {
+      console.error('Error fetching page content:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Stream generation progress (Server-Sent Events)
   app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
     const { runId } = req.params;

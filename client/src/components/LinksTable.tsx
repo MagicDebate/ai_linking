@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Search, Filter } from "lucide-react";
+import { ExternalLink, Search, Filter, FileText } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Link {
@@ -91,11 +91,38 @@ export function LinksTable({ projectId }: LinksTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterScenario, setFilterScenario] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [selectedPage, setSelectedPage] = useState<any>(null);
+  const [showArticleDialog, setShowArticleDialog] = useState(false);
 
   const { data: linksData, isLoading } = useQuery({
     queryKey: ['/api/projects', projectId, 'links'],
     enabled: !!projectId
   });
+
+  // Функция для получения полного текста страницы
+  const fetchPageContent = async (url: string) => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/page-content?url=${encodeURIComponent(url)}`);
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки содержимого страницы:', error);
+    }
+    return null;
+  };
+
+  const handleViewContent = async (link: Link) => {
+    const pageContent = await fetchPageContent(link.sourceUrl);
+    setSelectedPage({
+      url: link.sourceUrl,
+      title: pageContent?.title || 'Заголовок не найден',
+      content: pageContent?.content || 'Содержимое не найдено',
+      link: link
+    });
+    setShowArticleDialog(true);
+  };
 
   if (isLoading) {
     return (
@@ -188,12 +215,13 @@ export function LinksTable({ projectId }: LinksTableProps) {
                 <TableHead className="w-[100px]">Сценарий</TableHead>
                 <TableHead className="w-[100px]">Релевантность</TableHead>
                 <TableHead className="w-[100px]">Статус</TableHead>
+                <TableHead className="w-[120px]">Действия</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredLinks.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     {searchTerm || filterScenario !== "all" || filterStatus !== "all" 
                       ? "Ссылки не найдены по заданным фильтрам"
                       : "Ссылки не найдены"
@@ -239,6 +267,16 @@ export function LinksTable({ projectId }: LinksTableProps) {
                         {link.isRejected ? 'Отклонена' : 'Принята'}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewContent(link)}
+                        className="h-8 px-2"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -252,6 +290,47 @@ export function LinksTable({ projectId }: LinksTableProps) {
           </div>
         )}
       </DialogContent>
+      
+      {/* Диалог для просмотра полного текста статьи */}
+      <Dialog open={showArticleDialog} onOpenChange={setShowArticleDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-left">
+              Полный текст статьи
+            </DialogTitle>
+          </DialogHeader>
+          {selectedPage && (
+            <div className="flex-1 overflow-auto space-y-4">
+              {/* Информация о ссылке */}
+              <div className="bg-blue-50 p-4 rounded-lg border">
+                <h4 className="font-medium mb-2">Информация о ссылке:</h4>
+                <div className="space-y-1 text-sm">
+                  <div><strong>Анкор:</strong> {convertAnchorToCyrillic(selectedPage.link.anchorText)}</div>
+                  <div><strong>Ведет на:</strong> <a href={selectedPage.link.targetUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{selectedPage.link.targetUrl}</a></div>
+                  <div><strong>Сценарий:</strong> <Badge variant="secondary">{selectedPage.link.scenario}</Badge></div>
+                </div>
+              </div>
+              
+              {/* URL страницы */}
+              <div>
+                <strong>URL:</strong> <a href={selectedPage.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{selectedPage.url}</a>
+              </div>
+              
+              {/* Заголовок */}
+              <div>
+                <h3 className="text-lg font-semibold mb-2">{selectedPage.title}</h3>
+              </div>
+              
+              {/* Содержимое */}
+              <div className="prose max-w-none">
+                <div className="whitespace-pre-wrap text-sm leading-relaxed bg-gray-50 p-4 rounded border">
+                  {selectedPage.content}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
