@@ -341,7 +341,8 @@ export default function UnifiedProjectPage() {
   // Import mutation (Step 4)
   const importMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/import", {
+      console.log('📡 Making API call to /api/import/start');
+      const response = await fetch("/api/import/start", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -356,18 +357,33 @@ export default function UnifiedProjectPage() {
         }),
       });
 
+      console.log('📡 API response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error("Import failed");
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API error:', errorData);
+        throw new Error(errorData.error || "Import failed");
       }
 
-      return response.json();
+      const result = await response.json();
+      console.log('✅ API success:', result);
+      return result;
     },
     onSuccess: (data) => {
+      console.log('✅ Import mutation success, setting jobId:', data.jobId);
       setJobId(data.jobId);
       setCurrentStep(4);
       toast({
         title: "Импорт запущен",
         description: "Обрабатываем ваши данные",
+      });
+    },
+    onError: (error) => {
+      console.error('❌ Import mutation error:', error);
+      toast({
+        title: "Ошибка импорта",
+        description: error instanceof Error ? error.message : "Произошла ошибка",
+        variant: "destructive",
       });
     },
   });
@@ -393,6 +409,31 @@ export default function UnifiedProjectPage() {
   };
 
   const handleStartImport = () => {
+    console.log('🚀 Starting import with:');
+    console.log('📁 projectId:', projectId);
+    console.log('📤 uploadId:', uploadId);
+    console.log('🎯 selectedScenarios:', selectedScenarios);
+    console.log('⚙️ scopeSettings:', scopeSettings);
+    console.log('📜 rules:', rules);
+    
+    if (selectedScenarios.length === 0) {
+      toast({
+        title: "Ошибка",
+        description: "Выберите хотя бы один сценарий",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!uploadId) {
+      toast({
+        title: "Ошибка", 
+        description: "Нет загруженного файла для импорта",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     importMutation.mutate();
   };
 
@@ -635,7 +676,8 @@ export default function UnifiedProjectPage() {
                 </Button>
                 <Button 
                   onClick={handleStartImport} 
-                  disabled={selectedScenarios.length === 0 || importMutation.isPending}
+                  disabled={importMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700"
                 >
                   {importMutation.isPending ? "Запуск..." : "Запустить импорт"}
                 </Button>
