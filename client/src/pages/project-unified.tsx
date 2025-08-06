@@ -896,11 +896,52 @@ export default function UnifiedProjectPage() {
                         <Button 
                           size="lg" 
                           className="h-auto p-4 flex flex-col items-start text-left"
-                          onClick={() => {
-                            toast({
-                              title: "Функция в разработке",
-                              description: "Генерация ссылок будет доступна в следующих версиях"
-                            });
+                          onClick={async () => {
+                            if (!savedConfig || !completedJob) {
+                              toast({
+                                title: "Ошибка",
+                                description: "Не найдена конфигурация или данные импорта"
+                              });
+                              return;
+                            }
+
+                            try {
+                              const response = await fetch("/api/generate/start", {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                },
+                                credentials: "include",
+                                body: JSON.stringify({
+                                  projectId: projectId,
+                                  importId: completedJob.importId,
+                                  scenarios: savedConfig.selectedScenarios?.reduce((acc: any, scenario: string) => {
+                                    acc[scenario] = true;
+                                    return acc;
+                                  }, {}) || {},
+                                  scope: savedConfig.scopeSettings || {},
+                                  rules: savedConfig.linkingRules || {}
+                                }),
+                              });
+
+                              if (!response.ok) {
+                                throw new Error("Failed to start generation");
+                              }
+
+                              toast({
+                                title: "Генерация запущена",
+                                description: "Процесс создания ссылок начался"
+                              });
+                              
+                              // Переходим на шаг 6 для отслеживания прогресса
+                              setCurrentStep(6);
+                            } catch (error) {
+                              console.error("Generation start error:", error);
+                              toast({
+                                title: "Ошибка",
+                                description: "Не удалось запустить генерацию ссылок"
+                              });
+                            }
                           }}
                         >
                           <div className="flex items-center gap-2 mb-2">
@@ -949,6 +990,51 @@ export default function UnifiedProjectPage() {
                   </>
                 );
               })()}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 6: Generation Progress */}
+        {currentStep === 6 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="h-5 w-5 animate-spin" />
+                Генерация ссылок
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <RefreshCw className="h-5 w-5 text-blue-600 mr-3 animate-spin" />
+                  <div>
+                    <p className="font-medium text-blue-900">Генерация в процессе</p>
+                    <p className="text-sm text-blue-700">Создаем внутренние ссылки на основе ваших настроек...</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span>Анализ страниц...</span>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                </div>
+                
+                <Progress value={25} className="w-full" />
+                
+                <p className="text-sm text-gray-600">
+                  Этот процесс может занять несколько минут в зависимости от количества страниц.
+                </p>
+              </div>
+
+              <div className="flex justify-end">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setCurrentStep(5)}
+                >
+                  Назад к настройкам
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
