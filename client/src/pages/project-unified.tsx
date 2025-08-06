@@ -775,7 +775,11 @@ export default function UnifiedProjectPage() {
                     variant="outline"
                     size="lg"
                     className="px-8 py-3 border-2 font-medium"
-                    onClick={() => setCurrentStep(5)}
+                    onClick={() => {
+                      // Очищаем результаты генерации при переходе назад
+                      setGenerationResults(null);
+                      setCurrentStep(5);
+                    }}
                   >
                     ← Назад
                   </Button>
@@ -995,7 +999,7 @@ export default function UnifiedProjectPage() {
                         variant="outline"
                         size="lg"
                         className="px-8 py-3 border-2 font-medium"
-                        onClick={() => setCurrentStep(1)}
+                        onClick={() => setCurrentStep(2)}
                       >
                         ← Назад
                       </Button>
