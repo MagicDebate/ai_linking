@@ -729,8 +729,8 @@ export default function UnifiedProjectPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Загрузка CSV файла
+                <Target className="h-5 w-5" />
+                Выбор сценариев перелинковки
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -776,8 +776,8 @@ export default function UnifiedProjectPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Загрузка CSV файла
+                <Database className="h-5 w-5" />
+                Импорт данных
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -865,8 +865,8 @@ export default function UnifiedProjectPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Загрузка CSV файла
+                <CheckCircle2 className="h-5 w-5" />
+                Результаты импорта
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -1001,8 +1001,8 @@ export default function UnifiedProjectPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Загрузка CSV файла
+                <Zap className="h-5 w-5" />
+                Генерация внутренних ссылок
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
