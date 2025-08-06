@@ -993,6 +993,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(generationRuns.projectId, projectId));
 
       for (const run of runs) {
+        // First delete broken_urls that reference this run
+        await db.execute(sql`DELETE FROM broken_urls WHERE run_id = ${run.runId}`);
+        
         // Delete link candidates for this run
         await db
           .delete(linkCandidates)
