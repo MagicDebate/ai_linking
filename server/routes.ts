@@ -975,6 +975,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete all generated links for a project
+  app.delete("/api/projects/:id/links", authenticateToken, async (req: any, res) => {
+    try {
+      const projectId = req.params.id;
+      
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Delete all generation runs and their links for this project
+      const runs = await db
+        .select({ runId: generationRuns.runId })
+        .from(generationRuns)
+        .where(eq(generationRuns.projectId, projectId));
+
+      for (const run of runs) {
+        // Delete link candidates for this run
+        await db
+          .delete(linkCandidates)
+          .where(eq(linkCandidates.runId, run.runId));
+      }
+
+      // Delete generation runs
+      await db
+        .delete(generationRuns)
+        .where(eq(generationRuns.projectId, projectId));
+
+      res.json({ message: "All links deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting links:", error);
+      res.status(500).json({ error: "Failed to delete links" });
+    }
+  });
+
   // Get page content for viewing full article text
   app.get("/api/projects/:id/page-content", authenticateToken, async (req: any, res) => {
     try {

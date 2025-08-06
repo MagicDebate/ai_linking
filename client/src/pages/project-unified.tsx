@@ -918,8 +918,20 @@ export default function UnifiedProjectPage() {
                               linkingRules: { maxLinks: 5, dedupeLinks: true }
                             };
 
+                            const confirmed = window.confirm(
+                              "Вы уверены? Текущие результаты генерации будут удалены и заменены новыми."
+                            );
+                            
+                            if (!confirmed) return;
+                            
                             try {
-                              const response = await fetch("/api/link-generation", {
+                              // Сначала очищаем предыдущие результаты
+                              await fetch(`/api/projects/${projectId}/links`, {
+                                method: "DELETE",
+                                credentials: "include"
+                              });
+
+                              const response = await fetch(`/api/projects/${projectId}/generate-links`, {
                                 method: "POST",
                                 headers: {
                                   "Content-Type": "application/json",
@@ -950,8 +962,8 @@ export default function UnifiedProjectPage() {
                               }
 
                               toast({
-                                title: "Генерация запущена",
-                                description: "Процесс создания ссылок начался"
+                                title: "Новая генерация запущена",
+                                description: "Предыдущие результаты очищены, создание новых ссылок началось"
                               });
                               
                               // Переходим на шаг 6 для отслеживания прогресса
@@ -1048,12 +1060,19 @@ export default function UnifiedProjectPage() {
                 </p>
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex justify-between">
                 <Button 
                   variant="outline" 
                   onClick={() => setCurrentStep(5)}
                 >
-                  Назад к настройкам
+                  Назад к результатам
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  onClick={() => setCurrentStep(3)}
+                >
+                  Изменить настройки
                 </Button>
               </div>
             </CardContent>
@@ -1079,7 +1098,19 @@ export default function UnifiedProjectPage() {
             <div className="flex gap-3">
               <Button 
                 onClick={async () => {
+                  const confirmed = window.confirm(
+                    "Вы уверены? Текущие результаты генерации будут удалены и заменены новыми."
+                  );
+                  
+                  if (!confirmed) return;
+                  
                   try {
+                    // Сначала очищаем предыдущие результаты
+                    await fetch(`/api/projects/${project.id}/links`, {
+                      method: "DELETE",
+                      credentials: "include"
+                    });
+
                     const response = await fetch(`/api/projects/${project.id}/generate-links`, {
                       method: "POST",
                       headers: {
@@ -1108,8 +1139,8 @@ export default function UnifiedProjectPage() {
                     }
 
                     toast({
-                      title: "Генерация запущена",
-                      description: "Процесс создания ссылок начался"
+                      title: "Новая генерация запущена",
+                      description: "Предыдущие результаты очищены, создание новых ссылок началось"
                     });
                   } catch (error) {
                     console.error("Generation start error:", error);
@@ -1119,11 +1150,11 @@ export default function UnifiedProjectPage() {
                     });
                   }
                 }}
-disabled={false}
+                disabled={false}
                 className="bg-green-600 hover:bg-green-700"
               >
                 <Zap className="mr-2 h-4 w-4" />
-Запустить новую генерацию
+                Запустить новую генерацию
               </Button>
               
               <Button 
