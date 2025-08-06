@@ -14,7 +14,7 @@ import {
   authenticateToken 
 } from "./auth";
 import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, embeddings, edges, graphMeta, pagesRaw, generationRuns, linkCandidates, projectImportConfigs, insertProjectImportConfigSchema, importJobs, imports } from "@shared/schema";
-import { LinkGenerator } from "./linkGenerator";
+import { LinkGenerator } from "./linkGenerator.js";
 import { progressStreamManager } from "./progressStream";
 import { sql, eq, and, desc } from "drizzle-orm";
 import { db } from "./db"; 
@@ -750,23 +750,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Project not found" });
       }
 
-      // Create link generator with progress callback
-      const generator = new LinkGenerator((update) => {
-        progressStreamManager.broadcastProgress(update);
-      });
+      // Create link generator
+      const generator = new LinkGenerator(projectId);
 
-      // Start generation in background
-      generator.generateLinks({
-        projectId,
-        importId,
+      // Prepare generation parameters
+      const generationParams = {
         scenarios,
         rules,
-        scope
-      }).then((runId) => {
-        progressStreamManager.broadcastCompletion(runId, true, "Generation completed");
+        check404Policy: 'disabled'
+      };
+
+      // Start generation in background
+      generator.generate(generationParams).then((runId) => {
+        console.log(`Generation completed with runId: ${runId}`);
       }).catch((error) => {
         console.error("Generation failed:", error);
-        progressStreamManager.broadcastCompletion("error", false, error.message);
       });
 
       res.json({ success: true, message: "Generation started" });
