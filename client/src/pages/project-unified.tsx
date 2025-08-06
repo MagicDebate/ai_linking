@@ -117,6 +117,7 @@ export default function UnifiedProjectPage() {
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
   const [uploadId, setUploadId] = useState<string>("");
   const [jobId, setJobId] = useState<string | null>(null);
+  const [generationResults, setGenerationResults] = useState<any>(null);
   
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>(['orphanFix']);
   const [scopeSettings, setScopeSettings] = useState({
@@ -687,21 +688,24 @@ export default function UnifiedProjectPage() {
         )}
 
         {/* Step 3: Scenarios */}
-        {currentStep === 3 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Генерация внутренних ссылок
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-800 font-medium">🎯 Готов к генерации</p>
-                <p className="text-blue-700 text-sm mt-1">
-                  Будет обработано {completedJob?.orphanCount || 0} страниц-сирот с применением сценария фикса сирот
-                </p>
-              </div>
+        {currentStep === 3 && (() => {
+          const completedJob = importJobsList?.find((job: any) => job.status === 'completed');
+          
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  Генерация внутренних ссылок
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-blue-800 font-medium">🎯 Готов к генерации</p>
+                  <p className="text-blue-700 text-sm mt-1">
+                    Будет обработано {completedJob?.orphanCount || 0} страниц-сирот с применением сценария фикса сирот
+                  </p>
+                </div>
 
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Запустить генерацию ссылок</h3>
@@ -787,7 +791,8 @@ export default function UnifiedProjectPage() {
               </div>
             </CardContent>
           </Card>
-        )}
+          );
+        })()}
 
         {/* Step 4: Import Progress */}
         {currentStep === 4 && (
