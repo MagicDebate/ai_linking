@@ -177,76 +177,118 @@ export class LinkGenerator {
   }
 
   private async generateEmbeddings(runId: string, pages: any[]) {
-    console.log(`Analyzing ${pages.length} pages with OpenAI...`);
+    console.log(`Using pre-existing blocks for ${pages.length} pages...`);
     
-    for (let i = 0; i < pages.length; i++) {
-      const page = pages[i];
+    // Get blocks from existing import job
+    const job = await db
+      .select()
+      .from(importJobs)
+      .where(eq(importJobs.projectId, this.projectId))
+      .orderBy(desc(importJobs.startedAt))
+      .limit(1);
+
+    if (!job[0]) {
+      throw new Error('No import job found');
+    }
+
+    // Load blocks with page metadata
+    const blocksWithPages = await db
+      .select({
+        blockId: blocks.id,
+        blockText: blocks.text,
+        blockType: blocks.blockType,
+        position: blocks.position,
+        pageId: pagesClean.id,
+        url: graphMeta.url,
+        clickDepth: graphMeta.clickDepth,
+        isOrphan: graphMeta.isOrphan,
+        wordCount: pagesClean.wordCount
+      })
+      .from(blocks)
+      .innerJoin(pagesClean, eq(blocks.pageId, pagesClean.id))
+      .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
+      .innerJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
+      .where(eq(pagesRaw.jobId, job[0].jobId))
+      .limit(100); // Start with first 100 blocks for testing
+
+    console.log(`Found ${blocksWithPages.length} blocks to analyze`);
+
+    for (let i = 0; i < blocksWithPages.length; i++) {
+      const block = blocksWithPages[i];
       
-      // Extract main content
-      const content = this.extractMainContent(page.cleanHtml);
-      const title = this.extractTitle(page.cleanHtml);
+      // Use OpenAI to analyze block content
+      let semanticAnalysis;
+      try {
+        semanticAnalysis = await this.analyzeBlockContent(block.blockText, block.blockType);
+      } catch (error) {
+        console.error(`OpenAI analysis failed for block ${block.blockId}:`, error);
+        // Use fallback analysis
+        semanticAnalysis = {
+          keywords: this.extractSimpleKeywords(block.blockText, ''),
+          category: 'general',
+          isMoney: false,
+          topics: []
+        };
+      }
       
-      // Use OpenAI to analyze page content and generate semantic summary
-      const semanticAnalysis = await this.analyzePageContent(content, title);
-      
-      // Check if page is "deep" based on rules
-      const isDeep = page.clickDepth >= 4;
-      
-      // Check if page is "money" based on URL patterns and OpenAI analysis
-      const isMoney = semanticAnalysis.isMoney || this.isMoneyPage(page.url, []);
-      
+      // Store block embedding
       await db
         .insert(pageEmbeddings)
         .values({
-          pageId: page.id,
+          pageId: block.pageId,
           jobId: runId,
-          url: page.url,
-          title,
-          contentVector: JSON.stringify(semanticAnalysis.keywords), // Store keywords as vector
-          wordCount: page.wordCount,
-          isDeep,
-          isMoney
+          url: block.url,
+          title: `Block ${block.position} (${block.blockType})`,
+          contentVector: JSON.stringify(semanticAnalysis.keywords),
+          wordCount: block.blockText.length,
+          isDeep: block.clickDepth >= 4,
+          isMoney: semanticAnalysis.isMoney || this.isMoneyPage(block.url, [])
         });
         
-      // Update progress every 10 pages
+      // Update progress every 10 blocks
       if (i % 10 === 0) {
-        const percent = 30 + Math.floor((i / pages.length) * 20); // 30-50% range
+        const percent = 30 + Math.floor((i / blocksWithPages.length) * 40); // 30-70% range
         await this.updateProgress(runId, 'embedding', percent, 0, 0);
       }
     }
   }
 
-  private async analyzePageContent(content: string, title: string) {
+  private async analyzeBlockContent(text: string, blockType: string) {
     try {
       const response = await this.openai.chat.completions.create({
         model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
         messages: [
           {
             role: "system",
-            content: "Ты анализируешь содержимое веб-страницы для SEO внутренней перелинковки. Определи ключевые темы, категорию контента и коммерческий потенциал. Отвечай только JSON."
+            content: "Анализируй текстовый блок для SEO. Выдели ключевые слова, определи тему и коммерческий потенциал. Ответь только в формате JSON с полями: keywords (массив), category (строка), isMoney (boolean), topics (массив)."
           },
           {
             role: "user",
-            content: `Заголовок: ${title || 'Без заголовка'}\n\nКонтент: ${content.substring(0, 2000)}`
+            content: `Тип блока: ${blockType}\nТекст: ${text.substring(0, 1000)}`
           }
         ],
         response_format: { type: "json_object" },
-        max_tokens: 300
+        max_tokens: 200
       });
 
-      const analysis = JSON.parse(response.choices[0].message.content);
+      const content = response.choices[0].message.content;
+      if (!content) {
+        throw new Error('Empty response from OpenAI');
+      }
+
+      const analysis = JSON.parse(content);
       
       return {
-        keywords: analysis.keywords || [],
+        keywords: Array.isArray(analysis.keywords) ? analysis.keywords : [],
         category: analysis.category || 'general',
-        isMoney: analysis.isMoney || false,
-        topics: analysis.topics || []
+        isMoney: Boolean(analysis.isMoney),
+        topics: Array.isArray(analysis.topics) ? analysis.topics : []
       };
     } catch (error) {
-      console.error('OpenAI analysis failed:', error);
+      console.error('OpenAI block analysis failed:', error);
       // Fallback to simple analysis
       return {
-        keywords: this.extractSimpleKeywords(content, title),
+        keywords: this.extractSimpleKeywords(text, ''),
         category: 'general',
         isMoney: false,
         topics: []
