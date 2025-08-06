@@ -706,10 +706,10 @@ export default function UnifiedProjectPage() {
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Запустить генерацию ссылок</h3>
                 
-                <div className="flex gap-4">
+                <div className="flex gap-4 items-center">
                   <Button 
                     size="lg"
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-green-600 hover:bg-green-700 text-white font-medium px-8 py-3"
                     onClick={async () => {
                       const confirmed = window.confirm(
                         "Вы уверены? Текущие результаты генерации будут удалены и заменены новыми."
@@ -773,9 +773,11 @@ export default function UnifiedProjectPage() {
                   
                   <Button 
                     variant="outline"
+                    size="lg"
+                    className="px-8 py-3 border-2 font-medium"
                     onClick={() => setCurrentStep(2)}
                   >
-                    Назад
+                    ← Назад
                   </Button>
                 </div>
               </div>
