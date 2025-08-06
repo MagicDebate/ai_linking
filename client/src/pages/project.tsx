@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
+import { navigate } from "wouter/use-browser-location";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -316,7 +317,7 @@ function ImportProgressStep({ projectId, jobId: initialJobId, onBack }: { projec
                   size="lg"
                   className="bg-green-600 hover:bg-green-700 text-white px-8 py-3"
                   onClick={() => {
-                    setLocation(`/project/${projectId}/generate`);
+                    navigate(`/project/${projectId}/generate`);
                   }}
                 >
                   <LinkIcon className="h-5 w-5 mr-2" />

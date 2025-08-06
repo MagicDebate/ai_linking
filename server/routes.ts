@@ -1356,7 +1356,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else {
         // Fallback to old method
-        let pages = await storage.getProjectPages(projectId);
+        var pages = await storage.getProjectPages(projectId);
       }
       
       
@@ -1405,6 +1405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               // Calculate URL depth - count URL path segments correctly
               let urlDepth = 0;
+              let pathSegments: string[] = [];
               try {
                 // Extract path from URL after domain
                 const urlPath = url.replace(/^https?:\/\/[^\/]+/, '');
@@ -1414,10 +1415,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   urlDepth = 0; // Root page
                 } else {
                   // Split by slash and count non-empty segments
-                  const pathSegments = cleanPath.split('/').filter((s: string) => s.length > 0);
+                  pathSegments = cleanPath.split('/').filter((s: string) => s.length > 0);
                   urlDepth = pathSegments.length;
                 }
-                console.log(`📏 URL depth calculation: ${url} -> path: "${cleanPath}" -> segments: ${pathSegments} -> depth: ${urlDepth}`);
+                console.log(`📏 URL depth calculation: ${url} -> path: "${cleanPath}" -> segments: ${pathSegments.length} -> depth: ${urlDepth}`);
               } catch (e) {
                 urlDepth = 0;
               }
@@ -1715,11 +1716,7 @@ class ContentProcessor {
         url: page.url,
         jobId,
         rawHtml: page.content,
-        title: page.title,
-        wordCount: 0, // Will calculate properly in clean phase
-        urlDepth: 1,
-        isOrphan: false,
-        contentPreview: (page.content || '').substring(0, 150),
+        meta: { title: page.title },
         importBatchId: jobId
       }).returning({ id: pagesRaw.id });
       
@@ -1801,7 +1798,7 @@ class ContentProcessor {
     return allBlocks;
   }
 
-  private extractBlocks(htmlContent: string) {
+  extractBlocks(htmlContent: string) {
     const blocksList = [];
     
     // Extract headings (H1-H6) as separate blocks
@@ -1818,7 +1815,7 @@ class ContentProcessor {
     }
     
     // Extract complete lists (ul/ol) as single blocks
-    const listRegex = /<(ul|ol)[^>]*>(.*?)<\/\1>/gis;
+    const listRegex = /<(ul|ol)[^>]*>(.*?)<\/\1>/gi;
     while ((match = listRegex.exec(htmlContent)) !== null) {
       const listItems = [];
       const itemRegex = /<li[^>]*>(.*?)<\/li>/gi;
