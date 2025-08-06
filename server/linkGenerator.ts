@@ -529,8 +529,19 @@ export class LinkGenerator {
 
   private async generateSmartAnchorText(sourcePage: any, targetPage: any): Promise<{ anchor: string, modifiedContent?: string }> {
     try {
-      const sourceContent = this.extractMainContent(sourcePage.cleanHtml || '');
-      const targetTitle = this.extractTitle(targetPage.cleanHtml || '');
+      // Получаем блоки контента для источника вместо парсинга HTML
+      const sourceBlocks = await db
+        .select()
+        .from(blocks)
+        .where(eq(blocks.pageId, sourcePage.id))
+        .limit(10);
+
+      const sourceContent = sourceBlocks
+        .map(block => block.text)
+        .join(' ')
+        .substring(0, 1000);
+
+      const targetTitle = targetPage.title || this.extractTitle(targetPage.cleanHtml || '');
       
       // Сначала ищем существующий подходящий текст
       const contentAnchor = this.findAnchorInContent(sourceContent, targetTitle);
@@ -541,7 +552,7 @@ export class LinkGenerator {
 
       // Если не нашли, используем AI для создания естественной вставки
       const response = await this.openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-3.5-turbo", // Используем более быструю модель
         messages: [
           {
             role: "system", 
@@ -549,10 +560,10 @@ export class LinkGenerator {
           },
           {
             role: "user", 
-            content: `ИСХОДНЫЙ ТЕКСТ:\n"${sourceContent.substring(0, 1000)}"\n\nТЕМА ССЫЛКИ: "${targetTitle}"\n\nВарианты:\n1. Найди подходящую фразу ИЗ ТЕКСТА для анкора\n2. Или предложи как переписать одно предложение для вставки анкора\n\nФормат ответа:\nТИП: existing/rewrite\nАНКОР: [анкорный текст]\nПРЕДЛОЖЕНИЕ: [если нужно переписать - новое предложение с анкором]`
+            content: `ИСХОДНЫЙ ТЕКСТ:\n"${sourceContent}"\n\nТЕМА ССЫЛКИ: "${targetTitle}"\n\nВарианты:\n1. Найди подходящую фразу ИЗ ТЕКСТА для анкора\n2. Или предложи как переписать одно предложение для вставки анкора\n\nФормат ответа:\nТИП: existing/rewrite\nАНКОР: [анкорный текст]\nПРЕДЛОЖЕНИЕ: [если нужно переписать - новое предложение с анкором]`
           }
         ],
-        max_tokens: 150,
+        max_tokens: 100,
         temperature: 0.3
       });
 
