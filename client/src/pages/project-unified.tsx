@@ -544,22 +544,42 @@ export default function UnifiedProjectPage() {
             <p className="text-gray-600">{project.domain}</p>
           </div>
           
-          {/* Progress Steps */}
+          {/* Progress Steps - КЛИКАБЕЛЬНЫЕ ХЛЕБНЫЕ КРОШКИ */}
           <div className="flex items-center space-x-4 overflow-x-auto pb-2">
             {steps.map((step, index) => (
               <div key={step.number} className="flex items-center flex-shrink-0">
-                <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
-                  step.completed 
-                    ? 'bg-green-500 text-white'
-                    : step.active 
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 text-gray-600'
-                }`}>
+                <button
+                  onClick={() => {
+                    // Кликабельные хлебные крошки для навигации
+                    if (step.number === 1) setCurrentStep(1);
+                    else if (step.number === 2) setCurrentStep(2);
+                    else if (step.number === 3) setCurrentStep(3);
+                    else if (step.number === 5) setCurrentStep(5);
+                    else if (step.number === 6) setCurrentStep(6);
+                  }}
+                  className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium hover:scale-110 transition-transform ${
+                    step.completed 
+                      ? 'bg-green-500 text-white hover:bg-green-600'
+                      : step.active 
+                      ? 'bg-blue-500 text-white hover:bg-blue-600'
+                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  }`}
+                >
                   {step.completed ? <CheckCircle2 className="h-4 w-4" /> : step.number}
-                </div>
-                <span className={`ml-2 text-sm font-medium ${
-                  step.active ? 'text-blue-600' : step.completed ? 'text-green-600' : 'text-gray-500'
-                }`}>
+                </button>
+                <span 
+                  onClick={() => {
+                    // Кликабельные хлебные крошки для навигации
+                    if (step.number === 1) setCurrentStep(1);
+                    else if (step.number === 2) setCurrentStep(2);
+                    else if (step.number === 3) setCurrentStep(3);
+                    else if (step.number === 5) setCurrentStep(5);
+                    else if (step.number === 6) setCurrentStep(6);
+                  }}
+                  className={`ml-2 text-sm font-medium cursor-pointer hover:underline ${
+                    step.active ? 'text-blue-600' : step.completed ? 'text-green-600' : 'text-gray-500'
+                  }`}
+                >
                   {step.title}
                 </span>
                 {index < steps.length - 1 && (
@@ -688,102 +708,98 @@ export default function UnifiedProjectPage() {
         )}
 
 
-        {/* Step 3: Generation Screen */}
-        {currentStep === 3 && (() => {
-          const completedJob = importJobsList?.find((job: any) => job.status === 'completed');
-          
-          return (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5" />
-                  Генерация внутренних ссылок
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-blue-800 font-medium">🎯 Готов к генерации</p>
-                  <p className="text-blue-700 text-sm mt-1">
-                    Будет обработано {completedJob?.orphanCount || 0} страниц-сирот с применением сценария фикса сирот
-                  </p>
-                </div>
+        {/* Step 3: Generation Screen - ТОЛЬКО ГЕНЕРАЦИЯ, БЕЗ ИМПОРТА */}
+        {currentStep === 3 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                Генерация внутренних ссылок
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-blue-800 font-medium">🎯 Экран генерации</p>
+                <p className="text-blue-700 text-sm mt-1">
+                  Управление генерацией внутренних ссылок
+                </p>
+              </div>
 
-                {/* Results Section - показываем результаты генерации */}
-                <Results projectId={project.id} />
+              {/* Results Section - показываем ТОЛЬКО результаты генерации */}
+              <Results projectId={project.id} />
 
-                <div className="flex gap-4 justify-between">
-                  <Button 
-                    variant="outline"
-                    size="lg"
-                    className="px-8 py-3 border-2 font-medium"
-                    onClick={() => setCurrentStep(5)}
-                  >
-                    ← Назад к импорту
-                  </Button>
-                  
-                  <Button 
-                    size="lg"
-                    className="bg-green-600 hover:bg-green-700 text-white font-medium px-8 py-3"
-                    onClick={async () => {
-                      const confirmed = window.confirm(
-                        "Запустить новую генерацию? Текущие результаты будут удалены и заменены новыми."
-                      );
+              <div className="flex gap-4 justify-between">
+                <Button 
+                  variant="outline"
+                  size="lg"
+                  className="px-8 py-3 border-2 font-medium"
+                  onClick={() => setCurrentStep(5)}
+                >
+                  ← Назад к импорту
+                </Button>
+                
+                <Button 
+                  size="lg"
+                  className="bg-green-600 hover:bg-green-700 text-white font-medium px-8 py-3"
+                  onClick={async () => {
+                    const confirmed = window.confirm(
+                      "Запустить новую генерацию? Текущие результаты будут удалены и заменены новыми."
+                    );
+                    
+                    if (!confirmed) return;
+                    
+                    try {
+                      // Очищаем предыдущие результаты
+                      await fetch(`/api/projects/${projectId}/links`, {
+                        method: "DELETE",
+                        credentials: "include"
+                      });
+
+                      const response = await fetch(`/api/projects/${projectId}/generate-links`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({
+                          projectId: projectId,
+                          scenarios: { orphanFix: true },
+                          rules: { 
+                            maxLinks: 3, 
+                            depthThreshold: 5,
+                            moneyPages: [],
+                            stopAnchors: ["читать далее", "подробнее"],
+                            dedupeLinks: true,
+                            cssClass: "",
+                            relAttribute: "",
+                            targetAttribute: ""
+                          },
+                          check404Policy: "delete"
+                        })
+                      });
+
+                      if (!response.ok) throw new Error("Generation failed");
+
+                      toast({
+                        title: "Генерация запущена",
+                        description: "Создание внутренних ссылок началось"
+                      });
                       
-                      if (!confirmed) return;
-                      
-                      try {
-                        // Очищаем предыдущие результаты
-                        await fetch(`/api/projects/${projectId}/links`, {
-                          method: "DELETE",
-                          credentials: "include"
-                        });
-
-                        const response = await fetch(`/api/projects/${projectId}/generate-links`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          credentials: "include",
-                          body: JSON.stringify({
-                            projectId: projectId,
-                            scenarios: { orphanFix: true },
-                            rules: { 
-                              maxLinks: 3, 
-                              depthThreshold: 5,
-                              moneyPages: [],
-                              stopAnchors: ["читать далее", "подробнее"],
-                              dedupeLinks: true,
-                              cssClass: "",
-                              relAttribute: "",
-                              targetAttribute: ""
-                            },
-                            check404Policy: "delete"
-                          })
-                        });
-
-                        if (!response.ok) throw new Error("Generation failed");
-
-                        toast({
-                          title: "Генерация запущена",
-                          description: "Создание внутренних ссылок началось"
-                        });
-                        
-                        // Переходим на экран отслеживания прогресса
-                        setCurrentStep(6);
-                      } catch (error) {
-                        toast({
-                          title: "Ошибка",
-                          description: "Не удалось запустить генерацию"
-                        });
-                      }
-                    }}
-                  >
-                    <Zap className="mr-2 h-4 w-4" />
-                    Запустить заново
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })()}
+                      // Переходим на экран отслеживания прогресса
+                      setCurrentStep(6);
+                    } catch (error) {
+                      toast({
+                        title: "Ошибка",
+                        description: "Не удалось запустить генерацию"
+                      });
+                    }
+                  }}
+                >
+                  <Zap className="mr-2 h-4 w-4" />
+                  Запустить заново
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Step 4: Import Progress */}
         {currentStep === 4 && (
