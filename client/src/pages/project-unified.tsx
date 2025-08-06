@@ -243,24 +243,24 @@ export default function UnifiedProjectPage() {
     }
 
     // Восстанавливаем состояние на основе сохраненных данных
-    if (savedConfig) {
+    if (savedConfig && savedConfig.config && savedConfig.config.fieldMapping) {
       console.log('🔧 Found saved config, restoring state...');
-      console.log('📁 Config field mapping:', savedConfig.fieldMapping);
-      console.log('🎛️ Config scenarios:', savedConfig.selectedScenarios);
+      console.log('📁 Config field mapping:', savedConfig.config.fieldMapping);
+      console.log('🎛️ Config scenarios:', savedConfig.config.selectedScenarios);
       
       // Восстанавливаем данные из сохраненной конфигурации
-      if (savedConfig.fieldMapping && Object.keys(savedConfig.fieldMapping).length > 0) {
+      if (savedConfig.config.fieldMapping && Object.keys(savedConfig.config.fieldMapping).length > 0) {
         console.log('📋 Restoring field mapping and CSV preview');
         setCsvPreview({
-          headers: Object.values(savedConfig.fieldMapping),
+          headers: Object.values(savedConfig.config.fieldMapping),
           rows: [] // Заголовки достаточно для продолжения
         });
-        setFieldMapping(savedConfig.fieldMapping);
+        setFieldMapping(savedConfig.config.fieldMapping);
       }
       
-      if (savedConfig.selectedScenarios && savedConfig.selectedScenarios.length > 0) {
+      if (savedConfig.config.selectedScenarios && savedConfig.config.selectedScenarios.length > 0) {
         console.log('🎯 Restoring selected scenarios');
-        setSelectedScenarios(savedConfig.selectedScenarios);
+        setSelectedScenarios(savedConfig.config.selectedScenarios);
       }
       
       // Если есть список импортов, найдем последний
@@ -273,8 +273,8 @@ export default function UnifiedProjectPage() {
       }
       
       // Определяем на какой шаг перейти
-      if (savedConfig.fieldMapping && Object.keys(savedConfig.fieldMapping).length > 0) {
-        if (savedConfig.selectedScenarios && savedConfig.selectedScenarios.length > 0) {
+      if (savedConfig.config.fieldMapping && Object.keys(savedConfig.config.fieldMapping).length > 0) {
+        if (savedConfig.config.selectedScenarios && savedConfig.config.selectedScenarios.length > 0) {
           console.log('🎯 All config ready, going to step 3 (ready to import)');
           setCurrentStep(3);
         } else {
@@ -287,6 +287,7 @@ export default function UnifiedProjectPage() {
       }
     } else {
       console.log('⚠️ No saved config found, staying at step 1');
+      setCurrentStep(1);
     }
   }, [importJobsList, location, savedConfig, importsList]);
 
@@ -656,49 +657,97 @@ export default function UnifiedProjectPage() {
               </p>
 
               {csvPreview ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">URL страницы *</Label>
-                    <Select value={fieldMapping.url || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, url: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Выберите колонку" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {csvPreview.headers.map((header) => (
-                          <SelectItem key={header} value={header}>{header}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                <>
+                  {/* CSV Preview Table */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                    <h3 className="text-lg font-medium mb-3">Предварительный просмотр CSV</h3>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            {csvPreview.headers.map((header, index) => (
+                              <th key={index} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {csvPreview.rows.slice(0, 3).map((row, rowIndex) => (
+                            <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                              {row.map((cell, cellIndex) => (
+                                <td key={cellIndex} className="px-4 py-2 text-sm text-gray-900 border-b max-w-xs truncate">
+                                  {cell}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-2">Показаны первые 3 строки из {csvPreview.rows.length}</p>
                   </div>
 
-                  <div>
-                    <Label className="text-sm font-medium">Заголовок (Title) *</Label>
-                    <Select value={fieldMapping.title || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, title: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Выберите колонку" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {csvPreview.headers.map((header) => (
-                          <SelectItem key={header} value={header}>{header}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {/* Field Mapping */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <Label className="text-sm font-medium">URL страницы *</Label>
+                      <Select value={fieldMapping.url || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, url: value})}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Выберите колонку" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {csvPreview.headers.map((header) => (
+                            <SelectItem key={header} value={header}>{header}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  <div>
-                    <Label className="text-sm font-medium">Контент *</Label>
-                    <Select value={fieldMapping.content || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, content: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Выберите колонку" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {csvPreview.headers.map((header) => (
-                          <SelectItem key={header} value={header}>{header}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div>
+                      <Label className="text-sm font-medium">Заголовок (Title) *</Label>
+                      <Select value={fieldMapping.title || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, title: value})}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Выберите колонку" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {csvPreview.headers.map((header) => (
+                            <SelectItem key={header} value={header}>{header}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium">Контент *</Label>
+                      <Select value={fieldMapping.content || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, content: value})}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Выберите колонку" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {csvPreview.headers.map((header) => (
+                            <SelectItem key={header} value={header}>{header}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium">Описание (Description)</Label>
+                      <Select value={fieldMapping.description || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, description: value})}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Выберите колонку (опционально)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Не выбрано</SelectItem>
+                          {csvPreview.headers.map((header) => (
+                            <SelectItem key={header} value={header}>{header}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
+                </>
               ) : (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-yellow-800 font-medium">Загрузите CSV файл на первом шаге</p>
@@ -739,23 +788,103 @@ export default function UnifiedProjectPage() {
               </p>
 
               <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="orphanFix"
-                    checked={selectedScenarios.includes('orphanFix')}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedScenarios([...selectedScenarios, 'orphanFix']);
-                      } else {
-                        setSelectedScenarios(selectedScenarios.filter(s => s !== 'orphanFix'));
-                      }
-                    }}
-                  />
-                  <label htmlFor="orphanFix" className="text-sm font-medium">
-                    Фикс страниц-сирот
-                  </label>
-                  <Badge variant="secondary">Рекомендуется</Badge>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="orphanFix"
+                        checked={selectedScenarios.includes('orphanFix')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedScenarios([...selectedScenarios, 'orphanFix']);
+                          } else {
+                            setSelectedScenarios(selectedScenarios.filter(s => s !== 'orphanFix'));
+                          }
+                        }}
+                      />
+                      <div className="flex-1">
+                        <label htmlFor="orphanFix" className="text-sm font-medium cursor-pointer">
+                          Фикс страниц-сирот
+                        </label>
+                        <Badge variant="secondary" className="ml-2">Рекомендуется</Badge>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Создание входящих ссылок для страниц без внутренних ссылок
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="clusterCrossLink"
+                        checked={selectedScenarios.includes('clusterCrossLink')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedScenarios([...selectedScenarios, 'clusterCrossLink']);
+                          } else {
+                            setSelectedScenarios(selectedScenarios.filter(s => s !== 'clusterCrossLink'));
+                          }
+                        }}
+                      />
+                      <div className="flex-1">
+                        <label htmlFor="clusterCrossLink" className="text-sm font-medium cursor-pointer">
+                          Кластерная перелинковка
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Связывание страниц с похожей тематикой
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="depthLift"
+                        checked={selectedScenarios.includes('depthLift')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedScenarios([...selectedScenarios, 'depthLift']);
+                          } else {
+                            setSelectedScenarios(selectedScenarios.filter(s => s !== 'depthLift'));
+                          }
+                        }}
+                      />
+                      <div className="flex-1">
+                        <label htmlFor="depthLift" className="text-sm font-medium cursor-pointer">
+                          Поднятие глубоких страниц
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Создание ссылок для улучшения доступности глубоких страниц
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="commercialRouting"
+                        checked={selectedScenarios.includes('commercialRouting')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedScenarios([...selectedScenarios, 'commercialRouting']);
+                          } else {
+                            setSelectedScenarios(selectedScenarios.filter(s => s !== 'commercialRouting'));
+                          }
+                        }}
+                      />
+                      <div className="flex-1">
+                        <label htmlFor="commercialRouting" className="text-sm font-medium cursor-pointer">
+                          Коммерческий роутинг
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Направление трафика на коммерческие страницы
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 

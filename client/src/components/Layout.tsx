@@ -51,7 +51,7 @@ export default function Layout({ children, title }: LayoutProps) {
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none"
+                className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none p-2 rounded-lg hover:bg-gray-100"
               >
                 <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                   <User className="w-4 h-4 text-white" />
