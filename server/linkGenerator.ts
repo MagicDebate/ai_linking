@@ -91,13 +91,19 @@ export class LinkGenerator {
       
       await this.updateProgress(runId, 'generating', 80, generated, rejected);
 
-      // Phase 4: Check 404s (80-90%)
-      await this.updateProgress(runId, 'checking_404', 85, generated, rejected);
+      // Phase 4: Check 404s (80-85%)
+      await this.updateProgress(runId, 'checking_404', 82, generated, rejected);
       await this.check404Links(runId, params.check404Policy);
       
-      await this.updateProgress(runId, 'checking_404', 90, generated, rejected);
+      await this.updateProgress(runId, 'checking_404', 85, generated, rejected);
 
-      // Phase 5: Finalize (90-100%)
+      // Phase 5: Insert Links into HTML (85-95%)
+      await this.updateProgress(runId, 'inserting', 87, generated, rejected);
+      await this.insertLinksIntoPages(runId);
+      
+      await this.updateProgress(runId, 'inserting', 95, generated, rejected);
+
+      // Phase 6: Finalize (95-100%)
       await this.finalizeDraft(runId);
       
       await db
@@ -520,42 +526,84 @@ export class LinkGenerator {
 
   private async generateSmartAnchorText(sourcePage: any, targetPage: any): Promise<string> {
     try {
-      // Используем заголовок страницы и описание для создания качественного анкора
-      const targetTitle = targetPage.title || '';
-      const targetContent = targetPage.content || '';
-      const targetUrl = targetPage.url || '';
+      // Извлекаем контент источника для поиска анкорного текста
+      const sourceContent = this.extractMainContent(sourcePage.cleanHtml || '');
+      const targetTitle = this.extractTitle(targetPage.cleanHtml || '');
       
-      // Если есть заголовок, создаем анкор на его основе
+      // Ищем подходящий анкорный текст прямо в контенте источника
+      const contentAnchor = this.findAnchorInContent(sourceContent, targetTitle);
+      if (contentAnchor) {
+        console.log(`📌 Found anchor in content: "${contentAnchor}"`);
+        return contentAnchor;
+      }
+
+      // Если не нашли в контенте, используем AI для создания на основе реального контента
       if (targetTitle && targetTitle.length > 3) {
         const response = await this.openai.chat.completions.create({
-          model: "gpt-3.5-turbo",
+          model: "gpt-4o",
           messages: [
             {
               role: "system", 
-              content: "Ты специалист по SEO. Создай короткий естественный анкор для ссылки на русском языке. Анкор должен быть 2-6 слов, отражать суть страницы и быть естественным для вставки в текст. Отвечай только анкором, без дополнительного текста."
+              content: "Ты специалист по SEO. Найди или создай естественный анкорный текст из данного контента для ссылки на указанную тему. Анкор должен быть фразой ИЗ ТЕКСТА (2-6 слов), естественной для клика."
             },
             {
               role: "user", 
-              content: `Создай анкор для страницы с заголовком: "${targetTitle}". ${targetContent ? `Описание: ${targetContent.substring(0, 200)}...` : ''}`
+              content: `КОНТЕНТ ИСТОЧНИКА:\n"${sourceContent.substring(0, 800)}"\n\nТЕМА ССЫЛКИ: "${targetTitle}"\n\nНайди подходящую фразу ИЗ КОНТЕНТА или создай короткий анкор. Отвечай только анкором:`
             }
           ],
-          max_tokens: 50,
+          max_tokens: 30,
           temperature: 0.3
         });
 
         const aiAnchor = response.choices[0]?.message?.content?.trim();
         if (aiAnchor && aiAnchor.length > 2 && aiAnchor.length < 80) {
-          return aiAnchor;
+          // Проверяем, есть ли анкор в контенте
+          if (sourceContent.toLowerCase().includes(aiAnchor.toLowerCase())) {
+            console.log(`🤖 AI found anchor in content: "${aiAnchor}"`);
+            return aiAnchor;
+          }
         }
       }
       
-      // Фаллбек к простому анкору, если AI не сработал
+      // Фаллбек к простому анкору
       return this.generateSimpleAnchorText(sourcePage, targetPage);
       
     } catch (error) {
       console.log('OpenAI anchor generation failed, using fallback:', error);
       return this.generateSimpleAnchorText(sourcePage, targetPage);
     }
+  }
+
+  // Поиск подходящего анкорного текста прямо в контенте источника
+  private findAnchorInContent(content: string, targetTitle: string): string | null {
+    const targetWords = targetTitle.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    const cleanContent = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+    
+    // Ищем фразы длиной 2-6 слов, которые содержат ключевые слова из целевого заголовка
+    const sentences = cleanContent.split(/[.!?]\s+/);
+    
+    for (const sentence of sentences) {
+      const words = sentence.trim().split(/\s+/);
+      
+      for (let i = 0; i <= words.length - 2; i++) {
+        for (let len = 2; len <= Math.min(6, words.length - i); len++) {
+          const phrase = words.slice(i, i + len).join(' ');
+          const lowerPhrase = phrase.toLowerCase();
+          
+          // Проверяем, содержит ли фраза ключевые слова из заголовка
+          const relevantWords = targetWords.filter(word => lowerPhrase.includes(word));
+          
+          if (relevantWords.length >= 1 && phrase.length >= 10 && phrase.length <= 50) {
+            // Дополнительная проверка на качество фразы
+            if (!lowerPhrase.match(/^(и|в|на|с|для|это|как|что|если|когда)/)) {
+              return phrase;
+            }
+          }
+        }
+      }
+    }
+    
+    return null;
   }
 
   private generateSimpleAnchorText(sourcePage: any, targetPage: any): string {
@@ -617,6 +665,112 @@ export class LinkGenerator {
         console.warn(`Could not check URL ${url}:`, error);
       }
     }
+  }
+
+  private async insertLinksIntoPages(runId: string) {
+    console.log('🔗 Starting link insertion into HTML pages...');
+    
+    // Get all accepted links grouped by source page
+    const links = await db
+      .select({
+        sourceUrl: linkCandidates.sourceUrl,
+        targetUrl: linkCandidates.targetUrl,
+        anchorText: linkCandidates.anchorText,
+        cssClass: linkCandidates.cssClass,
+        relAttribute: linkCandidates.relAttribute,
+        targetAttribute: linkCandidates.targetAttribute
+      })
+      .from(linkCandidates)
+      .where(and(
+        eq(linkCandidates.runId, runId),
+        eq(linkCandidates.isRejected, false)
+      ));
+
+    // Group links by source URL
+    const linksByPage = new Map<string, any[]>();
+    links.forEach(link => {
+      const pageLinks = linksByPage.get(link.sourceUrl) || [];
+      pageLinks.push(link);
+      linksByPage.set(link.sourceUrl, pageLinks);
+    });
+
+    console.log(`📝 Inserting links into ${linksByPage.size} pages...`);
+
+    for (const [sourceUrl, pageLinks] of Array.from(linksByPage)) {
+      try {
+        // Get current page HTML
+        const page = await db
+          .select({ rawHtml: pagesRaw.rawHtml, id: pagesRaw.id })
+          .from(pagesRaw)
+          .where(eq(pagesRaw.url, sourceUrl))
+          .limit(1);
+
+        if (!page.length) continue;
+
+        let updatedHtml = page[0].rawHtml;
+
+        // Insert each link into the HTML
+        for (const link of pageLinks) {
+          updatedHtml = this.insertLinkIntoHtml(
+            updatedHtml,
+            link.anchorText,
+            link.targetUrl,
+            link.cssClass || undefined,
+            link.relAttribute || undefined,
+            link.targetAttribute || undefined
+          );
+        }
+
+        // Update the page with new HTML containing links
+        await db
+          .update(pagesRaw)
+          .set({ rawHtml: updatedHtml })
+          .where(eq(pagesRaw.id, page[0].id));
+
+        console.log(`✅ Inserted ${pageLinks.length} links into ${sourceUrl}`);
+
+      } catch (error) {
+        console.error(`❌ Failed to insert links into ${sourceUrl}:`, error);
+      }
+    }
+
+    console.log('🎉 Link insertion completed!');
+  }
+
+  private insertLinkIntoHtml(html: string, anchorText: string, targetUrl: string, cssClass?: string, relAttribute?: string, targetAttribute?: string): string {
+    // Find a good place to insert the link in the content
+    // Look for the anchor text in the HTML and wrap it with a link
+    
+    // Create the link HTML
+    let linkAttributes = `href="${targetUrl}"`;
+    if (cssClass) linkAttributes += ` class="${cssClass}"`;
+    if (relAttribute) linkAttributes += ` rel="${relAttribute}"`;
+    if (targetAttribute) linkAttributes += ` target="${targetAttribute}"`;
+
+    const linkHtml = `<a ${linkAttributes}>${anchorText}</a>`;
+
+    // Try to find exact match of anchor text and replace it
+    const exactMatch = new RegExp(`\\b${anchorText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (exactMatch.test(html)) {
+      return html.replace(exactMatch, linkHtml);
+    }
+
+    // If exact match fails, insert at the end of the first paragraph
+    const paragraphMatch = html.match(/<\/p>/i);
+    if (paragraphMatch) {
+      const insertPos = paragraphMatch.index!;
+      return html.slice(0, insertPos) + ` ${linkHtml}` + html.slice(insertPos);
+    }
+
+    // Fallback: insert at the end of content
+    const bodyMatch = html.match(/<\/body>/i);
+    if (bodyMatch) {
+      const insertPos = bodyMatch.index!;
+      return html.slice(0, insertPos) + `<p>${linkHtml}</p>` + html.slice(insertPos);
+    }
+
+    // Final fallback: append to end
+    return html + `<p>${linkHtml}</p>`;
   }
 
   private async finalizeDraft(runId: string) {
