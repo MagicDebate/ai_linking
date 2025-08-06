@@ -163,11 +163,11 @@ export default function UnifiedProjectPage() {
 
   // Auto-determine correct step based on URL and import status
   useEffect(() => {
-    // Если это URL генерации ссылок или есть завершенные импорты - переходим к генерации
-    if (location.includes('/generate') || (importJobsList && importJobsList.some((job: any) => job.status === 'completed'))) {
+    // Если это URL генерации ссылок - переходим к генерации
+    if (location.includes('/generate')) {
       setCurrentStep(5);
     } else if (importJobsList && importJobsList.length > 0) {
-      // Есть импорты, но они не завершены - показываем процесс импорта
+      // Есть импорты - показываем соответствующий статус
       const lastJob = importJobsList[0];
       if (lastJob.status === 'running' || lastJob.status === 'pending') {
         setCurrentStep(4);
@@ -188,11 +188,16 @@ export default function UnifiedProjectPage() {
       }).toString(), {
         credentials: 'include'
       });
-      if (!response.ok) throw new Error('Failed to get import status');
+      if (!response.ok) return null;
       return response.json();
     },
-    enabled: !!projectId && !!jobId,
-    refetchInterval: 2000,
+    enabled: !!projectId && !!jobId && currentStep === 4,
+    refetchInterval: (data) => {
+      if (!data || ['completed', 'failed', 'canceled'].includes(data?.status)) {
+        return false;
+      }
+      return 2000;
+    },
   });
 
   // File upload mutation
@@ -343,9 +348,24 @@ export default function UnifiedProjectPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center">
+              <h1 className="text-3xl font-bold text-gray-900">SEO LinkBuilder</h1>
+            </div>
+            <nav className="flex space-x-8">
+              <a href="/dashboard" className="text-gray-600 hover:text-gray-900">Проекты</a>
+              <a href="#" className="text-gray-600 hover:text-gray-900">Помощь</a>
+            </nav>
+          </div>
+        </div>
+      </header>
+
       <div className="max-w-4xl mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="space-y-4">
+        {/* Project Header */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
             <p className="text-gray-600">{project.domain}</p>
@@ -675,6 +695,47 @@ export default function UnifiedProjectPage() {
           </Card>
         )}
       </div>
+
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200 mt-16">
+        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+          <div className="xl:grid xl:grid-cols-3 xl:gap-8">
+            <div className="space-y-8 xl:col-span-1">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">SEO LinkBuilder</h3>
+                <p className="mt-2 text-gray-600">
+                  Автоматизированное внутреннее продвижение для профессионалов SEO
+                </p>
+              </div>
+            </div>
+            <div className="mt-12 grid grid-cols-2 gap-8 xl:mt-0 xl:col-span-2">
+              <div className="md:grid md:grid-cols-2 md:gap-8">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-400 tracking-wider uppercase">Продукт</h3>
+                  <ul className="mt-4 space-y-4">
+                    <li><a href="#" className="text-base text-gray-500 hover:text-gray-900">Возможности</a></li>
+                    <li><a href="#" className="text-base text-gray-500 hover:text-gray-900">Цены</a></li>
+                    <li><a href="#" className="text-base text-gray-500 hover:text-gray-900">API</a></li>
+                  </ul>
+                </div>
+                <div className="mt-12 md:mt-0">
+                  <h3 className="text-sm font-semibold text-gray-400 tracking-wider uppercase">Поддержка</h3>
+                  <ul className="mt-4 space-y-4">
+                    <li><a href="#" className="text-base text-gray-500 hover:text-gray-900">Документация</a></li>
+                    <li><a href="#" className="text-base text-gray-500 hover:text-gray-900">Руководства</a></li>
+                    <li><a href="#" className="text-base text-gray-500 hover:text-gray-900">Связь</a></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-12 border-t border-gray-200 pt-8">
+            <p className="text-base text-gray-400 xl:text-center">
+              &copy; 2025 SEO LinkBuilder. Все права защищены.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
