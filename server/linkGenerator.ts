@@ -34,6 +34,7 @@ export class LinkGenerator {
   private openai: OpenAI;
   private openaiEnabled: boolean = false;
   private progressCallback?: (update: ProgressUpdate) => void;
+  private projectId?: string;
 
   constructor(progressCallback?: (update: ProgressUpdate) => void) {
     this.progressCallback = progressCallback;
@@ -60,6 +61,9 @@ export class LinkGenerator {
   }
 
   async generateLinks(params: GenerationParams): Promise<string> {
+    // Store projectId for use in other methods
+    this.projectId = params.projectId;
+    
     // Generate unique run ID
     const runId = randomUUID();
     
