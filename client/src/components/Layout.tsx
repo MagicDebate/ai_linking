@@ -54,7 +54,6 @@ export default function Layout({ children, title }: LayoutProps) {
                 <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                   <User className="w-4 h-4 text-white" />
                 </div>
-                <span className="text-sm font-medium">{user?.email}</span>
                 <ChevronDown className="w-4 h-4" />
               </button>
 
