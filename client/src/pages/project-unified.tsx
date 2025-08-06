@@ -34,7 +34,8 @@ import {
   Clock,
   Database,
   Zap,
-  ExternalLink
+  ExternalLink,
+  RotateCcw
 } from "lucide-react";
 
 interface Project {
@@ -751,11 +752,16 @@ export default function UnifiedProjectPage() {
                     <div>
                       <p className="font-medium">{PHASE_LABELS[importStatus.phase] || importStatus.phase}</p>
                       <p className="text-sm text-gray-600">
-                        {importStatus.status === 'completed' ? 'Импорт завершен' : `${importStatus.percent}% выполнено`}
+                        {importStatus.status === 'completed' ? 'Импорт завершен' : 
+                         importStatus.status === 'failed' ? `Ошибка: ${importStatus.errorMessage || 'Неизвестная ошибка'}` :
+                         `${importStatus.percent}% выполнено`}
                       </p>
                     </div>
                     {importStatus.status === 'running' && (
                       <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />
+                    )}
+                    {importStatus.status === 'failed' && (
+                      <AlertCircle className="h-5 w-5 text-red-600" />
                     )}
                   </div>
                   
@@ -787,6 +793,15 @@ export default function UnifiedProjectPage() {
                       <Button onClick={() => setCurrentStep(5)}>
                         <Zap className="h-4 w-4 mr-2" />
                         Генерировать ссылки
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {importStatus.status === 'failed' && (
+                    <div className="flex justify-end">
+                      <Button onClick={() => setCurrentStep(3)} variant="outline">
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Запустить заново
                       </Button>
                     </div>
                   )}
