@@ -691,65 +691,93 @@ export default function UnifiedProjectPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <LinkIcon className="h-5 w-5" />
-                Выбор сценариев перелинковки
+                <Zap className="h-5 w-5" />
+                Генерация внутренних ссылок
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <p className="text-gray-600">
-                Выберите сценарии, которые будут применены к вашему сайту
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { id: "orphanFix", title: "Поднятие сирот", description: "Связывание страниц без входящих ссылок", icon: LifeBuoy },
-                  { id: "headConsolidation", title: "Консолидация заголовков", description: "Связывание страниц с похожими H1", icon: Star },
-                  { id: "clusterCrossLink", title: "Кросс-линковка кластеров", description: "Перекрёстные ссылки между темами", icon: Network },
-                  { id: "commercialRouting", title: "Коммерческий роутинг", description: "Направление трафика на коммерческие страницы", icon: DollarSign },
-                ].map((scenario) => {
-                  const Icon = scenario.icon;
-                  const isSelected = selectedScenarios.includes(scenario.id);
-                  
-                  return (
-                    <Card 
-                      key={scenario.id} 
-                      className={`cursor-pointer transition-all ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:shadow-md'}`}
-                      onClick={() => {
-                        if (isSelected) {
-                          setSelectedScenarios(prev => prev.filter(s => s !== scenario.id));
-                        } else {
-                          setSelectedScenarios(prev => [...prev, scenario.id]);
-                        }
-                      }}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-start space-x-3">
-                          <div className={`p-2 rounded-lg ${isSelected ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                            <Icon className={`h-5 w-5 ${isSelected ? 'text-blue-600' : 'text-gray-600'}`} />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-medium text-gray-900">{scenario.title}</h3>
-                            <p className="text-sm text-gray-600 mt-1">{scenario.description}</p>
-                          </div>
-                          <Checkbox checked={isSelected} />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-blue-800 font-medium">🎯 Готов к генерации</p>
+                <p className="text-blue-700 text-sm mt-1">
+                  Будет обработано {completedJob?.orphanCount || 0} страниц-сирот с применением сценария фикса сирот
+                </p>
               </div>
 
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={() => setCurrentStep(2)}>
-                  Назад
-                </Button>
-                <Button 
-                  onClick={handleStartImport} 
-                  disabled={importMutation.isPending}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  {importMutation.isPending ? "Запуск..." : "Запустить импорт"}
-                </Button>
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Запустить генерацию ссылок</h3>
+                
+                <div className="flex gap-4">
+                  <Button 
+                    size="lg"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={async () => {
+                      const confirmed = window.confirm(
+                        "Вы уверены? Текущие результаты генерации будут удалены и заменены новыми."
+                      );
+                      
+                      if (!confirmed) return;
+                      
+                      try {
+                        // Сначала очищаем предыдущие результаты
+                        await fetch(`/api/projects/${projectId}/links`, {
+                          method: "DELETE",
+                          credentials: "include"
+                        });
+
+                        const response = await fetch(`/api/projects/${projectId}/generate-links`, {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          credentials: "include",
+                          body: JSON.stringify({
+                            projectId: projectId,
+                            scenarios: { orphanFix: true },
+                            rules: { 
+                              maxLinks: 3, 
+                              depthThreshold: 5,
+                              moneyPages: [],
+                              stopAnchors: ["читать далее", "подробнее"],
+                              dedupeLinks: true,
+                              cssClass: "",
+                              relAttribute: "",
+                              targetAttribute: ""
+                            },
+                            check404Policy: "delete"
+                          }),
+                        });
+
+                        if (!response.ok) {
+                          throw new Error("Failed to start generation");
+                        }
+
+                        toast({
+                          title: "Новая генерация запущена",
+                          description: "Предыдущие результаты очищены, создание новых ссылок началось"
+                        });
+                        
+                        // Переходим на шаг 6 для отслеживания прогресса
+                        setCurrentStep(6);
+                      } catch (error) {
+                        console.error("Generation start error:", error);
+                        toast({
+                          title: "Ошибка",
+                          description: "Не удалось запустить генерацию ссылок"
+                        });
+                      }
+                    }}
+                  >
+                    <Zap className="mr-2 h-4 w-4" />
+                    Запустить генерацию
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    onClick={() => setCurrentStep(5)}
+                  >
+                    Назад к импорту
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -892,97 +920,36 @@ export default function UnifiedProjectPage() {
                     </div>
 
                     <div className="space-y-4">
-                      <h3 className="text-lg font-medium">Выберите действие:</h3>
+                      <h3 className="text-lg font-medium">Импорт завершен успешно</h3>
                       
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                        <p className="text-green-800 font-medium">✅ Данные успешно импортированы</p>
+                        <p className="text-green-700 text-sm mt-1">
+                          Найдено {completedJob.orphanCount} страниц-сирот для генерации ссылок
+                        </p>
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <h4 className="text-blue-800 font-medium mb-2">📊 Рекомендации по результатам анализа</h4>
+                        <div className="space-y-2 text-sm">
+                          <p className="text-blue-700">• Рекомендуется запустить сценарий "Фикс сирот" для {completedJob.orphanCount} страниц</p>
+                          <p className="text-blue-700">• Обработано {completedJob.blocksDone} текстовых блоков из {completedJob.pagesTotal} страниц</p>
+                          <p className="text-blue-700">• Средняя глубина клика: {completedJob.avgClickDepth}</p>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Button 
                           size="lg" 
-                          className="h-auto p-4 flex flex-col items-start text-left"
-                          onClick={async () => {
-                            console.log('🔍 Checking generation requirements:');
-                            console.log('📊 savedConfig:', savedConfig);
-                            console.log('📋 completedJob:', completedJob);
-                            
-                            if (!completedJob) {
-                              toast({
-                                title: "Ошибка",
-                                description: "Не найдены данные завершенного импорта"
-                              });
-                              return;
-                            }
-                            
-                            // Если конфигурация не найдена, используем базовые настройки
-                            const generationConfig = savedConfig || {
-                              selectedScenarios: ['orphanFix'],
-                              scopeSettings: { fullProject: true },
-                              linkingRules: { maxLinks: 5, dedupeLinks: true }
-                            };
-
-                            const confirmed = window.confirm(
-                              "Вы уверены? Текущие результаты генерации будут удалены и заменены новыми."
-                            );
-                            
-                            if (!confirmed) return;
-                            
-                            try {
-                              // Сначала очищаем предыдущие результаты
-                              await fetch(`/api/projects/${projectId}/links`, {
-                                method: "DELETE",
-                                credentials: "include"
-                              });
-
-                              const response = await fetch(`/api/projects/${projectId}/generate-links`, {
-                                method: "POST",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                },
-                                credentials: "include",
-                                body: JSON.stringify({
-                                  projectId: projectId,
-                                  scenarios: generationConfig.selectedScenarios?.reduce((acc: any, scenario: string) => {
-                                    acc[scenario] = true;
-                                    return acc;
-                                  }, {}) || { orphanFix: true },
-                                  rules: generationConfig.linkingRules || { 
-                                    maxLinks: 3, 
-                                    depthThreshold: 5,
-                                    moneyPages: [],
-                                    stopAnchors: ["читать далее", "подробнее"],
-                                    dedupeLinks: true,
-                                    cssClass: "",
-                                    relAttribute: "",
-                                    targetAttribute: ""
-                                  },
-                                  check404Policy: "delete"
-                                }),
-                              });
-
-                              if (!response.ok) {
-                                throw new Error("Failed to start generation");
-                              }
-
-                              toast({
-                                title: "Новая генерация запущена",
-                                description: "Предыдущие результаты очищены, создание новых ссылок началось"
-                              });
-                              
-                              // Переходим на шаг 6 для отслеживания прогресса
-                              setCurrentStep(6);
-                            } catch (error) {
-                              console.error("Generation start error:", error);
-                              toast({
-                                title: "Ошибка",
-                                description: "Не удалось запустить генерацию ссылок"
-                              });
-                            }
-                          }}
+                          className="h-auto p-4 flex flex-col items-start text-left bg-green-600 hover:bg-green-700"
+                          onClick={() => setCurrentStep(3)}
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <Zap className="h-5 w-5" />
-                            <span className="font-medium">Генерировать ссылки</span>
+                            <span className="font-medium">Перейти к генерации</span>
                           </div>
                           <p className="text-sm opacity-80">
-                            Создать предложения внутренних ссылок на основе выбранных сценариев
+                            Настроить и запустить создание внутренних ссылок
                           </p>
                         </Button>
                         

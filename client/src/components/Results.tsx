@@ -93,7 +93,7 @@ export function Results({ projectId }: ResultsProps) {
     );
   }
 
-  const { metrics, anchorProfile, topDonors } = report;
+  const { metrics } = report;
 
   const getChangeIcon = (before: number, after: number, isGood: 'higher' | 'lower') => {
     if (before === after) return <Minus className="w-4 h-4 text-gray-400" />;
@@ -192,98 +192,7 @@ export function Results({ projectId }: ResultsProps) {
             </div>
           </div>
 
-          {/* Anchor Profile */}
-          {anchorProfile && (
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-4">Anchor Profile</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">До генерации</h4>
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Exact</span>
-                      <Badge variant={anchorProfile.before.exact > 40 ? "destructive" : "secondary"}>
-                        {anchorProfile.before.exact}%
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Partial</span>
-                      <Badge variant="secondary">{anchorProfile.before.partial}%</Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Brand</span>
-                      <Badge variant="secondary">{anchorProfile.before.brand}%</Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Generic</span>
-                      <Badge variant="secondary">{anchorProfile.before.generic}%</Badge>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-muted-foreground">После генерации</h4>
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Exact</span>
-                      <Badge variant={anchorProfile.after.exact <= 30 ? "default" : "secondary"} 
-                             className={anchorProfile.after.exact <= 30 ? "bg-green-600" : ""}>
-                        {anchorProfile.after.exact}%
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Partial</span>
-                      <Badge variant="secondary">{anchorProfile.after.partial}%</Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Brand</span>
-                      <Badge variant="secondary">{anchorProfile.after.brand}%</Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Generic</span>
-                      <Badge variant="secondary">{anchorProfile.after.generic}%</Badge>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* Top Donor Pages */}
-          {topDonors && (
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Топ-5 страниц-доноров</h3>
-              <div className="space-y-2">
-                {topDonors.map((donor, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{donor.url}</p>
-                      <p className="text-xs text-muted-foreground">
-                        +{donor.newOutgoing} новых из {donor.totalOutgoing} всего
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {donor.trafficTrend > 0 ? (
-                        <div className="flex items-center gap-1 text-green-600">
-                          <TrendingUp className="w-4 h-4" />
-                          <span className="text-sm">+{donor.trafficTrend}%</span>
-                        </div>
-                      ) : donor.trafficTrend < 0 ? (
-                        <div className="flex items-center gap-1 text-red-600">
-                          <TrendingDown className="w-4 h-4" />
-                          <span className="text-sm">{donor.trafficTrend}%</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1 text-gray-400">
-                          <Minus className="w-4 h-4" />
-                          <span className="text-sm">0%</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 
