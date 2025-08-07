@@ -321,11 +321,12 @@ export const fieldMappingSchema = z.object({
   uploadId: z.string(),
   fieldMapping: z.record(z.string(), z.string()).refine(
     (mapping) => {
-      const required = ['url', 'title', 'content', 'publishedDate'];
-      return required.every(field => mapping[field] && mapping[field].trim() !== '');
+      // Согласно ТЗ обязательны только URL, Текст, контент
+      const required = ['url', 'title', 'content'];
+      return required.every(field => mapping[field] && mapping[field].trim() !== '' && mapping[field] !== '__none__');
     },
     {
-      message: "URL, Title, Content, and Published Date field mappings are required",
+      message: "URL, Title и Content поля обязательны для сопоставления",
       path: ["fieldMapping"]
     }
   ),

@@ -34,6 +34,7 @@ interface FieldMapping {
 interface CsvPreview {
   headers: string[];
   rows: string[][];
+  uploadId?: string;
 }
 
 interface Project {
@@ -214,7 +215,7 @@ export default function ProjectUnifiedSpec() {
     },
     onSuccess: (data) => {
       console.log('Upload success:', data);
-      setCsvPreview(data.preview);
+      setCsvPreview({ ...data.preview, uploadId: data.uploadId });
       setCurrentStep(2);
       toast({ title: "Файл загружен!" });
     },
@@ -225,10 +226,19 @@ export default function ProjectUnifiedSpec() {
 
   // Мутация сохранения маппинга
   const mappingMutation = useMutation({
-    mutationFn: (mapping: FieldMapping) => apiRequest('/api/mapping', 'POST', { 
-      projectId, 
-      mapping 
-    }),
+    mutationFn: async (mapping: FieldMapping) => {
+      const response = await fetch('/api/field-mapping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          projectId, 
+          mapping,
+          uploadId: csvPreview?.uploadId // Передаем uploadId из ответа загрузки
+        })
+      });
+      if (!response.ok) throw new Error('Mapping save failed');
+      return response.json();
+    },
     onSuccess: () => {
       setCurrentStep(3);
       toast({ title: "Маппинг сохранен!" });
