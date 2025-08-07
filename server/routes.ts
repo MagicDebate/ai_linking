@@ -1169,34 +1169,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        // Strategy 4: Insert into existing text using modified sentence
+        // Strategy 4: Try exact word replacement in modified sentence
         if (!matched && link.modifiedSentence) {
-          console.log('🔗 Trying to replace existing text with modified sentence:', link.modifiedSentence);
+          console.log('🔗 Trying to find exact text to replace with modified sentence');
           
-          // Find sentences that contain keywords from our anchor
-          const anchorWords = cyrillicAnchor.split(' ').filter(word => word.length > 3);
-          const sentences = modifiedContent.split(/[.!?]+/);
-          
-          for (let i = 0; i < sentences.length; i++) {
-            const sentence = sentences[i].trim();
-            if (sentence.length < 20) continue;
+          // Extract the anchor phrase from modified sentence and find it in content
+          if (link.modifiedSentence.includes(cyrillicAnchor)) {
+            // Try to find a similar sentence structure in the original content
+            const modifiedWords = link.modifiedSentence.toLowerCase().split(' ');
+            const contentSentences = modifiedContent.split(/[.!?]+/);
             
-            // Check if sentence contains any anchor keywords
-            const hasKeywords = anchorWords.some(word => 
-              sentence.toLowerCase().includes(word.toLowerCase())
-            );
-            
-            if (hasKeywords) {
-              console.log('🔗 Found sentence with keywords, replacing:', sentence.substring(0, 50) + '...');
+            for (let sentence of contentSentences) {
+              sentence = sentence.trim();
+              if (sentence.length < 10) continue;
               
-              // Create link within the modified sentence
-              const modifiedSentenceWithLink = link.modifiedSentence.replace(cyrillicAnchor, anchorHtml);
+              const sentenceWords = sentence.toLowerCase().split(' ');
               
-              // Replace the original sentence with our modified one
-              modifiedContent = modifiedContent.replace(sentence.trim(), modifiedSentenceWithLink);
-              matched = true;
-              console.log('🔗 Successfully replaced sentence with linked version');
-              break;
+              // Check if at least 60% of words match
+              const matchCount = modifiedWords.filter(word => 
+                sentenceWords.some(sWord => sWord.includes(word) || word.includes(sWord))
+              ).length;
+              
+              const matchPercent = matchCount / Math.min(modifiedWords.length, sentenceWords.length);
+              
+              if (matchPercent > 0.6) {
+                console.log('🔗 Found similar sentence to replace:', sentence.substring(0, 50) + '...');
+                
+                // Create link within the modified sentence
+                const modifiedSentenceWithLink = link.modifiedSentence.replace(cyrillicAnchor, anchorHtml);
+                
+                // Replace the original sentence with our modified one
+                modifiedContent = modifiedContent.replace(sentence, modifiedSentenceWithLink);
+                matched = true;
+                console.log('🔗 Successfully replaced similar sentence');
+                break;
+              }
             }
           }
         }
