@@ -330,6 +330,27 @@ export default function ProjectUnifiedSpec() {
     setSeoProfile(PRESETS[preset]);
   };
 
+  // Восстанавливаем состояние при загрузке
+  useEffect(() => {
+    if (projectId && !projectLoading) {
+      // Проверяем есть ли импорты для этого проекта - если да, то переходим к соответствующему шагу
+      const checkProjectState = async () => {
+        try {
+          const response = await fetch(`/api/projects/${projectId}/state`);
+          if (response.ok) {
+            const state = await response.json();
+            if (state.hasImports) {
+              setCurrentStep(state.lastCompletedStep + 1);
+            }
+          }
+        } catch (error) {
+          console.log('No saved state found, starting from step 1');
+        }
+      };
+      checkProjectState();
+    }
+  }, [projectId, projectLoading]);
+
   if (projectLoading) {
     return (
       <Layout>
@@ -841,6 +862,214 @@ export default function ProjectUnifiedSpec() {
                             </div>
                           </div>
                         )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Каннибализация */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                      Каннибализация
+                      <Info className="h-4 w-4 text-gray-500 cursor-help" title="Настройки для предотвращения каннибализации контента" />
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div>
+                        <Label>Порог похожести</Label>
+                        <Select
+                          value={seoProfile.cannibalization.threshold}
+                          onValueChange={(value: 'low' | 'medium' | 'high') => 
+                            setSeoProfile(prev => ({ ...prev, cannibalization: { ...prev.cannibalization, threshold: value } }))
+                          }
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Low (0.75)</SelectItem>
+                            <SelectItem value="medium">Medium (0.80)</SelectItem>
+                            <SelectItem value="high">High (0.85)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <Label>Действие</Label>
+                        <RadioGroup 
+                          value={seoProfile.cannibalization.action}
+                          onValueChange={(value: 'block' | 'flag') => 
+                            setSeoProfile(prev => ({ ...prev, cannibalization: { ...prev.cannibalization, action: value } }))
+                          }
+                          className="mt-2"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="block" id="block" />
+                            <Label htmlFor="block">Block</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="flag" id="flag" />
+                            <Label htmlFor="flag">Flag only</Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                      
+                      <div>
+                        <Label>Правило выбора каноника</Label>
+                        <RadioGroup 
+                          value={seoProfile.cannibalization.canonicRule}
+                          onValueChange={(value: 'content' | 'url' | 'manual') => 
+                            setSeoProfile(prev => ({ ...prev, cannibalization: { ...prev.cannibalization, canonicRule: value } }))
+                          }
+                          className="mt-2"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="content" id="content" />
+                            <Label htmlFor="content">По полноте текста</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="url" id="url" />
+                            <Label htmlFor="url">По URL-структуре</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="manual" id="manual" />
+                            <Label htmlFor="manual">Manual</Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Политики ссылок */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-gray-900">Политики ссылок</h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div>
+                        <Label>Old Links Policy</Label>
+                        <Select
+                          value={seoProfile.policies.oldLinks}
+                          onValueChange={(value: 'enrich' | 'regenerate' | 'audit') => 
+                            setSeoProfile(prev => ({ ...prev, policies: { ...prev.policies, oldLinks: value } }))
+                          }
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="enrich">Enrich</SelectItem>
+                            <SelectItem value="regenerate">Regenerate</SelectItem>
+                            <SelectItem value="audit">Audit only</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <Label>Broken-link Policy</Label>
+                        <Select
+                          value={seoProfile.policies.brokenLinks}
+                          onValueChange={(value: 'delete' | 'replace' | 'ignore') => 
+                            setSeoProfile(prev => ({ ...prev, policies: { ...prev.policies, brokenLinks: value } }))
+                          }
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="delete">Delete</SelectItem>
+                            <SelectItem value="replace">Replace</SelectItem>
+                            <SelectItem value="ignore">Ignore</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2 mt-6">
+                        <Switch
+                          id="removeDuplicates"
+                          checked={seoProfile.policies.removeDuplicates}
+                          onCheckedChange={(checked) => 
+                            setSeoProfile(prev => ({ ...prev, policies: { ...prev.policies, removeDuplicates: checked } }))
+                          }
+                        />
+                        <Label htmlFor="removeDuplicates">Remove Duplicates</Label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* HTML атрибуты */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-gray-900">HTML Attributes</h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <Label htmlFor="className">className</Label>
+                        <Input
+                          id="className"
+                          value={seoProfile.htmlAttributes.className}
+                          onChange={(e) => 
+                            setSeoProfile(prev => ({ ...prev, htmlAttributes: { ...prev.htmlAttributes, className: e.target.value } }))
+                          }
+                          placeholder="Введите CSS класс"
+                          className="mt-1"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label>classMode</Label>
+                        <RadioGroup 
+                          value={seoProfile.htmlAttributes.classMode}
+                          onValueChange={(value: 'append' | 'replace') => 
+                            setSeoProfile(prev => ({ ...prev, htmlAttributes: { ...prev.htmlAttributes, classMode: value } }))
+                          }
+                          className="mt-2"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="append" id="append" />
+                            <Label htmlFor="append">Append</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="replace" id="replace" />
+                            <Label htmlFor="replace">Replace</Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                      
+                      <div>
+                        <Label>rel атрибуты</Label>
+                        <div className="space-y-2 mt-2">
+                          {[
+                            { key: 'noopener', label: 'noopener' },
+                            { key: 'noreferrer', label: 'noreferrer' },
+                            { key: 'nofollow', label: 'nofollow' }
+                          ].map((rel) => (
+                            <div key={rel.key} className="flex items-center space-x-2">
+                              <Switch
+                                id={rel.key}
+                                checked={seoProfile.htmlAttributes.rel[rel.key as keyof typeof seoProfile.htmlAttributes.rel]}
+                                onCheckedChange={(checked) => 
+                                  setSeoProfile(prev => ({ 
+                                    ...prev, 
+                                    htmlAttributes: { 
+                                      ...prev.htmlAttributes, 
+                                      rel: { ...prev.htmlAttributes.rel, [rel.key]: checked } 
+                                    } 
+                                  }))
+                                }
+                              />
+                              <Label htmlFor={rel.key}>{rel.label}</Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2 mt-6">
+                        <Switch
+                          id="targetBlank"
+                          checked={seoProfile.htmlAttributes.targetBlank}
+                          onCheckedChange={(checked) => 
+                            setSeoProfile(prev => ({ ...prev, htmlAttributes: { ...prev.htmlAttributes, targetBlank: checked } }))
+                          }
+                        />
+                        <Label htmlFor="targetBlank">target="_blank"</Label>
                       </div>
                     </div>
                   </div>

@@ -686,6 +686,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get project state endpoint
+  app.get("/api/projects/:id/state", authenticateToken, async (req: any, res) => {
+    try {
+      const projectId = req.params.id;
+      
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Check if project has imports
+      const imports = await storage.getImportsByProjectId(projectId);
+      
+      let lastCompletedStep = 0;
+      let hasImports = false;
+      
+      if (imports.length > 0) {
+        hasImports = true;
+        const latestImport = imports[0];
+        
+        if (latestImport.status === "MAPPED" || latestImport.fieldMapping) {
+          lastCompletedStep = 2; // Field mapping completed
+        }
+        if (latestImport.status === "PROCESSED") {
+          lastCompletedStep = 3; // Import completed
+        }
+      }
+      
+      res.json({ 
+        hasImports, 
+        lastCompletedStep,
+        projectId 
+      });
+    } catch (error) {
+      console.error("Get project state error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Save SEO profile endpoint
   app.post("/api/seo-profile", authenticateToken, async (req: any, res) => {
     try {
