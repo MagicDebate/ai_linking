@@ -250,17 +250,50 @@ export default function ProjectUnifiedSpec() {
 
   // Мутация сохранения профиля
   const profileMutation = useMutation({
-    mutationFn: (profile: SEOProfile) => apiRequest('/api/profile', 'POST', { 
-      projectId, 
-      profile 
-    }),
-    onSuccess: () => {
+    mutationFn: async (profile: SEOProfile) => {
+      const response = await fetch('/api/seo-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          projectId, 
+          profile 
+        })
+      });
+      if (!response.ok) throw new Error('Profile save failed');
+      return response.json();
+    },
+    onSuccess: async () => {
       toast({ title: "Настройки сохранены!" });
-      // Запускаем импорт
-      setCurrentStep(3);
+      setCurrentStep(4);
+      // Запускаем импорт автоматически
+      if (csvPreview?.uploadId) {
+        startImportMutation.mutate();
+      }
     },
     onError: (error: any) => {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    }
+  });
+
+  // Мутация запуска импорта
+  const startImportMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/import/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          projectId,
+          uploadId: csvPreview?.uploadId 
+        })
+      });
+      if (!response.ok) throw new Error('Import start failed');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Импорт запущен!" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Ошибка импорта", description: error.message, variant: "destructive" });
     }
   });
 
@@ -819,10 +852,12 @@ export default function ProjectUnifiedSpec() {
                     </Button>
                     <Button
                       onClick={() => profileMutation.mutate(seoProfile)}
-                      disabled={profileMutation.isPending}
+                      disabled={profileMutation.isPending || startImportMutation.isPending}
                       className="bg-blue-600 hover:bg-blue-700"
                     >
-                      {profileMutation.isPending ? "Сохраняем..." : "Сохранить и запустить импорт"}
+                      {profileMutation.isPending ? "Сохраняем..." : 
+                       startImportMutation.isPending ? "Запускаем импорт..." :
+                       "Сохранить и запустить импорт"}
                       <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
                   </div>
@@ -832,23 +867,35 @@ export default function ProjectUnifiedSpec() {
               {/* Шаг 4: Прогресс импорта */}
               {currentStep === 4 && (
                 <div className="text-center space-y-6">
-                  <div className="space-y-4">
-                    <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto" />
-                    <h3 className="text-xl font-semibold text-gray-900">
-                      Настройки сохранены!
-                    </h3>
-                    <p className="text-gray-600">
-                      Ваш контент будет обработан и готов для создания внутренних ссылок.
-                    </p>
-                  </div>
+                  {startImportMutation.isPending ? (
+                    <div className="space-y-4">
+                      <Loader2 className="h-16 w-16 text-blue-600 mx-auto animate-spin" />
+                      <h3 className="text-xl font-semibold text-gray-900">
+                        Запускаем импорт...
+                      </h3>
+                      <p className="text-gray-600">
+                        Обрабатываем данные и подготавливаем контент для создания ссылок.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto" />
+                      <h3 className="text-xl font-semibold text-gray-900">
+                        Настройки сохранены!
+                      </h3>
+                      <p className="text-gray-600">
+                        Ваш контент будет обработан и готов для создания внутренних ссылок.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex justify-center gap-4">
                     <Button variant="outline" onClick={() => window.history.back()}>
                       Вернуться к проектам
                     </Button>
-                    <Button>
+                    <Button disabled={startImportMutation.isPending}>
                       <Settings className="h-4 w-4 mr-2" />
-                      Перейти к импорту
+                      Перейти к генерации ссылок
                     </Button>
                   </div>
                 </div>

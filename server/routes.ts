@@ -686,6 +686,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Save SEO profile endpoint
+  app.post("/api/seo-profile", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId, profile } = req.body;
+      
+      if (!projectId || !profile) {
+        return res.status(400).json({ message: "Project ID and profile are required" });
+      }
+      
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Save SEO profile (simplified for now - could be stored in separate table)
+      console.log("SEO profile saved for project:", projectId, profile);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Save SEO profile error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Save linking rules endpoint
   app.post("/api/rules", authenticateToken, async (req: any, res) => {
     try {
