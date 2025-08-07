@@ -1169,17 +1169,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        // Strategy 4: Use modified sentence - add it as new content
+        // Strategy 4: Insert into existing text using modified sentence
         if (!matched && link.modifiedSentence) {
-          console.log('🔗 Adding modified sentence as new content:', link.modifiedSentence);
+          console.log('🔗 Trying to replace existing text with modified sentence:', link.modifiedSentence);
           
-          // Create link within the modified sentence
-          const modifiedSentenceWithLink = link.modifiedSentence.replace(cyrillicAnchor, anchorHtml);
+          // Find sentences that contain keywords from our anchor
+          const anchorWords = cyrillicAnchor.split(' ').filter(word => word.length > 3);
+          const sentences = modifiedContent.split(/[.!?]+/);
           
-          // Add as new paragraph at end of content
-          modifiedContent += `\n\n<p>${modifiedSentenceWithLink}</p>`;
-          matched = true;
-          console.log('🔗 Successfully added modified sentence with link');
+          for (let i = 0; i < sentences.length; i++) {
+            const sentence = sentences[i].trim();
+            if (sentence.length < 20) continue;
+            
+            // Check if sentence contains any anchor keywords
+            const hasKeywords = anchorWords.some(word => 
+              sentence.toLowerCase().includes(word.toLowerCase())
+            );
+            
+            if (hasKeywords) {
+              console.log('🔗 Found sentence with keywords, replacing:', sentence.substring(0, 50) + '...');
+              
+              // Create link within the modified sentence
+              const modifiedSentenceWithLink = link.modifiedSentence.replace(cyrillicAnchor, anchorHtml);
+              
+              // Replace the original sentence with our modified one
+              modifiedContent = modifiedContent.replace(sentence.trim(), modifiedSentenceWithLink);
+              matched = true;
+              console.log('🔗 Successfully replaced sentence with linked version');
+              break;
+            }
+          }
         }
         
         if (!matched) {
