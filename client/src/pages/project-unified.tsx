@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { HelpDialog } from "@/components/HelpDialog";
 import {
@@ -973,80 +974,259 @@ export default function UnifiedProjectPage() {
           </Card>
         )}
 
-        {/* Step 3.5: Advanced Settings */}
+        {/* Step 3.5: Advanced Settings - ПОЛНОЕ ВОССТАНОВЛЕНИЕ ИЗ BACKUP */}
         {currentStep === 3.5 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings className="h-5 w-5" />
-                Расширенные настройки
+                Детальные настройки генерации
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <Label>Максимум ссылок на страницу</Label>
-                  <Slider
-                    value={[rules.maxLinks]}
-                    onValueChange={([value]) => setRules(prev => ({ ...prev, maxLinks: value }))}
-                    max={10}
-                    min={1}
-                    step={1}
-                    className="mt-2"
-                  />
-                  <div className="text-sm text-gray-600 mt-1">
-                    Текущее значение: {rules.maxLinks}
-                  </div>
-                </div>
+                <Accordion type="single" collapsible defaultValue="priorities" className="w-full">
+                  {/* 1. Приоритеты и деньги */}
+                  <AccordionItem value="priorities" className="border-b border-gray-200">
+                    <AccordionTrigger className="text-left">
+                      <div className="flex items-center gap-2">
+                        <Star className="h-4 w-4 text-yellow-500" />
+                        <span className="font-medium">Приоритеты и Money Pages</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4">
+                      <div className="space-y-4">
+                        {/* Money Pages */}
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-md font-medium text-gray-900">Money Pages (приоритетные страницы)</h4>
+                            <Button variant="link" size="sm" className="text-blue-600 p-0">
+                              <Info className="h-4 w-4 mr-1" />
+                              Подробнее
+                            </Button>
+                          </div>
+                          
+                          <Textarea
+                            placeholder="https://example.com/page1, https://example.com/page2"
+                            value={rules.moneyPages.join(', ')}
+                            onChange={(e) => {
+                              const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                              setRules(prev => ({ ...prev, moneyPages: urls }));
+                            }}
+                            className="min-h-[80px]"
+                          />
+                          <div className="text-sm text-gray-600 mt-2">
+                            Указанные страницы получат больше входящих ссылок для повышения их позиций в поисковой выдаче
+                          </div>
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
 
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <Label htmlFor="moneyPages" className="text-sm font-medium">Приоритетные страницы (Money Pages)</Label>
-                    <Button variant="link" size="sm" className="text-blue-600 p-0">
-                      <Info className="h-4 w-4 mr-1" />
-                      Подробнее
-                    </Button>
-                  </div>
-                  
-                  <Textarea
-                    id="moneyPages"
-                    placeholder="Введите URL, разделенные запятой (https://example.com/page1, https://example.com/page2)"
-                    value={rules.moneyPages.join(', ')}
-                    onChange={(e) => {
-                      const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                      setRules(prev => ({ ...prev, moneyPages: urls }));
-                    }}
-                    className="min-h-[80px] mt-2"
-                  />
-                  <div className="text-sm text-gray-600 mt-1">
-                    Указанные страницы получат больше входящих ссылок для повышения их позиций в поисковой выдаче
-                  </div>
-                </div>
+                  {/* 2. Лимиты и правила */}
+                  <AccordionItem value="limits" className="border-b border-gray-200">
+                    <AccordionTrigger className="text-left">
+                      <div className="flex items-center gap-2">
+                        <Settings className="h-4 w-4 text-blue-500" />
+                        <span className="font-medium">Лимиты и правила ссылок</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4">
+                      <div className="space-y-6">
+                        {/* A. Лимиты ссылок */}
+                        <div className="space-y-4">
+                          <div className="border-b border-gray-200 pb-4">
+                            <h4 className="text-md font-medium text-gray-900 mb-3">Лимиты ссылок</h4>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                  Макс. ссылок на страницу: {rules.maxLinks}
+                                </Label>
+                                <Slider
+                                  value={[rules.maxLinks]}
+                                  onValueChange={(value) => setRules(prev => ({ ...prev, maxLinks: value[0] }))}
+                                  max={10}
+                                  min={1}
+                                  step={1}
+                                  className="w-full"
+                                />
+                                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                  <span>1</span>
+                                  <span>10</span>
+                                </div>
+                              </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <Label htmlFor="stopAnchors" className="text-sm font-medium">Запрещенные анкоры</Label>
-                    <Button variant="link" size="sm" className="text-blue-600 p-0">
-                      <Info className="h-4 w-4 mr-1" />
-                      Подробнее
-                    </Button>
-                  </div>
-                  
-                  <Textarea
-                    id="stopAnchors"
-                    placeholder="Введите фразы, разделенные запятой"
-                    value={rules.stopAnchors.join(', ')}
-                    onChange={(e) => setRules(prev => ({ 
-                      ...prev, 
-                      stopAnchors: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
-                    }))}
-                    className="min-h-[80px] mt-2"
-                  />
-                  <div className="text-sm text-gray-600 mt-1">
-                    Анкорные тексты, которые система не будет использовать для создания ссылок
-                  </div>
-                </div>
-              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                  Мин. расстояние, слов: {rules.minDistance || 100}
+                                </Label>
+                                <Slider
+                                  value={[rules.minDistance || 100]}
+                                  onValueChange={(value) => setRules(prev => ({ ...prev, minDistance: value[0] }))}
+                                  max={500}
+                                  min={50}
+                                  step={25}
+                                  className="w-full"
+                                />
+                                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                  <span>50</span>
+                                  <span>500</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* B. Доля точных анкоров */}
+                          <div className="border-b border-gray-200 pb-4">
+                            <h4 className="text-md font-medium text-gray-900 mb-3">Доля точных анкоров</h4>
+                            
+                            <div className="max-w-md">
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                Точные анкоры ≤ {rules.exactPercent || 15}%
+                              </Label>
+                              <Slider
+                                value={[rules.exactPercent || 15]}
+                                onValueChange={(value) => setRules(prev => ({ ...prev, exactPercent: value[0] }))}
+                                max={50}
+                                min={0}
+                                step={5}
+                                className="w-full"
+                              />
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>0%</span>
+                                <span>50%</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* F. Stop-лист анкор-фраз */}
+                          <div className="border-b border-gray-200 pb-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-md font-medium text-gray-900">Запрещенные анкоры</h4>
+                              <Button variant="link" size="sm" className="text-blue-600 p-0">
+                                <Info className="h-4 w-4 mr-1" />
+                                Подробнее
+                              </Button>
+                            </div>
+                            
+                            <Textarea
+                              placeholder="Введите фразы, разделенные запятой"
+                              value={rules.stopAnchors.join(', ')}
+                              onChange={(e) => setRules(prev => ({ 
+                                ...prev, 
+                                stopAnchors: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                              }))}
+                              className="min-h-[80px]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {/* 3. Сценарии перелинковки */}
+                  <AccordionItem value="scenarios" className="border-b border-gray-200">
+                    <AccordionTrigger className="text-left">
+                      <div className="flex items-center gap-2">
+                        <Network className="h-4 w-4 text-green-500" />
+                        <span className="font-medium">Сценарии перелинковки</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="head-consolidation" className="text-sm text-gray-700">
+                            Консолидация заголовков
+                          </Label>
+                          <Switch
+                            id="head-consolidation"
+                            checked={rules.scenarios.headConsolidation}
+                            onCheckedChange={(checked) => setRules(prev => ({
+                              ...prev,
+                              scenarios: { ...prev.scenarios, headConsolidation: checked }
+                            }))}
+                          />
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="cluster-cross-link" className="text-sm text-gray-700">
+                            Кросс-линковка кластеров
+                          </Label>
+                          <Switch
+                            id="cluster-cross-link"
+                            checked={rules.scenarios.clusterCrossLink}
+                            onCheckedChange={(checked) => setRules(prev => ({
+                              ...prev,
+                              scenarios: { ...prev.scenarios, clusterCrossLink: checked }
+                            }))}
+                          />
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="commercial-routing" className="text-sm text-gray-700">
+                            Коммерческая маршрутизация
+                          </Label>
+                          <Switch
+                            id="commercial-routing"
+                            checked={rules.scenarios.commercialRouting}
+                            onCheckedChange={(checked) => setRules(prev => ({
+                              ...prev,
+                              scenarios: { ...prev.scenarios, commercialRouting: checked }
+                            }))}
+                          />
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="orphan-fix" className="text-sm text-gray-700">
+                            Исправление сирот
+                          </Label>
+                          <Switch
+                            id="orphan-fix"
+                            checked={rules.scenarios.orphanFix}
+                            onCheckedChange={(checked) => setRules(prev => ({
+                              ...prev,
+                              scenarios: { ...prev.scenarios, orphanFix: checked }
+                            }))}
+                          />
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="depth-lift" className="text-sm text-gray-700">
+                            Depth Lift
+                          </Label>
+                          <Switch
+                            id="depth-lift"
+                            checked={rules.scenarios.depthLift}
+                            onCheckedChange={(checked) => setRules(prev => ({
+                              ...prev,
+                              scenarios: { ...prev.scenarios, depthLift: checked }
+                            }))}
+                          />
+                        </div>
+                        
+                        {rules.scenarios.depthLift && (
+                          <div className="ml-6 mt-2">
+                            <Label className="text-sm text-gray-600 mb-2 block">
+                              Глубиной считать URL ≥ {rules.depthThreshold}
+                            </Label>
+                            <Slider
+                              value={[rules.depthThreshold]}
+                              onValueChange={(value) => setRules(prev => ({ ...prev, depthThreshold: value[0] }))}
+                              max={8}
+                              min={4}
+                              step={1}
+                              className="w-32"
+                            />
+                            <div className="flex justify-between text-xs text-gray-400 mt-1 w-32">
+                              <span>4</span>
+                              <span>8</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
 
               <div className="flex justify-between">
                 <Button variant="outline" onClick={() => setCurrentStep(3)}>
