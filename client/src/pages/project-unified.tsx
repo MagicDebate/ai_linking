@@ -541,9 +541,10 @@ export default function UnifiedProjectPage() {
     { number: 1, title: "Загрузка данных", completed: currentStep > 1, active: currentStep === 1 },
     { number: 2, title: "Настройка полей", completed: currentStep > 2, active: currentStep === 2 },
     { number: 3, title: "Выбор сценариев", completed: currentStep > 3, active: currentStep === 3 },
-    { number: 4, title: "Импорт данных", completed: currentStep > 4, active: currentStep === 4 },
-    { number: 5, title: "Результаты импорта", completed: currentStep > 5, active: currentStep === 5 },
-    { number: 6, title: "Генерация ссылок", completed: false, active: currentStep === 6 }
+    { number: 4, title: "Настройки", completed: currentStep > 3.5, active: currentStep === 3.5 },
+    { number: 5, title: "Импорт данных", completed: currentStep > 4, active: currentStep === 4 },
+    { number: 6, title: "Результаты импорта", completed: currentStep > 5, active: currentStep === 5 },
+    { number: 7, title: "Генерация ссылок", completed: false, active: currentStep === 6 }
   ];
 
   return (
@@ -963,7 +964,80 @@ export default function UnifiedProjectPage() {
                 <Button variant="outline" onClick={() => setCurrentStep(2)}>
                   Назад
                 </Button>
-                <Button onClick={() => setCurrentStep(4)} disabled={selectedScenarios.length === 0}>
+                <Button onClick={() => setCurrentStep(3.5)} disabled={selectedScenarios.length === 0}>
+                  Продолжить
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 3.5: Advanced Settings */}
+        {currentStep === 3.5 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Расширенные настройки
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <Label>Максимум ссылок на страницу</Label>
+                  <Slider
+                    value={[rules.maxLinks]}
+                    onValueChange={([value]) => setRules(prev => ({ ...prev, maxLinks: value }))}
+                    max={10}
+                    min={1}
+                    step={1}
+                    className="mt-2"
+                  />
+                  <div className="text-sm text-gray-600 mt-1">
+                    Текущее значение: {rules.maxLinks}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="moneyPages">Money Pages (коммерческие страницы)</Label>
+                  <Textarea
+                    id="moneyPages"
+                    placeholder="/услуги&#10;/цены&#10;/купить"
+                    value={rules.moneyPages.join('\n')}
+                    onChange={(e) => {
+                      const pages = e.target.value.split('\n').filter(page => page.trim());
+                      setRules(prev => ({ ...prev, moneyPages: pages }));
+                    }}
+                    className="mt-2"
+                  />
+                  <div className="text-sm text-gray-600 mt-1">
+                    Введите ключевые слова для коммерческих страниц (по одному на строку)
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="stopAnchors">Стоп-анкоры</Label>
+                  <Textarea
+                    id="stopAnchors"
+                    placeholder="читать далее&#10;подробнее&#10;здесь"
+                    value={rules.stopAnchors.join('\n')}
+                    onChange={(e) => {
+                      const anchors = e.target.value.split('\n').filter(anchor => anchor.trim());
+                      setRules(prev => ({ ...prev, stopAnchors: anchors }));
+                    }}
+                    className="mt-2"
+                  />
+                  <div className="text-sm text-gray-600 mt-1">
+                    Анкоры, которые не нужно использовать (по одному на строку)
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={() => setCurrentStep(3)}>
+                  Назад
+                </Button>
+                <Button onClick={() => setCurrentStep(4)}>
                   Продолжить
                 </Button>
               </div>
@@ -1183,7 +1257,7 @@ export default function UnifiedProjectPage() {
                   variant="outline"
                   size="lg"
                   className="px-8 py-3 border-2 font-medium"
-                  onClick={() => setCurrentStep(5)}
+                  onClick={() => setCurrentStep(4)}
                 >
                   ← Назад к импорту
                 </Button>
@@ -1249,10 +1323,10 @@ function GenerationProgressModal({ projectId, onClose, onComplete }: GenerationP
             projectId: projectId,
             scenarios: { orphanFix: true },
             rules: { 
-              maxLinks: 3, 
+              maxLinks: rules.maxLinks, 
               depthThreshold: 5,
-              moneyPages: [],
-              stopAnchors: ["читать далее", "подробнее"],
+              moneyPages: rules.moneyPages,
+              stopAnchors: rules.stopAnchors,
               dedupeLinks: true,
               cssClass: "",
               relAttribute: "",
