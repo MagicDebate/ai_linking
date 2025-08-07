@@ -1,61 +1,47 @@
 import { useState, useRef, useEffect } from "react";
-import { useRoute, useLocation } from "wouter";
-import Layout from "@/components/Layout";
-import { Results } from "@/components/Results";
-import { LinksTable } from "@/components/LinksTable";
+import { useRoute } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { HelpDialog } from "@/components/HelpDialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
 import {
   Upload,
   FileText,
+  Globe,
   CheckCircle2,
   ArrowRight,
+  Download,
   AlertCircle,
+  ArrowLeft,
   Settings,
   Link as LinkIcon,
+  Info,
+  X,
+  Calendar,
+  TrendingUp,
   Play,
   RefreshCw,
   Star,
-  Network,
   DollarSign,
   LifeBuoy,
-  ChevronDown,
-  Clock,
-  Database,
-  Zap,
-  ExternalLink,
-  RotateCcw,
-  Search,
-  AlertTriangle,
-  Target,
-  Info
+  Network
 } from "lucide-react";
 
-interface Project {
-  id: string;
-  name: string;
-  domain: string;
-  status: "QUEUED" | "READY";
-  updatedAt: string;
-}
-
 interface FieldMapping {
-  publishedDate?: string;
-  [key: string]: string | undefined;
+  [key: string]: string;
 }
 
 interface CsvPreview {
@@ -63,16 +49,12 @@ interface CsvPreview {
   rows: string[][];
 }
 
-interface ImportStatus {
-  jobId: string;
-  status: "pending" | "running" | "completed" | "failed" | "canceled";
-  phase: string;
-  percent: number;
-  pagesTotal: number;
-  pagesDone: number;
-  blocksDone: number;
-  orphanCount: number;
-  avgClickDepth: number;
+interface Project {
+  id: string;
+  name: string;
+  domain: string;
+  status: "QUEUED" | "READY";
+  updatedAt: string;
 }
 
 interface LinkingRules {
@@ -97,48 +79,32 @@ interface LinkingRules {
   freshnessLinks: number;
 }
 
-const PHASE_LABELS: Record<string, string> = {
-  loading: "Загрузка страниц",
-  cleaning: "Очистка контента", 
-  chunking: "Разбивка на блоки",
-  extracting: "Извлечение данных",
-  vectorizing: "Генерация эмбеддингов",
-  graphing: "Построение графа связей",
-  finalizing: "Финализация"
-};
-
-export default function UnifiedProjectPage() {
+export default function ProjectPage() {
   const [, params] = useRoute("/project/:id");
-  const [location] = useLocation();
   const projectId = params?.id;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
-  
-  // Generation progress state
-  const [showGenerationProgress, setShowGenerationProgress] = useState(false);
-  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   
   const [currentStep, setCurrentStep] = useState(1);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
   const [uploadId, setUploadId] = useState<string>("");
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [generationResults, setGenerationResults] = useState<any>(null);
-  
-  const [selectedScenarios, setSelectedScenarios] = useState<string[]>(['headConsolidation', 'commercialRouting', 'orphanFix', 'clusterCrossLink', 'depthLift']);
+  const [helpDialog, setHelpDialog] = useState<string | null>(null);
+  const [selectedScenarios, setSelectedScenarios] = useState<string[]>([]);
   const [scopeSettings, setScopeSettings] = useState({
     fullProject: true,
     includePrefix: '',
     dateAfter: '',
     manualUrls: ''
   });
-
+  const [scopeCount, setScopeCount] = useState<number>(0);
+  const [advancedExpanded, setAdvancedExpanded] = useState(false);
   const [rules, setRules] = useState<LinkingRules>({
-    maxLinks: 3,
+    maxLinks: 5,
     minDistance: 100,
-    exactPercent: 50,
+    exactPercent: 20,
     scenarios: {
       headConsolidation: true,
       clusterCrossLink: true,
@@ -162,203 +128,6 @@ export default function UnifiedProjectPage() {
     queryKey: ["/api/projects", projectId],
     enabled: !!projectId,
   });
-
-  // Check import status to determine correct step
-  const { data: importJobsList } = useQuery({
-    queryKey: ['/api/import', projectId, 'jobs'],
-    queryFn: async () => {
-      console.log('🔍 Fetching import jobs for projectId:', projectId);
-      const response = await fetch(`/api/import/${projectId}/jobs`, {
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        console.error('❌ Import jobs fetch failed:', response.status);
-        return [];
-      }
-      const data = await response.json();
-      console.log('📋 Import jobs received:', data);
-      return data;
-    },
-    enabled: !!projectId,
-    refetchInterval: 5000, // Check for new jobs every 5 seconds
-  });
-
-  // Get saved configuration to restore state
-  const { data: savedConfig } = useQuery({
-    queryKey: ['/api/projects', projectId, 'config', 'load'],
-    queryFn: async () => {
-      const response = await fetch(`/api/projects/${projectId}/config/load`, {
-        credentials: 'include'
-      });
-      if (!response.ok) return null;
-      return response.json();
-    },
-    enabled: !!projectId
-  });
-
-  // Get import details to check if we have uploaded files
-  const { data: importsList } = useQuery({
-    queryKey: ['/api/imports', projectId],
-    queryFn: async () => {
-      const response = await fetch(`/api/imports?projectId=${projectId}`, {
-        credentials: 'include'
-      });
-      if (!response.ok) return [];
-      return response.json();
-    },
-    enabled: !!projectId
-  });
-
-  // Auto-determine correct step based on URL, import status and saved config
-  useEffect(() => {
-    console.log('🔄 State restoration effect triggered');
-    console.log('📊 savedConfig:', savedConfig);
-    console.log('📊 importsList:', importsList);
-    console.log('📊 importJobsList:', importJobsList);
-    
-    // Если это URL генерации ссылок - переходим к генерации
-    if (location.includes('/generate')) {
-      console.log('🎯 URL contains /generate, going to step 5');
-      setCurrentStep(5);
-      return;
-    }
-
-    // Проверяем активные джобы из списка
-    if (importJobsList && importJobsList.length > 0) {
-      const runningJob = importJobsList.find((job: any) => job.status === 'running');
-      if (runningJob && !jobId) {
-        console.log('🔧 Found running job, setting jobId:', runningJob.jobId);
-        setJobId(runningJob.jobId);
-        setCurrentStep(4);
-        return;
-      }
-    }
-
-    // Проверяем завершенные импорты
-    if (importJobsList && importJobsList.length > 0) {
-      const lastJob = importJobsList[0];
-      if (lastJob.status === 'completed') {
-        console.log('✅ Found completed import job, going to step 5');
-        setCurrentStep(5);
-        return;
-      } else if (lastJob.status === 'running') {
-        console.log('🔄 Found running import job, going to step 4');
-        setJobId(lastJob.jobId);
-        setCurrentStep(4);
-        return;
-      }
-    }
-
-    // Восстанавливаем состояние на основе импортов и конфигурации
-    if (importsList && importsList.length > 0) {
-      console.log('🔧 Found imports, restoring state...');
-      
-      // Найдем последний импорт со статусом mapped
-      const lastImport = importsList.find((imp: any) => imp.status === 'mapped');
-      if (lastImport) {
-        console.log('📤 Found mapped import, setting uploadId and data:', lastImport.id);
-        setUploadId(lastImport.id);
-        
-        // Восстанавливаем fieldMapping из импорта
-        if (lastImport.fieldMapping) {
-          try {
-            const mapping = JSON.parse(lastImport.fieldMapping);
-            console.log('📋 Restoring field mapping from import:', mapping);
-            setFieldMapping(mapping);
-            
-            // Восстанавливаем CSV превью из заголовков mapping
-            setCsvPreview({
-              headers: Object.values(mapping),
-              rows: [] // Заголовки достаточно для продолжения
-            });
-          } catch (e) {
-            console.error('❌ Error parsing field mapping:', e);
-          }
-        }
-      }
-      
-      // Если есть сохраненная конфигурация, восстанавливаем scenarios
-      if (savedConfig && savedConfig.config && savedConfig.config.selectedScenarios) {
-        console.log('🎯 Restoring selected scenarios from config');
-        setSelectedScenarios(savedConfig.config.selectedScenarios);
-      }
-      
-      // Определяем на какой шаг перейти
-      if (lastImport && lastImport.fieldMapping) {
-        if (savedConfig && savedConfig.config && savedConfig.config.selectedScenarios && savedConfig.config.selectedScenarios.length > 0) {
-          console.log('🎯 All config ready, going to step 4 (ready to import)');
-          setCurrentStep(4);
-        } else {
-          console.log('🎯 Field mapping ready, going to step 3 (choose scenarios)');
-          setCurrentStep(3);
-        }
-      } else {
-        console.log('🎯 Import found but no field mapping, going to step 2');
-        setCurrentStep(2);
-      }
-    } else {
-      console.log('⚠️ No imports found, staying at step 1');
-      setCurrentStep(1);
-    }
-  }, [importJobsList, location, savedConfig, importsList]);
-
-  // Get import status for active job
-  const { data: importStatus } = useQuery<ImportStatus>({
-    queryKey: ['/api/import/status', jobId],
-    queryFn: async () => {
-      console.log('🔄 Fetching import status for jobId:', jobId);
-      const response = await fetch('/api/import/status?' + new URLSearchParams({ 
-        projectId: projectId!, 
-        jobId: jobId! 
-      }).toString(), {
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        console.error('❌ Status fetch failed:', response.status);
-        return null;
-      }
-      const data = await response.json();
-      console.log('📊 Status data received:', data);
-      return data;
-    },
-    enabled: !!projectId && !!jobId && currentStep === 4,
-    refetchInterval: (data) => {
-      // Keep polling if status is running, stop if completed/failed  
-      if (data && 'status' in data && data.status === 'running') {
-        console.log('🔄 Import running, continuing to poll...');
-        return 2000;
-      }
-      console.log('⏹️ Import finished, stopping poll');
-      return false;
-    },
-  });
-
-  // Автоматический переход к генерации когда импорт завершен
-  useEffect(() => {
-    // Проверяем из importJobsList если importStatus недоступен
-    if (currentStep === 4 && importJobsList && importJobsList.length > 0) {
-      const completedJob = importJobsList.find((job: any) => job.status === 'completed');
-      if (completedJob) {
-        console.log('✅ Import completed (from jobsList), transitioning to step 5');
-        setCurrentStep(5);
-        toast({
-          title: "Импорт завершен",
-          description: "Переходим к генерации ссылок",
-        });
-        return;
-      }
-    }
-    
-    // Fallback - проверяем importStatus
-    if (importStatus?.status === 'completed' && currentStep === 4) {
-      console.log('✅ Import completed (from status), transitioning to step 5');
-      setCurrentStep(5);
-      toast({
-        title: "Импорт завершен",
-        description: "Переходим к генерации ссылок",
-      });
-    }
-  }, [importStatus?.status, currentStep, importJobsList]);
 
   // File upload mutation
   const uploadMutation = useMutation({
@@ -385,7 +154,14 @@ export default function UnifiedProjectPage() {
       setCurrentStep(2);
       toast({
         title: "Файл загружен",
-        description: "Настройте соответствие полей",
+        description: "Теперь сопоставьте поля с данными",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Ошибка загрузки",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });
@@ -398,1252 +174,1054 @@ export default function UnifiedProjectPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: "include",
         body: JSON.stringify({
           uploadId,
           fieldMapping: mapping,
-          projectId,
         }),
+        credentials: "include",
       });
-
+      
       if (!response.ok) {
-        throw new Error("Mapping failed");
+        throw new Error("Field mapping failed");
       }
-
+      
       return response.json();
     },
     onSuccess: () => {
       setCurrentStep(3);
+      queryClient.invalidateQueries({ queryKey: ["/api/progress"] });
       toast({
-        title: "Поля настроены",
-        description: "Выберите сценарии перелинковки",
+        title: "Поля сопоставлены",
+        description: "Теперь настройте базовые правила перелинковки",
       });
     },
   });
 
-  // Import mutation (Step 4)
+  // Rules saving mutation
+  const rulesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/rules", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          projectId,
+          limits: {
+            maxLinks: rules.maxLinks,
+            minDistance: rules.minDistance,
+            exactPercent: rules.exactPercent,
+          },
+          scenarios: rules.scenarios,
+          depthThreshold: rules.depthThreshold,
+          oldLinksPolicy: rules.oldLinksPolicy,
+          dedupeLinks: rules.dedupeLinks,
+          brokenLinksPolicy: rules.brokenLinksPolicy,
+          stopAnchors: rules.stopAnchors,
+          moneyPages: rules.moneyPages,
+          freshnessPush: rules.freshnessPush,
+          freshnessThreshold: rules.freshnessThreshold,
+          freshnessLinks: rules.freshnessLinks,
+        }),
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Ошибка сохранения правил");
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      setCurrentStep(4);
+      toast({
+        title: "Правила сохранены",
+        description: "Настройка проекта завершена",
+      });
+    },
+  });
+
+  // Import start mutation
   const importMutation = useMutation({
     mutationFn: async () => {
-      console.log('📡 Making API call to /api/import/start');
       const response = await fetch("/api/import/start", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({ projectId }),
         credentials: "include",
-        body: JSON.stringify({
-          projectId,
-          importId: uploadId,
-          scenarios: selectedScenarios,
-          scope: scopeSettings,
-          rules
-        }),
       });
-
-      console.log('📡 API response status:', response.status);
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ API error:', errorData);
-        throw new Error(errorData.error || "Import failed");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Ошибка запуска импорта");
       }
-
-      const result = await response.json();
-      console.log('✅ API success:', result);
-      return result;
+      
+      return response.json();
     },
-    onSuccess: (data) => {
-      console.log('✅ Import mutation success, setting jobId:', data.jobId);
-      setJobId(data.jobId);
-      setCurrentStep(4);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/progress"] });
       toast({
         title: "Импорт запущен",
-        description: "Обрабатываем ваши данные",
+        description: "Анализ контента начат",
       });
-    },
-    onError: (error) => {
-      console.error('❌ Import mutation error:', error);
-      toast({
-        title: "Ошибка импорта",
-        description: error instanceof Error ? error.message : "Произошла ошибка",
-        variant: "destructive",
-      });
+      // Navigate back to dashboard or import status page
+      window.history.back();
     },
   });
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      setUploadedFile(file);
-      uploadMutation.mutate(file);
-    }
-  };
+    if (!file) return;
 
-  const handleFieldMapping = () => {
-    if (!fieldMapping.url || !fieldMapping.title || !fieldMapping.content || !fieldMapping.publishedDate) {
+    if (!file.name.endsWith('.csv') && !file.name.endsWith('.json')) {
       toast({
-        title: "Ошибка",
-        description: "Выберите поля URL, Title, Content и Дата публикации",
+        title: "Неподдерживаемый формат",
+        description: "Поддерживаются только CSV и JSON файлы",
         variant: "destructive",
       });
       return;
     }
+
+    setUploadedFile(file);
+    setCsvPreview(null);
+    setFieldMapping({});
+    uploadMutation.mutate(file);
+  };
+
+  const updateFieldMapping = (originalField: string, mappedField: string) => {
+    setFieldMapping(prev => ({
+      ...prev,
+      [originalField]: mappedField
+    }));
+  };
+
+  // Preview scope count  
+  const { data: scopePreview } = useQuery({
+    queryKey: ['/api/scope/preview', project?.id, scopeSettings],
+    queryFn: () => apiRequest(`/api/scope/preview?projectId=${project?.id}&prefix=${scopeSettings.includePrefix}&dateAfter=${scopeSettings.dateAfter}`),
+    enabled: !!project?.id && !scopeSettings.fullProject
+  });
+
+  // Generate mutation
+  const generateMutation = useMutation({
+    mutationFn: (data: any) => apiRequest('/api/generate', 'POST', data),
+    onSuccess: () => {
+      toast({ title: "Генерация запущена!" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Ошибка запуска генерации", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const handleSubmitMapping = () => {
     mappingMutation.mutate(fieldMapping);
   };
 
-  const handleStartImport = () => {
-    console.log('🚀 Starting import with:');
-    console.log('📁 projectId:', projectId);
-    console.log('📤 uploadId:', uploadId);
-    console.log('🎯 selectedScenarios:', selectedScenarios);
-    console.log('⚙️ scopeSettings:', scopeSettings);
-    console.log('📜 rules:', rules);
-    
-    if (selectedScenarios.length === 0) {
-      toast({
-        title: "Ошибка",
-        description: "Выберите хотя бы один сценарий",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!uploadId) {
-      toast({
-        title: "Ошибка", 
-        description: "Нет загруженного файла для импорта",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    importMutation.mutate();
+  const handleGenerate = () => {
+    generateMutation.mutate({
+      projectId,
+      scenarios: selectedScenarios,
+      scope: scopeSettings,
+      advanced: advancedExpanded ? rules : {}
+    });
   };
 
   if (projectLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-64 mb-6"></div>
+            <div className="h-64 bg-gray-200 rounded"></div>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!project) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center space-y-4">
-          <AlertCircle className="h-16 w-16 text-red-600 mx-auto" />
-          <h2 className="text-xl font-semibold text-gray-900">Проект не найден</h2>
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto text-center py-16">
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Проект не найден</h1>
+          <p className="text-gray-600">Возможно, проект был удален или у вас нет доступа к нему.</p>
         </div>
       </div>
     );
   }
 
   const steps = [
-    { number: 1, title: "Загрузка данных", completed: currentStep > 1, active: currentStep === 1 },
-    { number: 2, title: "Настройка полей", completed: currentStep > 2, active: currentStep === 2 },
-    { number: 3, title: "Выбор сценариев", completed: currentStep > 3, active: currentStep === 3 },
-    { number: 4, title: "Настройки", completed: currentStep > 3.5, active: currentStep === 3.5 },
-    { number: 5, title: "Импорт данных", completed: currentStep > 4, active: currentStep === 4 },
-    { number: 6, title: "Результаты импорта", completed: currentStep > 5, active: currentStep === 5 },
-    { number: 7, title: "Генерация ссылок", completed: false, active: currentStep === 6 }
+    { number: 1, title: "Загрузка контента", description: "CSV или JSON файл с контентом сайта" },
+    { number: 2, title: "Сопоставление полей", description: "Укажите какие поля содержат заголовки, URL и контент" },
+    { number: 3, title: "Базовые правила", description: "Настройте правила перелинковки" },
+    { number: 4, title: "Настройка завершена", description: "Контент загружен и готов к обработке" },
   ];
 
   return (
-    <Layout title={project.name}>
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
-        {/* Project Header */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
-            <p className="text-gray-600">{project.domain}</p>
+    <Layout>
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-4">
+            <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Назад
+            </Button>
           </div>
-          
-          {/* Progress Steps - КЛИКАБЕЛЬНЫЕ ХЛЕБНЫЕ КРОШКИ */}
-          <div className="flex items-center space-x-4 overflow-x-auto pb-2">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Настройка проекта: {project?.name || 'Загрузка...'}
+          </h1>
+          <p className="text-gray-600 flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            {project?.domain || 'Загрузка...'}
+          </p>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
             {steps.map((step, index) => (
-              <div key={step.number} className="flex items-center flex-shrink-0">
-                <button
-                  onClick={() => {
-                    // Кликабельные хлебные крошки для навигации
-                    if (step.number === 1) setCurrentStep(1);
-                    else if (step.number === 2) setCurrentStep(2);
-                    else if (step.number === 3) setCurrentStep(3);
-                    else if (step.number === 4) setCurrentStep(4);
-                    else if (step.number === 5) setCurrentStep(5);
-                    else if (step.number === 6) setCurrentStep(6);
-                  }}
-                  className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium hover:scale-110 transition-transform ${
-                    step.completed 
-                      ? 'bg-green-500 text-white hover:bg-green-600'
-                      : step.active 
-                      ? 'bg-blue-500 text-white hover:bg-blue-600'
-                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                  }`}
-                >
-                  {step.completed ? <CheckCircle2 className="h-4 w-4" /> : step.number}
-                </button>
-                <span 
-                  onClick={() => {
-                    // Кликабельные хлебные крошки для навигации
-                    if (step.number === 1) setCurrentStep(1);
-                    else if (step.number === 2) setCurrentStep(2);
-                    else if (step.number === 3) setCurrentStep(3);
-                    else if (step.number === 4) setCurrentStep(4);
-                    else if (step.number === 5) setCurrentStep(5);
-                    else if (step.number === 6) setCurrentStep(6);
-                  }}
-                  className={`ml-2 text-sm font-medium cursor-pointer hover:underline ${
-                    step.active ? 'text-blue-600' : step.completed ? 'text-green-600' : 'text-gray-500'
-                  }`}
-                >
-                  {step.title}
-                </span>
+              <div key={step.number} className="flex items-center">
+                <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+                  currentStep >= step.number 
+                    ? 'bg-blue-600 border-blue-600 text-white' 
+                    : 'bg-white border-gray-300 text-gray-400'
+                }`}>
+                  {currentStep > step.number ? (
+                    <CheckCircle2 className="h-5 w-5" />
+                  ) : (
+                    <span className="text-sm font-medium">{step.number}</span>
+                  )}
+                </div>
                 {index < steps.length - 1 && (
-                  <ArrowRight className="h-4 w-4 text-gray-400 mx-2" />
+                  <div className={`w-16 h-0.5 mx-4 ${
+                    currentStep > step.number ? 'bg-blue-600' : 'bg-gray-300'
+                  }`} />
                 )}
               </div>
             ))}
           </div>
+          <div className="mt-4 text-center">
+            <h2 className="text-xl font-semibold text-gray-900">
+              {steps[currentStep - 1]?.title}
+            </h2>
+            <p className="text-gray-600 text-sm">
+              {steps[currentStep - 1]?.description}
+            </p>
+          </div>
         </div>
 
-        {/* Step 1: File Upload */}
-        {currentStep === 1 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Загрузка CSV файла
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <p className="text-gray-600">
-                Загрузите CSV файл с данными вашего сайта для анализа
-              </p>
-              
-              <div 
-                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors cursor-pointer"
-                onClick={() => fileRef.current?.click()}
-              >
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Выберите CSV файл
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  Или перетащите файл сюда
-                </p>
-                <Button disabled={uploadMutation.isPending}>
-                  {uploadMutation.isPending ? "Загрузка..." : "Выбрать файл"}
-                </Button>
-              </div>
+        {/* Step Content */}
+        <Card>
+          <CardContent className="p-8">
+            {currentStep === 1 && (
+              <div className="text-center space-y-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Загрузите файл с контентом
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Загрузите CSV или JSON файл с контентом вашего сайта
+                  </p>
+                  
+                  <div className={`border-2 border-dashed rounded-lg p-8 transition-colors ${
+                    uploadMutation.isPending ? 'border-blue-300 bg-blue-50' : 'border-gray-300'
+                  }`}>
+                    {uploadMutation.isPending ? (
+                      <div className="space-y-4">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="text-blue-600 font-medium">Обрабатываем файл...</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <Upload className="h-12 w-12 text-gray-400 mx-auto" />
+                        <div>
+                          <Button
+                            onClick={() => fileRef.current?.click()}
+                            disabled={uploadMutation.isPending}
+                            size="lg"
+                          >
+                            Выбрать файл
+                          </Button>
+                          <p className="text-xs text-gray-500 mt-2">
+                            CSV, JSON до 10MB
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept=".csv,.json"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      disabled={uploadMutation.isPending}
+                    />
+                  </div>
 
-              {uploadedFile && (
-                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm text-blue-900">{uploadedFile.name}</span>
+                  {uploadedFile && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-green-600" />
+                        <span className="text-sm text-green-800">{uploadedFile.name}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-6">
+                    <a
+                      href="data:text/csv;charset=utf-8,title%2Curl%2Ccontent%2Cmeta_description%0A%22%D0%9A%D0%B0%D0%BA%20%D0%B2%D1%8B%D0%B1%D1%80%D0%B0%D1%82%D1%8C%20SEO%20%D0%B0%D0%B3%D0%B5%D0%BD%D1%82%D1%81%D1%82%D0%B2%D0%BE%22%2C%22%2Fblog%2Fseo-agency%22%2C%22%D0%9F%D0%BE%D0%BB%D0%BD%D0%BE%D0%B5%20%D1%80%D1%83%D0%BA%D0%BE%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%BE%20%D0%BF%D0%BE%20%D0%B2%D1%8B%D0%B1%D0%BE%D1%80%D1%83%20SEO%20%D0%B0%D0%B3%D0%B5%D0%BD%D1%82%D1%81%D1%82%D0%B2%D0%B0...%22%2C%22%D0%A3%D0%B7%D0%BD%D0%B0%D0%B9%D1%82%D0%B5%20%D0%BA%D0%B0%D0%BA%20%D0%BF%D1%80%D0%B0%D0%B2%D0%B8%D0%BB%D1%8C%D0%BD%D0%BE%20%D0%B2%D1%8B%D0%B1%D1%80%D0%B0%D1%82%D1%8C%20SEO%20%D0%B0%D0%B3%D0%B5%D0%BD%D1%82%D1%81%D1%82%D0%B2%D0%BE%22%0A%22%D0%92%D0%BD%D1%83%D1%82%D1%80%D0%B5%D0%BD%D0%BD%D0%B8%D0%B5%20%D1%81%D1%81%D1%8B%D0%BB%D0%BA%D0%B8%20%D0%B2%20SEO%22%2C%22%2Fblog%2Finternal-links%22%2C%22%D0%92%-%D0%BD%D1%83%D1%82%D1%80%D0%B5%D0%BD%D0%BD%D0%B8%D0%B5%20%D1%81%D1%81%D1%8B%D0%BB%D0%BA%D0%B8%20%D0%B8%D0%B3%D1%80%D0%B0%D1%8E%D1%82%20%D0%B2%D0%B0%D0%B6%D0%BD%D1%83%D1%8E%20%D1%80%D0%BE%D0%BB%D1%8C...%22%2C%22%D0%92%D1%81%D0%B5%20%D0%BE%20%D0%B2%D0%BD%D1%83%D1%82%D1%80%D0%B5%D0%BD%D0%BD%D0%B8%D1%85%20%D1%81%D1%81%D1%8B%D0%BB%D0%BA%D0%B0%D1%85%20%D0%B4%D0%BB%D1%8F%20SEO%22%0A%22%D0%90%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7%20%D0%BA%D0%BE%D0%BD%D0%BA%D1%83%D1%80%D0%B5%D0%BD%D1%82%D0%BE%D0%B2%22%2C%22%2Fservices%2Fcompetitor-analysis%22%2C%22%D0%9F%D1%80%D0%BE%D0%B2%D0%BE%D0%B4%D0%B8%D0%BC%20%D0%B3%D0%BB%D1%83%D0%B1%D0%BE%D0%BA%D0%B8%D0%B9%20%D0%B0%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7%20%D0%BA%D0%BE%D0%BD%D0%BA%D1%83%D1%80%D0%B5%D0%BD%D1%82%D0%BE%D0%B2...%22%2C%22%D0%90%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7%20%D0%BA%D0%BE%D0%BD%D0%BA%D1%83%D1%80%D0%B5%D0%BD%D1%82%D0%BE%D0%B2%20%D0%B4%D0%BB%D1%8F%20%D1%83%D1%81%D0%BF%D0%B5%D1%88%D0%BD%D0%BE%D0%B3%D0%BE%20SEO%22"
+                      download="sample_content.csv"
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <Download className="h-4 w-4" />
+                      Скачать пример CSV
+                    </a>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+              </div>
+            )}
 
-        {/* Step 2: Field Mapping */}
-        {currentStep === 2 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Настройка соответствия полей
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <p className="text-gray-600">
-                Укажите, какие колонки CSV соответствуют полям сайта
-              </p>
-
-              {csvPreview ? (
-                <>
-                  {/* CSV Preview Table */}
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
-                    <h3 className="text-lg font-medium mb-3">Предварительный просмотр CSV</h3>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full bg-white border border-gray-200 rounded-lg">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            {csvPreview.headers.map((header, index) => (
-                              <th key={index} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                {header}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {csvPreview.rows.slice(0, 3).map((row, rowIndex) => (
-                            <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                              {row.map((cell, cellIndex) => (
-                                <td key={cellIndex} className="px-4 py-2 text-sm text-gray-900 border-b max-w-xs truncate">
-                                  {cell}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-2">Показаны первые 3 строки из {csvPreview.rows.length}</p>
-                  </div>
-
-                  {/* Field Mapping */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <Label className="text-sm font-medium">URL страницы *</Label>
-                      <Select value={fieldMapping.url || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, url: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Выберите колонку" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {csvPreview.headers.map((header) => (
-                            <SelectItem key={header} value={header}>{header}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label className="text-sm font-medium">Заголовок (Title) *</Label>
-                      <Select value={fieldMapping.title || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, title: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Выберите колонку" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {csvPreview.headers.map((header) => (
-                            <SelectItem key={header} value={header}>{header}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label className="text-sm font-medium">Контент *</Label>
-                      <Select value={fieldMapping.content || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, content: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Выберите колонку" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {csvPreview.headers.map((header) => (
-                            <SelectItem key={header} value={header}>{header}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label className="text-sm font-medium">Описание (Description)</Label>
-                      <Select value={fieldMapping.description || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, description: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Выберите колонку (опционально)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Не выбрано</SelectItem>
-                          {csvPreview.headers.map((header) => (
-                            <SelectItem key={header} value={header}>{header}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label className="text-sm font-medium">Дата публикации *</Label>
-                      <Select value={fieldMapping.publishedDate || ""} onValueChange={(value) => setFieldMapping({...fieldMapping, publishedDate: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Выберите колонку" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {csvPreview.headers.map((header) => (
-                            <SelectItem key={header} value={header}>{header}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <p className="text-yellow-800 font-medium">Загрузите CSV файл на первом шаге</p>
-                  <p className="text-yellow-700 text-sm mt-1">
-                    Для настройки полей требуется предварительная загрузка CSV файла
+            {currentStep === 2 && csvPreview && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Сопоставьте поля
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Укажите какие поля из вашего файла содержат заголовки, URL и контент страниц
                   </p>
                 </div>
-              )}
 
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={() => setCurrentStep(1)}>
-                  Назад
-                </Button>
-                <Button 
-                  onClick={handleFieldMapping} 
-                  disabled={mappingMutation.isPending || !csvPreview}
-                >
-                  {mappingMutation.isPending ? "Сохранение..." : "Продолжить"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-
-        {/* Step 3: Scenario Selection */}
-        {currentStep === 3 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Выбор сценариев перелинковки
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <p className="text-gray-600">
-                Выберите сценарии для улучшения внутренней перелинковки
-              </p>
-
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="orphanFix"
-                        checked={selectedScenarios.includes('orphanFix')}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedScenarios([...selectedScenarios, 'orphanFix']);
-                          } else {
-                            setSelectedScenarios(selectedScenarios.filter(s => s !== 'orphanFix'));
-                          }
-                        }}
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="orphanFix" className="text-sm font-medium cursor-pointer">
-                          Фикс страниц-сирот
-                        </label>
-                        <Badge variant="secondary" className="ml-2">Рекомендуется</Badge>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Создание входящих ссылок для страниц без внутренних ссылок
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="clusterCrossLink"
-                        checked={selectedScenarios.includes('clusterCrossLink')}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedScenarios([...selectedScenarios, 'clusterCrossLink']);
-                          } else {
-                            setSelectedScenarios(selectedScenarios.filter(s => s !== 'clusterCrossLink'));
-                          }
-                        }}
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="clusterCrossLink" className="text-sm font-medium cursor-pointer">
-                          Кластерная перелинковка
-                        </label>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Связывание страниц с похожей тематикой
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="depthLift"
-                        checked={selectedScenarios.includes('depthLift')}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedScenarios([...selectedScenarios, 'depthLift']);
-                          } else {
-                            setSelectedScenarios(selectedScenarios.filter(s => s !== 'depthLift'));
-                          }
-                        }}
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="depthLift" className="text-sm font-medium cursor-pointer">
-                          Поднятие глубоких страниц
-                        </label>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Создание ссылок для улучшения доступности глубоких страниц
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="commercialRouting"
-                        checked={selectedScenarios.includes('commercialRouting')}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedScenarios([...selectedScenarios, 'commercialRouting']);
-                          } else {
-                            setSelectedScenarios(selectedScenarios.filter(s => s !== 'commercialRouting'));
-                          }
-                        }}
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="commercialRouting" className="text-sm font-medium cursor-pointer">
-                          Коммерческий роутинг
-                        </label>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Направление трафика на коммерческие страницы
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="contentClusters"
-                        checked={selectedScenarios.includes('contentClusters')}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedScenarios([...selectedScenarios, 'contentClusters']);
-                          } else {
-                            setSelectedScenarios(selectedScenarios.filter(s => s !== 'contentClusters'));
-                          }
-                        }}
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="contentClusters" className="text-sm font-medium cursor-pointer">
-                          Кластеризация контента
-                        </label>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Создание тематических кластеров связанного контента
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id="pillowPages"
-                        checked={selectedScenarios.includes('pillowPages')}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedScenarios([...selectedScenarios, 'pillowPages']);
-                          } else {
-                            setSelectedScenarios(selectedScenarios.filter(s => s !== 'pillowPages'));
-                          }
-                        }}
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="pillowPages" className="text-sm font-medium cursor-pointer">
-                          Подушечные страницы
-                        </label>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Создание промежуточных страниц для усиления ссылочного веса
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={() => setCurrentStep(2)}>
-                  Назад
-                </Button>
-                <Button onClick={() => setCurrentStep(3.5)} disabled={selectedScenarios.length === 0}>
-                  Продолжить
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Step 3.5: Advanced Settings - ПОЛНОЕ ВОССТАНОВЛЕНИЕ ИЗ BACKUP */}
-        {currentStep === 3.5 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Детальные настройки генерации
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                <Accordion type="single" collapsible defaultValue="priorities" className="w-full">
-                  {/* 1. Приоритеты и деньги */}
-                  <AccordionItem value="priorities" className="border-b border-gray-200">
-                    <AccordionTrigger className="text-left">
-                      <div className="flex items-center gap-2">
-                        <Star className="h-4 w-4 text-yellow-500" />
-                        <span className="font-medium">Приоритеты и Money Pages</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="pt-4">
-                      <div className="space-y-4">
-                        {/* Money Pages */}
-                        <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-md font-medium text-gray-900">Money Pages (приоритетные страницы)</h4>
-                            <Button variant="link" size="sm" className="text-blue-600 p-0">
-                              <Info className="h-4 w-4 mr-1" />
-                              Подробнее
-                            </Button>
-                          </div>
-                          
-                          <Textarea
-                            placeholder="https://example.com/page1, https://example.com/page2"
-                            value={rules.moneyPages.join(', ')}
-                            onChange={(e) => {
-                              const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                              setRules(prev => ({ ...prev, moneyPages: urls }));
-                            }}
-                            className="min-h-[80px]"
-                          />
-                          <div className="text-sm text-gray-600 mt-2">
-                            Указанные страницы получат больше входящих ссылок для повышения их позиций в поисковой выдаче
-                          </div>
-                        </div>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  {/* 2. Лимиты и правила */}
-                  <AccordionItem value="limits" className="border-b border-gray-200">
-                    <AccordionTrigger className="text-left">
-                      <div className="flex items-center gap-2">
-                        <Settings className="h-4 w-4 text-blue-500" />
-                        <span className="font-medium">Лимиты и правила ссылок</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="pt-4">
-                      <div className="space-y-6">
-                        {/* A. Лимиты ссылок */}
-                        <div className="space-y-4">
-                          <div className="border-b border-gray-200 pb-4">
-                            <h4 className="text-md font-medium text-gray-900 mb-3">Лимиты ссылок</h4>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div>
-                                <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                  Макс. ссылок на страницу: {rules.maxLinks}
-                                </Label>
-                                <Slider
-                                  value={[rules.maxLinks]}
-                                  onValueChange={(value) => setRules(prev => ({ ...prev, maxLinks: value[0] }))}
-                                  max={10}
-                                  min={1}
-                                  step={1}
-                                  className="w-full"
-                                />
-                                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                  <span>1</span>
-                                  <span>10</span>
+                {/* Preview table */}
+                <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">Превью данных:</h4>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-300">
+                          {csvPreview.headers.map((header, index) => (
+                            <th key={index} className="text-left py-3 px-4 font-medium text-gray-700 bg-white border-r border-gray-200">
+                              {header}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white">
+                        {csvPreview.rows.map((row, rowIndex) => (
+                          <tr key={rowIndex} className="border-b border-gray-100">
+                            {row.map((cell, cellIndex) => (
+                              <td key={cellIndex} className="py-3 px-4 text-gray-600 border-r border-gray-100 max-w-xs">
+                                <div className="truncate" title={cell || ''}>
+                                  {cell && cell.length > 40 ? `${cell.substring(0, 40)}...` : cell || '—'}
                                 </div>
-                              </div>
-
-                              <div>
-                                <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                  Мин. расстояние, слов: {rules.minDistance || 100}
-                                </Label>
-                                <Slider
-                                  value={[rules.minDistance || 100]}
-                                  onValueChange={(value) => setRules(prev => ({ ...prev, minDistance: value[0] }))}
-                                  max={500}
-                                  min={50}
-                                  step={25}
-                                  className="w-full"
-                                />
-                                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                  <span>50</span>
-                                  <span>500</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* B. Доля точных анкоров */}
-                          <div className="border-b border-gray-200 pb-4">
-                            <h4 className="text-md font-medium text-gray-900 mb-3">Доля точных анкоров</h4>
-                            
-                            <div className="max-w-md">
-                              <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                Точные анкоры ≤ {rules.exactPercent || 15}%
-                              </Label>
-                              <Slider
-                                value={[rules.exactPercent || 15]}
-                                onValueChange={(value) => setRules(prev => ({ ...prev, exactPercent: value[0] }))}
-                                max={50}
-                                min={0}
-                                step={5}
-                                className="w-full"
-                              />
-                              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>0%</span>
-                                <span>50%</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* F. Stop-лист анкор-фраз */}
-                          <div className="border-b border-gray-200 pb-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <h4 className="text-md font-medium text-gray-900">Запрещенные анкоры</h4>
-                              <Button variant="link" size="sm" className="text-blue-600 p-0">
-                                <Info className="h-4 w-4 mr-1" />
-                                Подробнее
-                              </Button>
-                            </div>
-                            
-                            <Textarea
-                              placeholder="Введите фразы, разделенные запятой"
-                              value={rules.stopAnchors.join(', ')}
-                              onChange={(e) => setRules(prev => ({ 
-                                ...prev, 
-                                stopAnchors: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
-                              }))}
-                              className="min-h-[80px]"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  {/* 3. Сценарии перелинковки */}
-                  <AccordionItem value="scenarios" className="border-b border-gray-200">
-                    <AccordionTrigger className="text-left">
-                      <div className="flex items-center gap-2">
-                        <Network className="h-4 w-4 text-green-500" />
-                        <span className="font-medium">Сценарии перелинковки</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="pt-4">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="head-consolidation" className="text-sm text-gray-700">
-                            Консолидация заголовков
-                          </Label>
-                          <Switch
-                            id="head-consolidation"
-                            checked={rules.scenarios.headConsolidation}
-                            onCheckedChange={(checked) => setRules(prev => ({
-                              ...prev,
-                              scenarios: { ...prev.scenarios, headConsolidation: checked }
-                            }))}
-                          />
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="cluster-cross-link" className="text-sm text-gray-700">
-                            Кросс-линковка кластеров
-                          </Label>
-                          <Switch
-                            id="cluster-cross-link"
-                            checked={rules.scenarios.clusterCrossLink}
-                            onCheckedChange={(checked) => setRules(prev => ({
-                              ...prev,
-                              scenarios: { ...prev.scenarios, clusterCrossLink: checked }
-                            }))}
-                          />
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="commercial-routing" className="text-sm text-gray-700">
-                            Коммерческая маршрутизация
-                          </Label>
-                          <Switch
-                            id="commercial-routing"
-                            checked={rules.scenarios.commercialRouting}
-                            onCheckedChange={(checked) => setRules(prev => ({
-                              ...prev,
-                              scenarios: { ...prev.scenarios, commercialRouting: checked }
-                            }))}
-                          />
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="orphan-fix" className="text-sm text-gray-700">
-                            Исправление сирот
-                          </Label>
-                          <Switch
-                            id="orphan-fix"
-                            checked={rules.scenarios.orphanFix}
-                            onCheckedChange={(checked) => setRules(prev => ({
-                              ...prev,
-                              scenarios: { ...prev.scenarios, orphanFix: checked }
-                            }))}
-                          />
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="depth-lift" className="text-sm text-gray-700">
-                            Depth Lift
-                          </Label>
-                          <Switch
-                            id="depth-lift"
-                            checked={rules.scenarios.depthLift}
-                            onCheckedChange={(checked) => setRules(prev => ({
-                              ...prev,
-                              scenarios: { ...prev.scenarios, depthLift: checked }
-                            }))}
-                          />
-                        </div>
-                        
-                        {rules.scenarios.depthLift && (
-                          <div className="ml-6 mt-2">
-                            <Label className="text-sm text-gray-600 mb-2 block">
-                              Глубиной считать URL ≥ {rules.depthThreshold}
-                            </Label>
-                            <Slider
-                              value={[rules.depthThreshold]}
-                              onValueChange={(value) => setRules(prev => ({ ...prev, depthThreshold: value[0] }))}
-                              max={8}
-                              min={4}
-                              step={1}
-                              className="w-32"
-                            />
-                            <div className="flex justify-between text-xs text-gray-400 mt-1 w-32">
-                              <span>4</span>
-                              <span>8</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={() => setCurrentStep(3)}>
-                  Назад
-                </Button>
-                <Button onClick={() => setCurrentStep(4)}>
-                  Продолжить
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Step 4: Import Data */}
-        {currentStep === 4 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Импорт данных
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {(() => {
-                // Ищем текущий джоб из списка
-                const currentJob = importJobsList?.find((job: any) => job.jobId === jobId) || importStatus;
-                
-                // Исправляем проблему с отсутствующими полями
-                if (currentJob && !currentJob.pagesTotal && currentJob.status === 'completed') {
-                  currentJob.pagesTotal = 383;
-                  currentJob.blocksDone = 2891;
-                  currentJob.orphanCount = 377;
-                  currentJob.avgClickDepth = 1;
-                }
-                
-                // Если импорт завершен, автоматически переходим к следующему шагу
-                if (currentJob && currentJob.status === 'completed' && currentStep === 4) {
-                  setTimeout(() => setCurrentStep(5), 1000);
-                }
-                
-                if (!currentJob) {
-                  return (
-                    <div className="space-y-6">
-                      <div className="text-center py-8">
-                        <Button 
-                          onClick={handleStartImport} 
-                          disabled={importMutation.isPending}
-                          size="lg"
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
-                        >
-                          {importMutation.isPending ? (
-                            <div className="flex items-center gap-2">
-                              <RefreshCw className="h-4 w-4 animate-spin" />
-                              Запуск...
-                            </div>
-                          ) : (
-                            "Запустить импорт данных"
-                          )}
-                        </Button>
-                        <p className="text-sm text-gray-600 mt-2">
-                          Нажмите для начала обработки ваших данных
-                        </p>
-                      </div>
-                    </div>
-                  );
-                }
-                
-                return (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{PHASE_LABELS[currentJob.phase] || currentJob.phase}</p>
-                        <p className="text-sm text-gray-600">
-                          {currentJob.status === 'completed' ? 'Импорт завершен' : 
-                           currentJob.status === 'failed' ? `Ошибка: ${currentJob.errorMessage || 'Неизвестная ошибка'}` :
-                           `${currentJob.percent}% выполнено`}
-                        </p>
-                      </div>
-                      {currentJob.status === 'running' && (
-                        <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />
-                      )}
-                      {currentJob.status === 'failed' && (
-                        <AlertCircle className="h-5 w-5 text-red-600" />
-                      )}
-                    </div>
-                    
-                    <Progress value={currentJob.percent} className="w-full" />
-                    
-                    {currentJob.status === 'completed' && (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                        <div className="text-center p-3 bg-gray-50 rounded-lg">
-                          <p className="text-2xl font-bold text-gray-900">{currentJob.pagesTotal || 0}</p>
-                          <p className="text-sm text-gray-600">Страниц</p>
-                        </div>
-                        <div className="text-center p-3 bg-gray-50 rounded-lg">
-                          <p className="text-2xl font-bold text-gray-900">{currentJob.blocksDone || 0}</p>
-                          <p className="text-sm text-gray-600">Блоков</p>
-                        </div>
-                        <div className="text-center p-3 bg-gray-50 rounded-lg">
-                          <p className="text-2xl font-bold text-red-600">{currentJob.orphanCount || 0}</p>
-                          <p className="text-sm text-gray-600">Сирот</p>
-                        </div>
-                        <div className="text-center p-3 bg-gray-50 rounded-lg">
-                          <p className="text-2xl font-bold text-gray-900">{currentJob.avgClickDepth || 0}</p>
-                          <p className="text-sm text-gray-600">Глубина</p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {currentJob.status === 'completed' && (
-                      <div className="flex justify-end">
-                        <Button onClick={() => setCurrentStep(5)}>
-                          <Zap className="h-4 w-4 mr-2" />
-                          Генерировать ссылки
-                        </Button>
-                      </div>
-                    )}
-                    
-                    {currentJob.status === 'failed' && (
-                      <div className="flex justify-end">
-                        <Button onClick={() => setCurrentStep(3)} variant="outline">
-                          <RotateCcw className="h-4 w-4 mr-2" />
-                          Запустить заново
-                        </Button>
-                      </div>
-                    )}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                );
-              })()}
-            </CardContent>
-          </Card>
-        )}
+                </div>
 
-        {/* Step 5: Import Results - ТОЛЬКО РЕЗУЛЬТАТЫ ИМПОРТА */}
-        {currentStep === 5 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5" />
-                Результаты импорта
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {(() => {
-                // Получаем данные завершенного импорта
-                const completedJob = importJobsList?.find((job: any) => job.status === 'completed');
-                
-                return (
-                  <>
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <div className="flex items-center mb-3">
-                        <CheckCircle2 className="h-5 w-5 text-green-600 mr-3" />
-                        <div>
-                          <p className="font-medium text-green-900">Импорт завершен успешно</p>
-                          <p className="text-sm text-green-700">Все данные обработаны и готовы для генерации ссылок</p>
-                        </div>
-                      </div>
-                      
-                      {completedJob && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                          <div className="text-center p-3 bg-white rounded-lg">
-                            <p className="text-2xl font-bold text-gray-900">{completedJob.pagesTotal}</p>
-                            <p className="text-sm text-gray-600">Страниц импортировано</p>
-                          </div>
-                          <div className="text-center p-3 bg-white rounded-lg">
-                            <p className="text-2xl font-bold text-blue-600">{completedJob.blocksDone}</p>
-                            <p className="text-sm text-gray-600">Блоков контента</p>
-                          </div>
-                          <div className="text-center p-3 bg-white rounded-lg">
-                            <p className="text-2xl font-bold text-red-600">{completedJob.orphanCount}</p>
-                            <p className="text-sm text-gray-600">Страниц-сирот</p>
-                          </div>
-                          <div className="text-center p-3 bg-white rounded-lg">
-                            <p className="text-2xl font-bold text-green-600">{completedJob.avgClickDepth}</p>
-                            <p className="text-sm text-gray-600">Средняя глубина</p>
-                          </div>
-                        </div>
-                      )}
+                {/* Field mapping */}
+                <div className="space-y-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700">
+                        Поле с заголовками страниц <span className="text-red-500">*</span>
+                      </Label>
+                      <Select onValueChange={(value) => updateFieldMapping("title", value)}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Выберите поле" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {csvPreview.headers.map((header) => (
+                            <SelectItem key={header} value={header}>
+                              {header}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
-                    <div className="space-y-4">
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <h4 className="text-blue-800 font-medium mb-2">📊 Рекомендации по результатам анализа</h4>
-                        <div className="space-y-2 text-sm">
-                          <p className="text-blue-700">• Рекомендуется запустить сценарий "Фикс сирот" для {completedJob.orphanCount} страниц</p>
-                          <p className="text-blue-700">• Обработано {completedJob.blocksDone} текстовых блоков из {completedJob.pagesTotal} страниц</p>
-                          <p className="text-blue-700">• Средняя глубина клика: {completedJob.avgClickDepth}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-end">
-                        <Button 
-                          onClick={() => setCurrentStep(6)}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          <Zap className="h-4 w-4 mr-2" />
-                          Перейти к генерации ссылок
-                        </Button>
-                      </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700">
+                        Поле с URL страниц <span className="text-red-500">*</span>
+                      </Label>
+                      <Select onValueChange={(value) => updateFieldMapping("url", value)}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Выберите поле" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {csvPreview.headers.map((header) => (
+                            <SelectItem key={header} value={header}>
+                              {header}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  </>
-                );
-              })()}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Step 6: Generation Screen - ТОЛЬКО ГЕНЕРАЦИЯ */}
-        {currentStep === 6 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Генерация внутренних ссылок
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Results Section - показываем ТОЛЬКО результаты генерации */}
-              <Results projectId={project.id} />
-
-              <div className="flex gap-4 justify-between">
-                <Button 
-                  variant="outline"
-                  size="lg"
-                  className="px-8 py-3 border-2 font-medium"
-                  onClick={() => setCurrentStep(4)}
-                >
-                  ← Назад к импорту
-                </Button>
-                
-                <Button 
-                  size="lg"
-                  className="bg-green-600 hover:bg-green-700 text-white font-medium px-8 py-3"
-                  onClick={() => setShowGenerationProgress(true)}
-                >
-                  <Zap className="mr-2 h-4 w-4" />
-                  Запустить заново
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Generation Progress Modal */}
-        {showGenerationProgress && (
-          <GenerationProgressModal 
-            projectId={projectId!}
-            onClose={() => setShowGenerationProgress(false)}
-            onComplete={() => {
-              setShowGenerationProgress(false);
-              queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'results'] });
-            }}
-          />
-        )}
-
-      </div>
-    </Layout>
-  );
-}
-
-// Generation Progress Modal Component
-interface GenerationProgressModalProps {
-  projectId: string;
-  onClose: () => void;
-  onComplete: () => void;
-}
-
-function GenerationProgressModal({ projectId, onClose, onComplete }: GenerationProgressModalProps) {
-  const [runId, setRunId] = useState<string | null>(null);
-  const [isStarting, setIsStarting] = useState(true);
-  const { toast } = useToast();
-
-  // Start generation
-  useEffect(() => {
-    const startGeneration = async () => {
-      try {
-        // Clear previous results
-        await fetch(`/api/projects/${projectId}/links`, {
-          method: "DELETE",
-          credentials: "include"
-        });
-
-        // Start new generation
-        const response = await fetch(`/api/link-generation`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            projectId: projectId,
-            scenarios: { orphanFix: true },
-            rules: { 
-              maxLinks: rules.maxLinks, 
-              depthThreshold: 5,
-              moneyPages: rules.moneyPages,
-              stopAnchors: rules.stopAnchors,
-              dedupeLinks: true,
-              cssClass: "",
-              relAttribute: "",
-              targetAttribute: ""
-            },
-            check404Policy: "delete"
-          })
-        });
-
-        if (!response.ok) throw new Error("Generation failed");
-        
-        const result = await response.json();
-        setRunId(result.runId);
-        setIsStarting(false);
-
-        toast({
-          title: "Генерация запущена",
-          description: "Создание внутренних ссылок началось"
-        });
-      } catch (error) {
-        console.error("Generation start error:", error);
-        toast({
-          title: "Ошибка",
-          description: "Не удалось запустить генерацию",
-          variant: "destructive"
-        });
-        onClose();
-      }
-    };
-
-    startGeneration();
-  }, [projectId]);
-
-  // Poll generation status
-  const { data: status } = useQuery({
-    queryKey: ['/api/generation/status', runId],
-    queryFn: async () => {
-      if (!runId) return null;
-      const response = await fetch(`/api/generation/status/${runId}`, {
-        credentials: 'include'
-      });
-      if (!response.ok) throw new Error('Failed to fetch status');
-      return response.json();
-    },
-    enabled: !!runId,
-    refetchInterval: 2000, // Poll every 2 seconds
-  });
-
-  // Handle completion
-  useEffect(() => {
-    if (status?.status === 'published' || status?.status === 'draft') {
-      toast({
-        title: "Генерация завершена",
-        description: `Создано ${status.currentLinksGenerated} внутренних ссылок`
-      });
-      setTimeout(onComplete, 1500); // Show success briefly then close
-    }
-  }, [status?.status, onComplete]);
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5" />
-            {isStarting ? "Запуск генерации..." : "Генерация ссылок"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isStarting ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Подготовка генерации...</p>
-            </div>
-          ) : status ? (
-            <>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Прогресс:</span>
-                  <span>{status.progress || 0}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${status.progress || 0}%` }}
-                  ></div>
-                </div>
-              </div>
-              
-              <div className="text-center space-y-2">
-                <p className="font-medium">
-                  Статус: {status.status === 'running' ? 'В процессе' : 
-                           status.status === 'published' || status.status === 'draft' ? 'Завершено' : 
-                           status.status}
-                </p>
-                <p className="text-sm text-gray-600">
-                  Создано ссылок: {status.currentLinksGenerated || 0}
-                </p>
-                {status.status === 'running' && (
-                  <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                    Генерация продолжается...
                   </div>
-                )}
-              </div>
 
-              {status.status !== 'published' && status.status !== 'draft' && (
-                <div className="flex justify-center">
-                  <Button variant="outline" onClick={onClose}>
-                    Скрыть окно
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700">
+                        Поле с контентом страниц <span className="text-red-500">*</span>
+                      </Label>
+                      <Select onValueChange={(value) => updateFieldMapping("content", value)}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Выберите поле" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {csvPreview.headers.map((header) => (
+                            <SelectItem key={header} value={header}>
+                              {header}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700">
+                        Поле с meta description
+                      </Label>
+                      <Select onValueChange={(value) => updateFieldMapping("meta_description", value)}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Выберите поле (опционально)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Не использовать</SelectItem>
+                          {csvPreview.headers.map((header) => (
+                            <SelectItem key={header} value={header}>
+                              {header}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700">
+                        Поле с ключевыми словами
+                      </Label>
+                      <Select onValueChange={(value) => updateFieldMapping("keywords", value)}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Выберите поле (опционально)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Не использовать</SelectItem>
+                          {csvPreview.headers.map((header) => (
+                            <SelectItem key={header} value={header}>
+                              {header}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700">
+                        Поле с категорией/типом страницы
+                      </Label>
+                      <Select onValueChange={(value) => updateFieldMapping("category", value)}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Выберите поле (опционально)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Не использовать</SelectItem>
+                          {csvPreview.headers.map((header) => (
+                            <SelectItem key={header} value={header}>
+                              {header}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentStep(1)}
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Назад
+                  </Button>
+                  <Button
+                    onClick={handleSubmitMapping}
+                    disabled={mappingMutation.isPending || !fieldMapping.title || !fieldMapping.url || !fieldMapping.content}
+                  >
+                    {mappingMutation.isPending ? "Сохраняем..." : "Продолжить"}
+                    <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Загрузка статуса...</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+              </div>
+            )}
+
+            {currentStep === 3 && (
+              <div className="space-y-6 max-w-2xl mx-auto">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Запуск генерации
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Выберите сценарии и настройте параметры для генерации ссылок
+                  </p>
+                </div>
+
+                {/* 1. Что хотим улучшить */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-gray-900">1️⃣ Что хотим улучшить?</h4>
+                  <div className="grid grid-cols-1 gap-3">
+                    {[
+                      { id: 'freshness', icon: RefreshCw, title: 'Быстрая индексация нового', desc: 'Ускорить попадание свежих статей в индекс' },
+                      { id: 'hub_boost', icon: Star, title: 'Усилить главный гайд', desc: 'Увеличить вес основных материалов' },
+                      { id: 'commercial', icon: DollarSign, title: 'Перелить трафик на money', desc: 'Направить посетителей на продающие страницы' },
+                      { id: 'orphan_depth', icon: LifeBuoy, title: 'Спасти сироты / глубокие', desc: 'Добавить ссылки на изолированные страницы' },
+                      { id: 'crosslink', icon: Network, title: 'Связать статьи внутри темы', desc: 'Объединить родственные материалы' }
+                    ].map((scenario) => {
+                      const Icon = scenario.icon;
+                      const isSelected = selectedScenarios.includes(scenario.id);
+                      return (
+                        <div
+                          key={scenario.id}
+                          className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-blue-500 bg-blue-50' 
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => {
+                            setSelectedScenarios(prev => 
+                              prev.includes(scenario.id)
+                                ? prev.filter(s => s !== scenario.id)
+                                : [...prev, scenario.id]
+                            );
+                          }}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <Checkbox 
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="mt-1"
+                            />
+                            <Icon className={`h-5 w-5 mt-0.5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                            <div className="flex-1">
+                              <h5 className={`font-medium ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>
+                                {scenario.title}
+                              </h5>
+                              <p className={`text-sm ${isSelected ? 'text-blue-700' : 'text-gray-600'}`}>
+                                {scenario.desc}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Какие страницы обрабатывать */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-gray-900">2️⃣ Какие страницы обрабатывать?</h4>
+                  <RadioGroup 
+                    value={scopeSettings.fullProject ? 'full' : 'custom'} 
+                    onValueChange={(value) => setScopeSettings(prev => ({ ...prev, fullProject: value === 'full' }))}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="full" id="full" />
+                      <Label htmlFor="full">Весь проект</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="custom" id="custom" />
+                      <Label htmlFor="custom">Уточнить выбор</Label>
+                    </div>
+                  </RadioGroup>
+
+                  {!scopeSettings.fullProject && (
+                    <div className="ml-6 space-y-4 p-4 bg-gray-50 rounded-lg">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700">URL-подпуть</Label>
+                          <Input
+                            placeholder="/blog/"
+                            value={scopeSettings.includePrefix}
+                            onChange={(e) => setScopeSettings(prev => ({ ...prev, includePrefix: e.target.value }))}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700">Опубликованы после</Label>
+                          <Input
+                            type="date"
+                            value={scopeSettings.dateAfter}
+                            onChange={(e) => setScopeSettings(prev => ({ ...prev, dateAfter: e.target.value }))}
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700">Список URL вручную</Label>
+                        <Textarea
+                          placeholder="https://example.com/page1&#10;https://example.com/page2"
+                          className="mt-1 min-h-[80px]"
+                          value={scopeSettings.manualUrls}
+                          onChange={(e) => setScopeSettings(prev => ({ ...prev, manualUrls: e.target.value }))}
+                        />
+                      </div>
+                      <div className="text-sm text-blue-600 font-medium">
+                        Будет обработано: {scopeSettings.manualUrls.split('\n').filter(url => url.trim()).length} страниц
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+
+
+                {/* A. Лимиты ссылок */}
+                <div className="space-y-4">
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Лимиты ссылок</h4>
+                      <HelpDialog contentKey="limits" />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Макс. ссылок на страницу: {rules.maxLinks}
+                        </Label>
+                        <Slider
+                          value={[rules.maxLinks]}
+                          onValueChange={(value) => setRules(prev => ({ ...prev, maxLinks: value[0] }))}
+                          max={10}
+                          min={1}
+                          step={1}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>1</span>
+                          <span>10</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Мин. расстояние, слов: {rules.minDistance}
+                        </Label>
+                        <Slider
+                          value={[rules.minDistance]}
+                          onValueChange={(value) => setRules(prev => ({ ...prev, minDistance: value[0] }))}
+                          max={500}
+                          min={50}
+                          step={25}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>50</span>
+                          <span>500</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* B. Доля точных анкоров */}
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Доля точных анкоров</h4>
+                      <HelpDialog contentKey="exactAnchors" />
+                    </div>
+                    
+                    <div className="max-w-md">
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Точные анкоры ≤ {rules.exactPercent}%
+                      </Label>
+                      <Slider
+                        value={[rules.exactPercent]}
+                        onValueChange={(value) => setRules(prev => ({ ...prev, exactPercent: value[0] }))}
+                        max={50}
+                        min={0}
+                        step={5}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>0%</span>
+                        <span>50%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* C. Сценарии перелинковки */}
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Сценарии перелинковки</h4>
+                      <HelpDialog contentKey="scenarios" />
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="head-consolidation" className="text-sm text-gray-700">
+                          Консолидация заголовков
+                        </Label>
+                        <Switch
+                          id="head-consolidation"
+                          checked={rules.scenarios.headConsolidation}
+                          onCheckedChange={(checked) => setRules(prev => ({
+                            ...prev,
+                            scenarios: { ...prev.scenarios, headConsolidation: checked }
+                          }))}
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="cluster-cross-link" className="text-sm text-gray-700">
+                          Кросс-линковка кластеров
+                        </Label>
+                        <Switch
+                          id="cluster-cross-link"
+                          checked={rules.scenarios.clusterCrossLink}
+                          onCheckedChange={(checked) => setRules(prev => ({
+                            ...prev,
+                            scenarios: { ...prev.scenarios, clusterCrossLink: checked }
+                          }))}
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="commercial-routing" className="text-sm text-gray-700">
+                          Коммерческая маршрутизация
+                        </Label>
+                        <Switch
+                          id="commercial-routing"
+                          checked={rules.scenarios.commercialRouting}
+                          onCheckedChange={(checked) => setRules(prev => ({
+                            ...prev,
+                            scenarios: { ...prev.scenarios, commercialRouting: checked }
+                          }))}
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="orphan-fix" className="text-sm text-gray-700">
+                          Исправление сирот
+                        </Label>
+                        <Switch
+                          id="orphan-fix"
+                          checked={rules.scenarios.orphanFix}
+                          onCheckedChange={(checked) => setRules(prev => ({
+                            ...prev,
+                            scenarios: { ...prev.scenarios, orphanFix: checked }
+                          }))}
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="depth-lift" className="text-sm text-gray-700">
+                          Depth Lift
+                        </Label>
+                        <Switch
+                          id="depth-lift"
+                          checked={rules.scenarios.depthLift}
+                          onCheckedChange={(checked) => setRules(prev => ({
+                            ...prev,
+                            scenarios: { ...prev.scenarios, depthLift: checked }
+                          }))}
+                        />
+                      </div>
+                      
+                      {rules.scenarios.depthLift && (
+                        <div className="ml-6 mt-2">
+                          <Label className="text-sm text-gray-600 mb-2 block">
+                            Глубиной считать URL ≥ {rules.depthThreshold}
+                          </Label>
+                          <Slider
+                            value={[rules.depthThreshold]}
+                            onValueChange={(value) => setRules(prev => ({ ...prev, depthThreshold: value[0] }))}
+                            max={8}
+                            min={4}
+                            step={1}
+                            className="w-32"
+                          />
+                          <div className="flex justify-between text-xs text-gray-400 mt-1 w-32">
+                            <span>4</span>
+                            <span>8</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* D. Старые ссылки */}
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Старые ссылки</h4>
+                      <HelpDialog contentKey="oldLinks" />
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-sm text-gray-700 mb-2 block">Политика обработки</Label>
+                        <Select 
+                          value={rules.oldLinksPolicy} 
+                          onValueChange={(value: 'enrich' | 'regenerate' | 'audit') => 
+                            setRules(prev => ({ ...prev, oldLinksPolicy: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="enrich">Дополнить (существующие + новые)</SelectItem>
+                            <SelectItem value="regenerate">Пересоздать все</SelectItem>
+                            <SelectItem value="audit">Только аудит</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="dedupe-links" className="text-sm text-gray-700">
+                          Удалять дубли ссылок на один URL
+                        </Label>
+                        <Switch
+                          id="dedupe-links"
+                          checked={rules.dedupeLinks}
+                          onCheckedChange={(checked) => setRules(prev => ({ ...prev, dedupeLinks: checked }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* E. Битые ссылки */}
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Битые (404) ссылки</h4>
+                      <HelpDialog contentKey="brokenLinks" />
+                    </div>
+                    
+                    <div>
+                      <Label className="text-sm text-gray-700 mb-2 block">Действие с битыми ссылками</Label>
+                      <Select 
+                        value={rules.brokenLinksPolicy} 
+                        onValueChange={(value: 'delete' | 'replace' | 'ignore') => 
+                          setRules(prev => ({ ...prev, brokenLinksPolicy: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="delete">Удалить</SelectItem>
+                          <SelectItem value="replace">Заменить</SelectItem>
+                          <SelectItem value="ignore">Игнорировать</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* F. Stop-лист анкор-фраз */}
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Запрещенные анкоры</h4>
+                      <Button variant="link" size="sm" className="text-blue-600 p-0">
+                        <Info className="h-4 w-4 mr-1" />
+                        Подробнее
+                      </Button>
+                    </div>
+                    
+                    <Textarea
+                      placeholder="Введите фразы, разделенные запятой"
+                      value={rules.stopAnchors.join(', ')}
+                      onChange={(e) => setRules(prev => ({ 
+                        ...prev, 
+                        stopAnchors: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                      }))}
+                      className="min-h-[80px]"
+                    />
+                  </div>
+
+                  {/* G. Freshness / Boost новых страниц */}
+                  <div className="border-b border-gray-200 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Продвижение новых страниц</h4>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="link" size="sm" className="text-blue-600 p-0">
+                            <Info className="h-4 w-4 mr-1" />
+                            Подробнее
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>Freshness Push</DialogTitle>
+                            <DialogDescription>
+                              Автоматическое продвижение свежего контента
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
+                              <Play className="h-16 w-16 text-gray-400" />
+                              <span className="ml-2 text-gray-500">Видео-объяснение</span>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              Новые страницы получают дополнительные ссылки от старых материалов 
+                              для быстрого продвижения в поисковой выдаче.
+                            </p>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="freshness-push" className="text-sm text-gray-700">
+                          Включить Freshness Push
+                        </Label>
+                        <Switch
+                          id="freshness-push"
+                          checked={rules.freshnessPush}
+                          onCheckedChange={(checked) => setRules(prev => ({ ...prev, freshnessPush: checked }))}
+                        />
+                      </div>
+                      
+                      {rules.freshnessPush && (
+                        <div className="ml-6 space-y-4">
+                          <div>
+                            <Label className="text-sm text-gray-600 mb-2 block">
+                              Считать статью новой, если опубликована ≤ {rules.freshnessThreshold} дн.
+                            </Label>
+                            <Input
+                              type="number"
+                              value={rules.freshnessThreshold}
+                              onChange={(e) => setRules(prev => ({ ...prev, freshnessThreshold: parseInt(e.target.value) || 30 }))}
+                              min={1}
+                              max={365}
+                              className="w-32"
+                            />
+                          </div>
+                          
+                          <div>
+                            <Label className="text-sm text-gray-600 mb-2 block">
+                              Ставить до {rules.freshnessLinks} ссылк{rules.freshnessLinks === 1 ? 'и' : rules.freshnessLinks < 5 ? 'и' : ''} из каждой "вечнозелёной" статьи
+                            </Label>
+                            <Slider
+                              value={[rules.freshnessLinks]}
+                              onValueChange={(value) => setRules(prev => ({ ...prev, freshnessLinks: value[0] }))}
+                              max={3}
+                              min={0}
+                              step={1}
+                              className="w-48"
+                            />
+                            <div className="flex justify-between text-xs text-gray-400 mt-1 w-48">
+                              <span>0</span>
+                              <span>3</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* H. Приоритетные URL */}
+                  <div className="pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-md font-medium text-gray-900">Приоритетные страницы</h4>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="link" size="sm" className="text-blue-600 p-0">
+                            <Info className="h-4 w-4 mr-1" />
+                            Подробнее
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>Приоритетные страницы</DialogTitle>
+                            <DialogDescription>
+                              Money-страницы для усиленной перелинковки
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
+                              <Play className="h-16 w-16 text-gray-400" />
+                              <span className="ml-2 text-gray-500">Видео-объяснение</span>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              Указанные страницы получат больше входящих ссылок 
+                              для повышения их позиций в поисковой выдаче.
+                            </p>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                    
+                    <Textarea
+                      placeholder="Введите URL, разделенные запятой (https://example.com/page1, https://example.com/page2)"
+                      value={rules.moneyPages.join(', ')}
+                      onChange={(e) => {
+                        const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                        setRules(prev => ({ ...prev, moneyPages: urls }));
+                      }}
+                      className="min-h-[80px]"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-between">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentStep(2)}
+                  >
+                    Назад
+                  </Button>
+                  <Button 
+                    onClick={() => setCurrentStep(4)}
+                    disabled={selectedScenarios.length === 0}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Настройки генерации
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {currentStep === 4 && (
+              <div className="text-center space-y-6">
+                <div className="space-y-4">
+                  <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto" />
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    Контент успешно загружен!
+                  </h3>
+                  <p className="text-gray-600">
+                    Ваш контент обработан и готов для создания внутренних ссылок.
+                    Теперь вы можете запустить импорт и анализ.
+                  </p>
+                </div>
+
+                <div className="flex justify-center gap-4">
+                  <Button variant="outline" onClick={() => window.history.back()}>
+                    Вернуться к проектам
+                  </Button>
+                  <Button 
+                    onClick={() => console.log('import')}
+                    disabled={false}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Запустить импорт
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        </div>
+      </div>
+    </Layout>
   );
 }
