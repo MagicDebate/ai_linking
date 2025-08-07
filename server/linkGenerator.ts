@@ -366,6 +366,11 @@ export class LinkGenerator {
 
   // Попытаться создать ссылку с проверкой всех правил
   private async tryCreateLink(runId: string, donorPage: any, targetPage: any, scenario: string, rules: any): Promise<{ created: boolean, anchor?: string, reason?: string }> {
+    // Проверяем релевантность - отклоняем ссылки с низкой семантической близостью
+    if ((targetPage.similarity || 0) < 0.5) {
+      return { created: false, reason: 'low_similarity' };
+    }
+    
     // Генерируем анкор с помощью улучшенного OpenAI алгоритма
     const anchorResult = await this.generateSmartAnchorText(donorPage, targetPage);
     
@@ -416,7 +421,7 @@ export class LinkGenerator {
       targetUrl: targetPage.url,
       anchorText,
       scenario,
-      similarity: targetPage.similarity || 0.7,
+      similarity: targetPage.similarity || 0.0,
       isRejected: false,
       position: 0,
       cssClass: rules.cssClass,
