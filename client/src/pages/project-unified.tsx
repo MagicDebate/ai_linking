@@ -113,6 +113,10 @@ export default function UnifiedProjectPage() {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   
+  // Generation progress state
+  const [showGenerationProgress, setShowGenerationProgress] = useState(false);
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  
   const [currentStep, setCurrentStep] = useState(1);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
@@ -1187,54 +1191,7 @@ export default function UnifiedProjectPage() {
                 <Button 
                   size="lg"
                   className="bg-green-600 hover:bg-green-700 text-white font-medium px-8 py-3"
-                  onClick={async () => {
-                    const confirmed = window.confirm(
-                      "Запустить новую генерацию? Текущие результаты будут удалены и заменены новыми."
-                    );
-                    
-                    if (!confirmed) return;
-                    
-                    try {
-                      // Очищаем предыдущие результаты
-                      await fetch(`/api/projects/${projectId}/links`, {
-                        method: "DELETE",
-                        credentials: "include"
-                      });
-
-                      const response = await fetch(`/api/link-generation`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        credentials: "include",
-                        body: JSON.stringify({
-                          projectId: projectId,
-                          scenarios: { orphanFix: true },
-                          rules: { 
-                            maxLinks: 3, 
-                            depthThreshold: 5,
-                            moneyPages: [],
-                            stopAnchors: ["читать далее", "подробнее"],
-                            dedupeLinks: true,
-                            cssClass: "",
-                            relAttribute: "",
-                            targetAttribute: ""
-                          },
-                          check404Policy: "delete"
-                        })
-                      });
-
-                      if (!response.ok) throw new Error("Generation failed");
-
-                      toast({
-                        title: "Генерация запущена",
-                        description: "Создание внутренних ссылок началось"
-                      });
-                    } catch (error) {
-                      toast({
-                        title: "Ошибка",
-                        description: "Не удалось запустить генерацию"
-                      });
-                    }
-                  }}
+                  onClick={() => setShowGenerationProgress(true)}
                 >
                   <Zap className="mr-2 h-4 w-4" />
                   Запустить заново
@@ -1244,8 +1201,180 @@ export default function UnifiedProjectPage() {
           </Card>
         )}
 
+        {/* Generation Progress Modal */}
+        {showGenerationProgress && (
+          <GenerationProgressModal 
+            projectId={projectId!}
+            onClose={() => setShowGenerationProgress(false)}
+            onComplete={() => {
+              setShowGenerationProgress(false);
+              queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'results'] });
+            }}
+          />
+        )}
 
       </div>
     </Layout>
+  );
+}
+
+// Generation Progress Modal Component
+interface GenerationProgressModalProps {
+  projectId: string;
+  onClose: () => void;
+  onComplete: () => void;
+}
+
+function GenerationProgressModal({ projectId, onClose, onComplete }: GenerationProgressModalProps) {
+  const [runId, setRunId] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(true);
+  const { toast } = useToast();
+
+  // Start generation
+  useEffect(() => {
+    const startGeneration = async () => {
+      try {
+        // Clear previous results
+        await fetch(`/api/projects/${projectId}/links`, {
+          method: "DELETE",
+          credentials: "include"
+        });
+
+        // Start new generation
+        const response = await fetch(`/api/link-generation`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            projectId: projectId,
+            scenarios: { orphanFix: true },
+            rules: { 
+              maxLinks: 3, 
+              depthThreshold: 5,
+              moneyPages: [],
+              stopAnchors: ["читать далее", "подробнее"],
+              dedupeLinks: true,
+              cssClass: "",
+              relAttribute: "",
+              targetAttribute: ""
+            },
+            check404Policy: "delete"
+          })
+        });
+
+        if (!response.ok) throw new Error("Generation failed");
+        
+        const result = await response.json();
+        setRunId(result.runId);
+        setIsStarting(false);
+
+        toast({
+          title: "Генерация запущена",
+          description: "Создание внутренних ссылок началось"
+        });
+      } catch (error) {
+        console.error("Generation start error:", error);
+        toast({
+          title: "Ошибка",
+          description: "Не удалось запустить генерацию",
+          variant: "destructive"
+        });
+        onClose();
+      }
+    };
+
+    startGeneration();
+  }, [projectId]);
+
+  // Poll generation status
+  const { data: status } = useQuery({
+    queryKey: ['/api/generation/status', runId],
+    queryFn: async () => {
+      if (!runId) return null;
+      const response = await fetch(`/api/generation/status/${runId}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch status');
+      return response.json();
+    },
+    enabled: !!runId,
+    refetchInterval: 2000, // Poll every 2 seconds
+  });
+
+  // Handle completion
+  useEffect(() => {
+    if (status?.status === 'completed') {
+      toast({
+        title: "Генерация завершена",
+        description: `Создано ${status.currentLinksGenerated} внутренних ссылок`
+      });
+      setTimeout(onComplete, 1500); // Show success briefly then close
+    }
+  }, [status?.status, onComplete]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-full max-w-md mx-4">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5" />
+            {isStarting ? "Запуск генерации..." : "Генерация ссылок"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isStarting ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Подготовка генерации...</p>
+            </div>
+          ) : status ? (
+            <>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Прогресс:</span>
+                  <span>{status.progress || 0}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${status.progress || 0}%` }}
+                  ></div>
+                </div>
+              </div>
+              
+              <div className="text-center space-y-2">
+                <p className="font-medium">
+                  Статус: {status.status === 'running' ? 'В процессе' : 
+                           status.status === 'completed' ? 'Завершено' : 
+                           status.status}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Создано ссылок: {status.currentLinksGenerated || 0}
+                </p>
+                {status.status === 'running' && (
+                  <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    Генерация продолжается...
+                  </div>
+                )}
+              </div>
+
+              {status.status !== 'completed' && (
+                <div className="flex justify-center">
+                  <Button variant="outline" onClick={onClose}>
+                    Скрыть окно
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Загрузка статуса...</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

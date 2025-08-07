@@ -1350,6 +1350,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get generation status endpoint
+  app.get("/api/generation/status/:runId", authenticateToken, async (req: any, res) => {
+    try {
+      const { runId } = req.params;
+      
+      // Get generation run details
+      const run = await db
+        .select()
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
+
+      if (!run.length) {
+        return res.status(404).json({ error: "Generation run not found" });
+      }
+
+      // Verify project ownership
+      const project = await storage.getProjectById(run[0].projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Get current link counts
+      const linkCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(linkCandidates)
+        .where(eq(linkCandidates.runId, runId));
+
+      res.json({
+        runId: run[0].runId,
+        status: run[0].status,
+        startedAt: run[0].startedAt,
+        completedAt: run[0].completedAt,
+        currentLinksGenerated: linkCount[0]?.count || 0,
+        progress: run[0].status === 'completed' ? 100 : 
+                 run[0].status === 'running' ? Math.min(95, (linkCount[0]?.count || 0) * 2) : 0
+      });
+    } catch (error) {
+      console.error("Generation status error:", error);
+      res.status(500).json({ error: "Failed to get generation status" });
+    }
+  });
+
   // Get link candidates for draft review
   app.get("/api/draft/:runId", authenticateToken, async (req: any, res) => {
     try {
