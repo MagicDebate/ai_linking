@@ -232,11 +232,14 @@ export default function ProjectUnifiedSpec() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           projectId, 
-          mapping,
+          fieldMapping: mapping, // Правильное имя поля
           uploadId: csvPreview?.uploadId // Передаем uploadId из ответа загрузки
         })
       });
-      if (!response.ok) throw new Error('Mapping save failed');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Mapping save failed');
+      }
       return response.json();
     },
     onSuccess: () => {
