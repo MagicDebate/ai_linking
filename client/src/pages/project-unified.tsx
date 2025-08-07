@@ -1,3 +1,7 @@
+// СТАРАЯ ВЕРСИЯ - ЗАМЕНЕНА НА project-unified-spec.tsx
+// Этот файл содержал неправильную реализацию с лишними функциями
+// которые не соответствуют ТЗ. Новая версия в project-unified-spec.tsx
+
 import { useState, useRef, useEffect } from "react";
 import { useRoute } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
-import ProjectPage from "@/pages/project-unified";
+import ProjectPage from "@/pages/project-unified-spec";
 
 import DebugPages from "@/pages/debug-pages-new";
 import DraftReview from "@/pages/draft-review";
