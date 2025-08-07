@@ -347,21 +347,29 @@ export class LinkGenerator {
     // Простая семантическая близость на основе общих ключевых слов
     const donorKeywords = this.extractSimpleKeywords(donorPage.cleanHtml || '', '');
     
-    const scoredTargets = allPages
-      .filter(page => page.id !== donorPage.id)
-      .map(targetPage => {
-        const targetKeywords = this.extractSimpleKeywords(targetPage.cleanHtml || '', '');
-        const similarity = this.calculateKeywordSimilarity(donorKeywords, targetKeywords);
-        
-        return {
-          ...targetPage,
-          similarity
-        };
-      })
+    // Заменяем примитивное пересечение ключевых слов на НАСТОЯЩУЮ векторную схожесть
+    const scoredTargets = [];
+    
+    for (const targetPage of allPages.filter(page => page.id !== donorPage.id)) {
+      // Используем векторные эмбеддинги для расчета настоящей семантической близости
+      const similarity = await this.calculateSemanticSimilarity(donorPage.id, targetPage.id);
+      
+      scoredTargets.push({
+        ...targetPage,
+        similarity
+      });
+    }
+    
+    // Сортируем по НАСТОЯЩЕЙ семантической близости и берем топ результаты
+    const topTargets = scoredTargets
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit);
+      
+    console.log(`🎯 Top ${topTargets.length} targets by vector similarity:`,
+      topTargets.map(t => `${t.url}: ${t.similarity.toFixed(3)}`).slice(0, 3)
+    );
 
-    return scoredTargets;
+    return topTargets;
   }
 
   // Попытаться создать ссылку с проверкой всех правил
@@ -458,7 +466,40 @@ export class LinkGenerator {
     return null;
   }
 
-  // Простое вычисление семантической близости
+  // Вычисление НАСТОЯЩЕЙ семантической близости с помощью векторных эмбеддингов
+  private async calculateSemanticSimilarity(donorPageId: string, targetPageId: string): Promise<number> {
+    try {
+      // Получаем эмбеддинги из базы данных
+      const result = await db.execute(sql`
+        SELECT 
+          (e1.embedding <=> e2.embedding) as distance
+        FROM page_embeddings e1, page_embeddings e2 
+        WHERE e1.page_id = ${donorPageId} 
+          AND e2.page_id = ${targetPageId}
+          AND e1.project_id = ${this.projectId}
+          AND e2.project_id = ${this.projectId}
+      `);
+
+      if (result.rows.length === 0) {
+        console.log(`⚠️ No embeddings found for pages ${donorPageId} -> ${targetPageId}`);
+        return 0;
+      }
+
+      // Преобразуем cosine distance в similarity (1 - distance)
+      const distance = result.rows[0].distance as number;
+      const similarity = 1 - distance;
+      
+      console.log(`🔗 Vector similarity ${donorPageId} -> ${targetPageId}: ${similarity.toFixed(3)}`);
+      return Math.max(0, similarity); // Убеждаемся что не отрицательная
+      
+    } catch (error) {
+      console.error('❌ Error calculating semantic similarity:', error);
+      // Fallback to keyword similarity only in case of error
+      return 0;
+    }
+  }
+
+  // Fallback - простое вычисление близости по ключевым словам (только для случаев ошибки)
   private calculateKeywordSimilarity(keywords1: string[], keywords2: string[]): number {
     if (!keywords1.length || !keywords2.length) return 0;
 

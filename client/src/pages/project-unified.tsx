@@ -40,7 +40,8 @@ import {
   RotateCcw,
   Search,
   AlertTriangle,
-  Target
+  Target,
+  Info
 } from "lucide-react";
 
 interface Project {
@@ -125,7 +126,7 @@ export default function UnifiedProjectPage() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [generationResults, setGenerationResults] = useState<any>(null);
   
-  const [selectedScenarios, setSelectedScenarios] = useState<string[]>(['orphanFix']);
+  const [selectedScenarios, setSelectedScenarios] = useState<string[]>(['headConsolidation', 'commercialRouting', 'orphanFix', 'clusterCrossLink', 'depthLift']);
   const [scopeSettings, setScopeSettings] = useState({
     fullProject: true,
     includePrefix: '',
@@ -134,15 +135,15 @@ export default function UnifiedProjectPage() {
   });
 
   const [rules, setRules] = useState<LinkingRules>({
-    maxLinks: 2,
-    minDistance: 150,
-    exactPercent: 15,
+    maxLinks: 3,
+    minDistance: 100,
+    exactPercent: 50,
     scenarios: {
-      headConsolidation: false,
-      clusterCrossLink: false,
-      commercialRouting: false,
+      headConsolidation: true,
+      clusterCrossLink: true,
+      commercialRouting: true,
       orphanFix: true,
-      depthLift: false,
+      depthLift: true,
     },
     depthThreshold: 5,
     oldLinksPolicy: 'enrich',
@@ -150,7 +151,7 @@ export default function UnifiedProjectPage() {
     brokenLinksPolicy: 'delete',
     stopAnchors: ['читать далее', 'подробнее', 'здесь', 'жмите сюда', 'click here', 'learn more'],
     moneyPages: [],
-    freshnessPush: false,
+    freshnessPush: true,
     freshnessThreshold: 30,
     freshnessLinks: 1,
   });
@@ -999,36 +1000,50 @@ export default function UnifiedProjectPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="moneyPages">Money Pages (коммерческие страницы)</Label>
+                  <div className="flex items-center justify-between mb-3">
+                    <Label htmlFor="moneyPages" className="text-sm font-medium">Приоритетные страницы (Money Pages)</Label>
+                    <Button variant="link" size="sm" className="text-blue-600 p-0">
+                      <Info className="h-4 w-4 mr-1" />
+                      Подробнее
+                    </Button>
+                  </div>
+                  
                   <Textarea
                     id="moneyPages"
-                    placeholder="/услуги&#10;/цены&#10;/купить"
-                    value={rules.moneyPages.join('\n')}
+                    placeholder="Введите URL, разделенные запятой (https://example.com/page1, https://example.com/page2)"
+                    value={rules.moneyPages.join(', ')}
                     onChange={(e) => {
-                      const pages = e.target.value.split('\n').filter(page => page.trim());
-                      setRules(prev => ({ ...prev, moneyPages: pages }));
+                      const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                      setRules(prev => ({ ...prev, moneyPages: urls }));
                     }}
-                    className="mt-2"
+                    className="min-h-[80px] mt-2"
                   />
                   <div className="text-sm text-gray-600 mt-1">
-                    Введите ключевые слова для коммерческих страниц (по одному на строку)
+                    Указанные страницы получат больше входящих ссылок для повышения их позиций в поисковой выдаче
                   </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="stopAnchors">Стоп-анкоры</Label>
+                  <div className="flex items-center justify-between mb-3">
+                    <Label htmlFor="stopAnchors" className="text-sm font-medium">Запрещенные анкоры</Label>
+                    <Button variant="link" size="sm" className="text-blue-600 p-0">
+                      <Info className="h-4 w-4 mr-1" />
+                      Подробнее
+                    </Button>
+                  </div>
+                  
                   <Textarea
                     id="stopAnchors"
-                    placeholder="читать далее&#10;подробнее&#10;здесь"
-                    value={rules.stopAnchors.join('\n')}
-                    onChange={(e) => {
-                      const anchors = e.target.value.split('\n').filter(anchor => anchor.trim());
-                      setRules(prev => ({ ...prev, stopAnchors: anchors }));
-                    }}
-                    className="mt-2"
+                    placeholder="Введите фразы, разделенные запятой"
+                    value={rules.stopAnchors.join(', ')}
+                    onChange={(e) => setRules(prev => ({ 
+                      ...prev, 
+                      stopAnchors: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                    }))}
+                    className="min-h-[80px] mt-2"
                   />
                   <div className="text-sm text-gray-600 mt-1">
-                    Анкоры, которые не нужно использовать (по одному на строку)
+                    Анкорные тексты, которые система не будет использовать для создания ссылок
                   </div>
                 </div>
               </div>
