@@ -16,6 +16,7 @@ This is a comprehensive SaaS SEO service platform that automates internal linkin
 - **Fixed state restoration system** - Users return to saved progress instead of starting over
 - **Resolved import button issue** - Corrected API endpoint and removed blocking validation
 - **REVOLUTIONARY PERFORMANCE OPTIMIZATION (Aug 6, 2025)** - Removed OpenAI bottleneck from main generation, implemented fast block-based anchor generation using word intersection algorithms. Result: 60x speed improvement (198 links in 1 minute vs 0 links in 8+ minutes). System now uses content blocks instead of HTML parsing and creates intelligent anchors without AI delays.
+- **BALANCED NATURAL LINKING STRATEGY (Aug 7, 2025)** - Implemented smart link creation: system first looks for suitable anchor text in existing content, then uses OpenAI to rewrite sentences naturally if needed, otherwise skips the link entirely. No artificial fallbacks - only natural links that fit seamlessly into content.
 
 # User Preferences
 

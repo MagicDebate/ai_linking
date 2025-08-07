@@ -368,6 +368,12 @@ export class LinkGenerator {
   private async tryCreateLink(runId: string, donorPage: any, targetPage: any, scenario: string, rules: any): Promise<{ created: boolean, anchor?: string, reason?: string }> {
     // Генерируем анкор с помощью улучшенного OpenAI алгоритма
     const anchorResult = await this.generateSmartAnchorText(donorPage, targetPage);
+    
+    // Если не смогли создать естественный анкор - пропускаем
+    if (!anchorResult) {
+      return { created: false, reason: 'no_natural_anchor' };
+    }
+    
     const anchorText = anchorResult.anchor;
 
     // Проверяем все правила
@@ -527,7 +533,7 @@ export class LinkGenerator {
     return null;
   }
 
-  private async generateSmartAnchorText(sourcePage: any, targetPage: any): Promise<{ anchor: string, modifiedContent?: string }> {
+  private async generateSmartAnchorText(sourcePage: any, targetPage: any): Promise<{ anchor: string, modifiedContent?: string } | null> {
     try {
       // Получаем блоки контента для источника
       const sourceBlocks = await db
@@ -562,21 +568,13 @@ export class LinkGenerator {
         };
       }
 
-      // Быстрая генерация анкора без OpenAI для скорости
-      const quickAnchor = this.generateQuickSmartAnchor(sourceContent, targetTitle);
-      if (quickAnchor) {
-        console.log(`⚡ Quick smart anchor: "${quickAnchor}"`);
-        return { anchor: quickAnchor };
-      }
-      
-      // Фаллбек к простому анкору
-      const fallbackAnchor = this.generateSimpleAnchorText(sourcePage, targetPage);
-      return { anchor: fallbackAnchor };
+      // Если OpenAI не смог переписать - пропускаем эту ссылку
+      console.log(`❌ Cannot create natural link for: ${targetTitle} - skipping`);
+      return null;
       
     } catch (error) {
-      console.log('Smart anchor generation failed, using fallback:', error);
-      const fallbackAnchor = this.generateSimpleAnchorText(sourcePage, targetPage);
-      return { anchor: fallbackAnchor };
+      console.log('Smart anchor generation failed, skipping link:', error);
+      return null;
     }
   }
 
