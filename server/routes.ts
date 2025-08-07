@@ -1014,9 +1014,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to convert transliterated text to Cyrillic
+  function convertTranslitToCyrillic(anchor: string): string {
+    // Сначала проверяем готовые фразы
+    const fixedPhrases: { [key: string]: string } = {
+      'kak ponyat chto u tebya panicheskaya ataka': 'как понять что у тебя паническая атака',
+      'chto takoe osoznannost ot buddijskoj': 'что такое осознанность от буддийской',
+      'chto delat pri panicheskoy atake': 'что делать при панической атаке',
+      'lechenie panicheskih atak': 'лечение панических атак',
+      'panicheskie ataki posle alkogolya': 'панические атаки после алкоголя',
+      'panicheskie ataki pered snom pri zasypanii': 'панические атаки перед сном при засыпании',
+      'panicheskiy strah': 'панический страх',
+      'plohoe samochuvstvie posle panicheskoy ataki': 'плохое самочувствие после панической атаки',
+      'simptomy panicheskih atak u zhenshchin': 'симптомы панических атак у женщин',
+      'panicheskie ataki pri klimakse': 'панические атаки при климаксе',
+      'bessonnica pri depressii': 'бессонница при депрессии',
+      'hronicheskaya depressiya': 'хроническая депрессия',
+      'vidy depressii': 'виды депрессии'
+    };
+    
+    const lowerAnchor = anchor.toLowerCase();
+    
+    // Проверяем точные совпадения
+    if (fixedPhrases[lowerAnchor]) {
+      return fixedPhrases[lowerAnchor];
+    }
+    
+    // Общая транслитерация для остальных случаев
+    const translitMap: { [key: string]: string } = {
+      'shch': 'щ', 'sch': 'щ', 'sh': 'ш', 'ch': 'ч', 'zh': 'ж', 'yu': 'ю', 'ya': 'я', 'yo': 'ё',
+      'kh': 'х', 'ts': 'ц', 'tz': 'ц', 'ph': 'ф', 'th': 'т', 'iy': 'ий', 'yy': 'ый', 'oy': 'ой',
+      'ey': 'ей', 'ay': 'ай', 'uy': 'уй', 'yj': 'ый', 'ij': 'ий', 'yh': 'ых', 'ih': 'их',
+      'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д', 'e': 'е', 'z': 'з', 'i': 'и', 
+      'j': 'й', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о', 'p': 'п', 'r': 'р',
+      's': 'с', 't': 'т', 'u': 'у', 'f': 'ф', 'h': 'х', 'c': 'ц', 'w': 'в', 'x': 'кс',
+      'y': 'ы', 'q': 'к'
+    };
+    
+    let result = lowerAnchor;
+    const sortedKeys = Object.keys(translitMap).sort((a, b) => b.length - a.length);
+    
+    for (const latin of sortedKeys) {
+      result = result.replace(new RegExp(latin, 'g'), translitMap[latin]);
+    }
+    
+    // Постобработка для исправления частых ошибок
+    result = result.replace(/понят([^ь])/g, 'понять$1');
+    result = result.replace(/осознанност([^ь])/g, 'осознанность$1');
+    result = result.replace(/атак([^аи])/g, 'атака$1');
+    result = result.replace(/депресси([^яюи])/g, 'депрессия$1');
+    
+    return result;
+  }
+
   // Helper function to insert anchors into content
   async function insertAnchorsIntoContent(content: string, sourceUrl: string, projectId: string): Promise<string> {
     try {
+      console.log('🔗 insertAnchorsIntoContent called:', { sourceUrl, projectId });
+      
       // Get all accepted links for this source page
       const links = await db
         .select({
@@ -1035,7 +1090,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         )
         .orderBy(desc(linkCandidates.createdAt)); // Most recent generation first
 
+      console.log('🔗 Found links to insert:', links.length);
+      if (links.length > 0) {
+        console.log('🔗 First link:', links[0]);
+      }
+
       if (links.length === 0) {
+        console.log('🔗 No links found, returning original content');
         return content; // No links to insert
       }
 
@@ -1043,32 +1104,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Process each link
       for (const link of links) {
-        if (!link.anchorText || !link.targetUrl) continue;
+        if (!link.anchorText || !link.targetUrl) {
+          console.log('🔗 Skipping link with missing data:', link);
+          continue;
+        }
         
-        const anchorHtml = `<a href="${link.targetUrl}" class="internal-link">${link.anchorText}</a>`;
+        console.log('🔗 Processing link:', { anchorText: link.anchorText, targetUrl: link.targetUrl });
         
-        // Try to replace exact anchor text match first
-        const anchorRegex = new RegExp(`\\b${link.anchorText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        // Convert transliterated anchor to Cyrillic for matching
+        const cyrillicAnchor = convertTranslitToCyrillic(link.anchorText);
+        console.log('🔗 Converted to cyrillic:', cyrillicAnchor);
+        
+        const anchorHtml = `<a href="${link.targetUrl}" class="internal-link">${cyrillicAnchor}</a>`;
+        
+        // Try to replace exact cyrillic anchor text match first
+        const anchorRegex = new RegExp(`\\b${cyrillicAnchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        
+        console.log('🔗 Testing cyrillic regex:', anchorRegex.toString());
+        console.log('🔗 Against content length:', modifiedContent.length);
         
         if (anchorRegex.test(modifiedContent)) {
-          // Replace first occurrence only to avoid duplicate links
+          console.log('🔗 Exact cyrillic match found, replacing');
           modifiedContent = modifiedContent.replace(anchorRegex, anchorHtml);
         } else {
-          // If exact match not found, try to insert into a sentence context
-          // Look for words from anchor text and insert link around them
-          const words = link.anchorText.toLowerCase().split(' ');
+          console.log('🔗 No exact match, trying first word approach');
+          // Try with individual words
+          const words = cyrillicAnchor.toLowerCase().split(' ');
           if (words.length > 0) {
             const firstWord = words[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const firstWordRegex = new RegExp(`\\b${firstWord}\\b`, 'gi');
             
+            console.log('🔗 Testing first cyrillic word regex:', firstWordRegex.toString());
+            
             if (firstWordRegex.test(modifiedContent)) {
-              // Replace first occurrence of first word with full anchor
+              console.log('🔗 First word match found, replacing with full anchor');
               modifiedContent = modifiedContent.replace(firstWordRegex, anchorHtml);
+            } else {
+              console.log('🔗 No match found for this link');
+              
+              // As last resort, just append the link at the end of first paragraph
+              const firstParagraphEnd = modifiedContent.indexOf('\n\n');
+              if (firstParagraphEnd !== -1) {
+                console.log('🔗 Appending link to first paragraph');
+                modifiedContent = modifiedContent.slice(0, firstParagraphEnd) + 
+                  ` Читайте также: ${anchorHtml}` + 
+                  modifiedContent.slice(firstParagraphEnd);
+              }
             }
           }
         }
       }
 
+      console.log('🔗 Final content modified:', modifiedContent !== content);
       return modifiedContent;
     } catch (error) {
       console.error('Error inserting anchors:', error);
