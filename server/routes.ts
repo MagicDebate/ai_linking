@@ -939,8 +939,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .limit(1);
 
       if (!latestRun.length) {
+        console.log('No generation runs found for project:', projectId);
         return res.json({ links: [] });
       }
+
+      console.log('Found latest run:', latestRun[0].runId, 'status:', latestRun[0].status);
 
       // Get all generated links
       const links = await db
@@ -957,6 +960,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(linkCandidates)
         .where(eq(linkCandidates.runId, latestRun[0].runId))
         .orderBy(desc(linkCandidates.createdAt));
+
+      console.log('Returning links count:', links.length);
+      if (links.length > 0) {
+        console.log('Sample link:', links[0]);
+      }
 
       res.json({ 
         links,
