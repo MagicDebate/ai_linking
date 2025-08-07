@@ -1169,25 +1169,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        // Strategy 4: If we have a modifiedSentence, try to find and replace the original sentence
+        // Strategy 4: Use modified sentence - add it as new content
         if (!matched && link.modifiedSentence) {
-          console.log('🔗 Trying to insert modified sentence:', link.modifiedSentence);
+          console.log('🔗 Adding modified sentence as new content:', link.modifiedSentence);
           
-          // Try to find a sentence that's similar and replace it
-          const sentences = modifiedContent.split(/[.!?]+/).filter(s => s.trim().length > 10);
+          // Create link within the modified sentence
+          const modifiedSentenceWithLink = link.modifiedSentence.replace(cyrillicAnchor, anchorHtml);
           
-          for (const sentence of sentences) {
-            const similarity = calculateStringSimilarity(sentence.trim(), link.modifiedSentence);
-            if (similarity > 0.3) { // 30% similarity threshold
-              console.log('🔗 Found similar sentence to replace:', sentence.trim().substring(0, 50) + '...');
-              
-              // Replace the sentence with our modified version containing the link
-              const modifiedSentenceWithLink = link.modifiedSentence.replace(cyrillicAnchor, anchorHtml);
-              modifiedContent = modifiedContent.replace(sentence.trim(), modifiedSentenceWithLink);
-              matched = true;
-              break;
-            }
-          }
+          // Add as new paragraph at end of content
+          modifiedContent += `\n\n<p>${modifiedSentenceWithLink}</p>`;
+          matched = true;
+          console.log('🔗 Successfully added modified sentence with link');
         }
         
         if (!matched) {

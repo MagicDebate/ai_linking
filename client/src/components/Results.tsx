@@ -4,6 +4,67 @@ import { ArrowUp, ArrowDown, Minus, TrendingUp, TrendingDown, Link } from 'lucid
 import { useQuery } from '@tanstack/react-query';
 import { LinksTable } from '@/components/LinksTable';
 
+// Функция для конвертации транслитерированных анкоров в кириллицу
+function convertAnchorToCyrillic(anchor: string): string {
+  // Сначала проверяем готовые фразы
+  const fixedPhrases: { [key: string]: string } = {
+    'kak ponyat chto u tebya panicheskaya ataka': 'как понять что у тебя паническая атака',
+    'chto takoe osoznannost ot buddijskoj': 'что такое осознанность от буддийской',
+    'chto delat pri panicheskoy atake': 'что делать при панической атаке',
+    'lechenie panicheskih atak': 'лечение панических атак',
+    'panicheskie ataki posle alkogolya': 'панические атаки после алкоголя',
+    'panicheskie ataki pered snom pri zasypanii': 'панические атаки перед сном при засыпании',
+    'panicheskiy strah': 'панический страх',
+    'plohoe samochuvstvie posle panicheskoy ataki': 'плохое самочувствие после панической атаки',
+    'simptomy panicheskih atak u zhenshchin': 'симптомы панических атак у женщин',
+    'panicheskie ataki pri klimakse': 'панические атаки при климаксе',
+    'bessonnica pri depressii': 'бессонница при депрессии',
+    'hronicheskaya depressiya': 'хроническая депрессия',
+    'vidy depressii': 'виды депрессии',
+    'kak spravitsya s depressiey': 'как справиться с депрессией',
+    'metody lecheniya': 'методы лечения',
+    'vozmozhnyye sposoby lecheniya': 'возможные способы лечения'
+  };
+  
+  const lowerAnchor = anchor.toLowerCase();
+  
+  // Проверяем точные совпадения
+  if (fixedPhrases[lowerAnchor]) {
+    return fixedPhrases[lowerAnchor];
+  }
+  
+  // Если уже кириллица, возвращаем как есть
+  if (/[а-яё]/i.test(anchor)) {
+    return anchor;
+  }
+  
+  // Общая транслитерация для остальных случаев
+  const translitMap: { [key: string]: string } = {
+    'shch': 'щ', 'sch': 'щ', 'sh': 'ш', 'ch': 'ч', 'zh': 'ж', 'yu': 'ю', 'ya': 'я', 'yo': 'ё',
+    'kh': 'х', 'ts': 'ц', 'tz': 'ц', 'ph': 'ф', 'th': 'т', 'iy': 'ий', 'yy': 'ый', 'oy': 'ой',
+    'ey': 'ей', 'ay': 'ай', 'uy': 'уй', 'yj': 'ый', 'ij': 'ий', 'yh': 'ых', 'ih': 'их',
+    'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д', 'e': 'е', 'z': 'з', 'i': 'и', 
+    'j': 'й', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о', 'p': 'п', 'r': 'р',
+    's': 'с', 't': 'т', 'u': 'у', 'f': 'ф', 'h': 'х', 'c': 'ц', 'w': 'в', 'x': 'кс',
+    'y': 'ы', 'q': 'к'
+  };
+  
+  let result = lowerAnchor;
+  const sortedKeys = Object.keys(translitMap).sort((a, b) => b.length - a.length);
+  
+  for (const latin of sortedKeys) {
+    result = result.replace(new RegExp(latin, 'g'), translitMap[latin]);
+  }
+  
+  // Постобработка для исправления частых ошибок
+  result = result.replace(/понят([^ь])/g, 'понять$1');
+  result = result.replace(/осознанност([^ь])/g, 'осознанность$1');
+  result = result.replace(/атак([^аи])/g, 'атака$1');
+  result = result.replace(/депресси([^яюи])/g, 'депрессия$1');
+  
+  return result;
+}
+
 interface ResultsProps {
   projectId: string;
 }
@@ -221,7 +282,7 @@ export function Results({ projectId }: ResultsProps) {
                   </div>
                   <div className="mt-3">
                     <p className="text-sm font-medium text-gray-600">Анкор ссылки:</p>
-                    <p className="text-sm font-semibold text-gray-900">"{link.anchorText}"</p>
+                    <p className="text-sm font-semibold text-gray-900">"{convertAnchorToCyrillic(link.anchorText)}"</p>
                   </div>
                   <div className="mt-2">
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
