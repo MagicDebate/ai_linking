@@ -213,6 +213,7 @@ export default function ProjectUnifiedSpec() {
       return response.json();
     },
     onSuccess: (data) => {
+      console.log('Upload success:', data);
       setCsvPreview(data.preview);
       setCurrentStep(2);
       toast({ title: "Файл загружен!" });
@@ -508,14 +509,14 @@ export default function ProjectUnifiedSpec() {
                             {field.required && <span className="text-red-500">*</span>}
                           </Label>
                           <Select
-                            value={fieldMapping[field.key] || ''}
-                            onValueChange={(value) => updateFieldMapping(field.key, value)}
+                            value={fieldMapping[field.key] || '__none__'}
+                            onValueChange={(value) => updateFieldMapping(field.key, value === '__none__' ? '' : value)}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Выберите столбец" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">Не используется</SelectItem>
+                              <SelectItem value="__none__">Не используется</SelectItem>
                               {csvPreview.headers.map((header) => (
                                 <SelectItem key={header} value={header}>
                                   {header}
