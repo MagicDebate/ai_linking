@@ -191,7 +191,11 @@ export default function ProjectUnifiedSpec() {
   // Загрузка проекта
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ['/api/projects', projectId],
-    queryFn: () => apiRequest(`/api/projects/${projectId}`),
+    queryFn: async () => {
+      const response = await fetch(`/api/projects/${projectId}`);
+      if (!response.ok) throw new Error('Failed to fetch project');
+      return response.json() as Promise<Project>;
+    },
     enabled: !!projectId
   });
 
@@ -328,11 +332,11 @@ export default function ProjectUnifiedSpec() {
               </Button>
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Настройка проекта: {project?.name || 'Загрузка...'}
+              Настройка проекта: {(project as Project)?.name || 'Загрузка...'}
             </h1>
             <p className="text-gray-600 flex items-center gap-2">
               <Globe className="h-4 w-4" />
-              {project?.domain || 'Загрузка...'}
+              {(project as Project)?.domain || 'Загрузка...'}
             </p>
           </div>
 
