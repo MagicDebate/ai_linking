@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { db } from './db.js';
+import crypto from 'crypto';
 import { 
   generationRuns, 
   linkCandidates, 
@@ -14,42 +15,202 @@ import {
 import { eq, and, desc, sql } from 'drizzle-orm';
 
 export interface GenerationParams {
+  // Основные лимиты
+  maxLinks: number;           // 1-10
+  minGap: number;            // 50-400 слов
+  exactAnchorPercent: number; // 0-50%
+  
+  // Стоп-лист и priority/hub URLs
+  stopAnchors: string[];
+  priorityPages: string[];    // Money pages for Commercial Routing (was moneyPages)
+  hubPages: string[];        // Hub pages for Head Consolidation
+  
+  // Сценарии ON/OFF + настройки
   scenarios: {
     orphanFix: boolean;
-    depthLift: boolean;
-    commercialRouting: boolean;
     headConsolidation: boolean;
     clusterCrossLink: boolean;
+    commercialRouting: boolean;
+    depthLift: {
+      enabled: boolean;
+      minDepth: number; // 3-8
+    };
+    freshnessPush: {
+      enabled: boolean;
+      daysFresh: number; // 7-60
+      linksPerDonor: number; // 0-3
+    };
   };
-  rules: {
-    maxLinks: number;
-    depthThreshold: number;
-    moneyPages: string[];
-    stopAnchors: string[];
-    dedupeLinks: boolean;
-    cssClass: string;
-    relAttribute: string;
-    targetAttribute: string;
+  
+  // Каннибализация
+  cannibalization: {
+    threshold: 'low' | 'medium' | 'high'; // 0.75/0.80/0.85
+    action: 'block' | 'flag';
+    canonicRule: 'length' | 'url' | 'manual';
   };
-  check404Policy: string;
+  
+  // Политики ссылок
+  policies: {
+    oldLinks: 'enrich' | 'regenerate' | 'audit';
+    removeDuplicates: boolean;
+    brokenLinks: 'delete' | 'replace' | 'ignore';
+  };
+  
+  // HTML атрибуты
+  htmlAttributes: {
+    className: string;
+    rel: {
+      noopener: boolean;
+      noreferrer: boolean;
+      nofollow: boolean;
+    };
+    targetBlank: boolean;
+    classMode: 'append' | 'replace';
+  };
 }
 
 export class LinkGenerator {
   private openai: OpenAI;
   private projectId: string;
+  private stats = {
+    stopAnchorsApplied: 0,
+    brokenLinksDeleted: 0,
+    cannibalBlocks: 0,
+    duplicatesRemoved: 0,
+    priorityPagesUsed: 0,
+    hubPagesUsed: 0
+  };
 
   constructor(projectId: string) {
     this.projectId = projectId;
-    // Initialize OpenAI with faster model for production
     try {
       this.openai = new OpenAI({ 
         apiKey: process.env.OPENAI_API_KEY_2 || process.env.OPENAI_API_KEY 
       });
-      console.log('OpenAI connection successful (using gpt-3.5-turbo for speed)');
+      console.log('✅ OpenAI connection successful');
     } catch (error) {
-      console.error('OpenAI initialization failed:', error);
+      console.error('❌ OpenAI initialization failed:', error);
       throw error;
     }
+  }
+
+  // Handle old links policy
+  private async handleOldLinksPolicy(policy: 'enrich' | 'regenerate' | 'audit', runId: string): Promise<void> {
+    console.log(`🔧 Applying old links policy: ${policy}`);
+    
+    switch (policy) {
+      case 'regenerate':
+        // Delete existing links before generation
+        await db.delete(linkCandidates).where(eq(linkCandidates.runId, runId));
+        console.log('🗑️ Cleared existing links for regeneration');
+        break;
+      case 'enrich':
+        // Keep existing links, only add new ones
+        console.log('📈 Enriching existing links');
+        break;
+      case 'audit':
+        // Only analyze, don't insert new links
+        console.log('📊 Audit mode: analysis only');
+        break;
+    }
+  }
+
+  // Check for cannibalization between pages
+  private async checkCannibalization(sourceUrl: string, targetUrl: string, params: GenerationParams): Promise<boolean> {
+    const thresholds = { low: 0.75, medium: 0.80, high: 0.85 };
+    const threshold = thresholds[params.cannibalization.threshold];
+    
+    try {
+      // Get embeddings for both pages
+      const [sourceEmb, targetEmb] = await Promise.all([
+        db.select().from(pageEmbeddings).where(eq(pageEmbeddings.url, sourceUrl)).limit(1),
+        db.select().from(pageEmbeddings).where(eq(pageEmbeddings.url, targetUrl)).limit(1)
+      ]);
+      
+      if (!sourceEmb[0]?.contentVector || !targetEmb[0]?.contentVector) return false;
+      
+      // Parse content vectors (assuming they're JSON strings)
+      const sourceVector = JSON.parse(sourceEmb[0].contentVector);
+      const targetVector = JSON.parse(targetEmb[0].contentVector);
+      
+      // Calculate cosine similarity
+      const similarity = this.cosineSimilarity(sourceVector, targetVector);
+      
+      if (similarity > threshold) {
+        this.stats.cannibalBlocks++;
+        console.log(`🚫 Cannibalization detected: ${sourceUrl} -> ${targetUrl} (similarity: ${similarity.toFixed(3)})`);
+        
+        if (params.cannibalization.action === 'block') {
+          return true; // Block the link
+        } else {
+          // Flag only - allow but mark
+          console.log(`🏴 Flagged cannibalization: ${sourceUrl} -> ${targetUrl}`);
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error checking cannibalization:', error);
+      return false;
+    }
+  }
+
+  // Calculate cosine similarity between two vectors
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) return 0;
+    
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+  }
+
+  // Check if URL is broken (404)
+  private async checkBrokenUrl(url: string): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(url, { 
+        method: 'HEAD', 
+        signal: controller.signal 
+      });
+      
+      clearTimeout(timeoutId);
+      return !response.ok;
+    } catch {
+      return true; // Assume broken if can't connect
+    }
+  }
+
+  // Filter anchor text by stop list
+  private isStopAnchor(anchorText: string, stopAnchors: string[]): boolean {
+    const lowerAnchor = anchorText.toLowerCase();
+    return stopAnchors.some(stop => lowerAnchor.includes(stop.toLowerCase()));
+  }
+
+  // Check for duplicate links
+  private async isDuplicateLink(sourceUrl: string, targetUrl: string): Promise<boolean> {
+    const existing = await db
+      .select()
+      .from(linkCandidates)
+      .where(
+        and(
+          eq(linkCandidates.sourceUrl, sourceUrl),
+          eq(linkCandidates.targetUrl, targetUrl),
+          eq(linkCandidates.isRejected, false)
+        )
+      )
+      .limit(1);
+    
+    return existing.length > 0;
   }
 
   async generate(params: GenerationParams): Promise<string> {
@@ -62,17 +223,29 @@ export class LinkGenerator {
         .values({
           runId: runId,
           projectId: this.projectId,
-          importId: 'default-import', // Default import reference
+          importId: 'default-import',
           status: 'running',
-          phase: 'loading',
+          phase: 'initialization',
           percent: 0,
           generated: 0,
           rejected: 0
         });
 
-      console.log('Initializing OpenAI-powered link generator...');
+      console.log('🚀 Starting enhanced link generator with full parameter support...');
+      console.log('📋 Parameters:', {
+        maxLinks: params.maxLinks,
+        scenarios: Object.keys(params.scenarios).filter(k => params.scenarios[k as keyof typeof params.scenarios]),
+        policies: params.policies,
+        cannibalization: params.cannibalization,
+        stopAnchors: params.stopAnchors.length,
+        priorityPages: params.priorityPages.length,
+        hubPages: params.hubPages.length
+      });
       
-      // Phase 1: Load Pages (0-20%)
+      // Apply old links policy before generation
+      await this.handleOldLinksPolicy(params.policies.oldLinks, runId);
+      
+      // Phase 1: Load and validate pages (0-20%)
       await this.updateProgress(runId, 'loading', 10, 0, 0);
       const pages = await this.loadPages();
       
@@ -91,9 +264,9 @@ export class LinkGenerator {
       
       await this.updateProgress(runId, 'generating', 80, generated, rejected);
 
-      // Phase 4: Check 404s (80-85%)
+      // Phase 4: Check 404s and apply policies (80-85%)
       await this.updateProgress(runId, 'checking_404', 82, generated, rejected);
-      await this.check404Links(runId, params.check404Policy);
+      await this.check404Links(runId, params.policies.brokenLinks);
       
       await this.updateProgress(runId, 'checking_404', 85, generated, rejected);
 

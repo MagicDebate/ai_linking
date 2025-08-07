@@ -302,6 +302,36 @@ export default function ProjectUnifiedSpec() {
     }
   });
 
+  // Мутация запуска генерации ссылок с полным SEO профилем
+  const generateLinksMutation = useMutation({
+    mutationFn: async () => {
+      console.log('🚀 Sending full SEO profile to backend:', seoProfile);
+      
+      const response = await fetch('/api/generate/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          seoProfile  // Send complete SEO profile with all parameters
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to start generation');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Генерация ссылок запущена!" });
+      setCurrentStep(6); // Переходим к следующему шагу
+    },
+    onError: (error: any) => {
+      toast({ title: "Ошибка генерации", description: error.message, variant: "destructive" });
+    }
+  });
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -898,7 +928,7 @@ export default function ProjectUnifiedSpec() {
                   <div className="space-y-4">
                     <h4 className="font-medium text-gray-900 flex items-center gap-2">
                       Каннибализация
-                      <Info className="h-4 w-4 text-gray-500 cursor-help" title="Настройки для предотвращения каннибализации контента" />
+                      <Info className="h-4 w-4 text-gray-500 cursor-help" />
                     </h4>
                     
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1153,9 +1183,22 @@ export default function ProjectUnifiedSpec() {
                     <Button variant="outline" onClick={() => window.history.back()}>
                       Вернуться к проектам
                     </Button>
-                    <Button disabled={startImportMutation.isPending}>
-                      <Settings className="h-4 w-4 mr-2" />
-                      Перейти к генерации ссылок
+                    <Button 
+                      onClick={() => generateLinksMutation.mutate()}
+                      disabled={startImportMutation.isPending || generateLinksMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {generateLinksMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Запускаем генерацию...
+                        </>
+                      ) : (
+                        <>
+                          <Settings className="h-4 w-4 mr-2" />
+                          Запустить генерацию ссылок
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>

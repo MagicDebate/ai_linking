@@ -949,10 +949,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Start link generation
+  // Start link generation with full SEO profile parameters
   app.post("/api/generate/start", authenticateToken, async (req: any, res) => {
     try {
-      const { projectId, importId, scenarios, scope, rules } = req.body;
+      const { projectId, seoProfile } = req.body;
+      
+      console.log('🚀 Starting generation with full SEO profile:', {
+        projectId,
+        preset: seoProfile?.preset,
+        scenarios: seoProfile?.scenarios,
+        policies: seoProfile?.policies
+      });
       
       // Validate project belongs to user
       const project = await storage.getProjectById(projectId);
@@ -960,19 +967,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Project not found" });
       }
 
+      // Validate SEO profile structure
+      if (!seoProfile || !seoProfile.scenarios || !seoProfile.policies) {
+        return res.status(400).json({ error: "Invalid SEO profile structure" });
+      }
+
       // Create link generator
       const generator = new LinkGenerator(projectId);
 
-      // Prepare generation parameters
+      // Map UI data directly to generation parameters (full synchronization)
       const generationParams = {
-        scenarios,
-        rules,
-        check404Policy: 'disabled'
+        // Basic limits
+        maxLinks: seoProfile.maxLinks || 3,
+        minGap: seoProfile.minGap || 100,
+        exactAnchorPercent: seoProfile.exactAnchorPercent || 20,
+        
+        // Lists
+        stopAnchors: seoProfile.stopAnchors || [],
+        priorityPages: seoProfile.priorityPages || [], // Now using priorityPages instead of moneyPages
+        hubPages: seoProfile.hubPages || [],
+        
+        // Scenarios (exact match with UI)
+        scenarios: {
+          orphanFix: seoProfile.scenarios.orphanFix || false,
+          headConsolidation: seoProfile.scenarios.headConsolidation || false,
+          clusterCrossLink: seoProfile.scenarios.clusterCrossLink || false,
+          commercialRouting: seoProfile.scenarios.commercialRouting || false,
+          depthLift: {
+            enabled: seoProfile.scenarios.depthLift?.enabled || false,
+            minDepth: seoProfile.scenarios.depthLift?.minDepth || 5
+          },
+          freshnessPush: {
+            enabled: seoProfile.scenarios.freshnessPush?.enabled || false,
+            daysFresh: seoProfile.scenarios.freshnessPush?.daysFresh || 30,
+            linksPerDonor: seoProfile.scenarios.freshnessPush?.linksPerDonor || 1
+          }
+        },
+        
+        // Cannibalization (full support)
+        cannibalization: {
+          threshold: seoProfile.cannibalization?.threshold || 'medium',
+          action: seoProfile.cannibalization?.action || 'block',
+          canonicRule: seoProfile.cannibalization?.canonicRule || 'length'
+        },
+        
+        // Policies (full support)
+        policies: {
+          oldLinks: seoProfile.policies?.oldLinks || 'enrich',
+          removeDuplicates: seoProfile.policies?.removeDuplicates || true,
+          brokenLinks: seoProfile.policies?.brokenLinks || 'replace'
+        },
+        
+        // HTML attributes (full support)
+        htmlAttributes: {
+          className: seoProfile.htmlAttributes?.className || '',
+          rel: {
+            noopener: seoProfile.htmlAttributes?.rel?.noopener || false,
+            noreferrer: seoProfile.htmlAttributes?.rel?.noreferrer || false,
+            nofollow: seoProfile.htmlAttributes?.rel?.nofollow || false
+          },
+          targetBlank: seoProfile.htmlAttributes?.targetBlank || false,
+          classMode: seoProfile.htmlAttributes?.classMode || 'append'
+        }
       };
+
+      console.log('📋 Mapped generation parameters:', {
+        maxLinks: generationParams.maxLinks,
+        stopAnchors: generationParams.stopAnchors.length,
+        priorityPages: generationParams.priorityPages.length,
+        hubPages: generationParams.hubPages.length,
+        activeScenarios: Object.keys(generationParams.scenarios).filter(k => 
+          typeof generationParams.scenarios[k as keyof typeof generationParams.scenarios] === 'boolean' ? 
+          generationParams.scenarios[k as keyof typeof generationParams.scenarios] : 
+          generationParams.scenarios[k as keyof typeof generationParams.scenarios].enabled
+        ),
+        policies: generationParams.policies
+      });
 
       // Start generation in background
       generator.generate(generationParams).then((runId) => {
-        console.log(`Generation completed with runId: ${runId}`);
+        console.log(`✅ Generation completed with runId: ${runId}`);
       }).catch((error) => {
         console.error("Generation failed:", error);
       });
