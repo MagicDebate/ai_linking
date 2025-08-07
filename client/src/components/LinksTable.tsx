@@ -323,9 +323,10 @@ export function LinksTable({ projectId }: LinksTableProps) {
               
               {/* Содержимое */}
               <div className="prose max-w-none">
-                <div className="whitespace-pre-wrap text-sm leading-relaxed bg-gray-50 p-4 rounded border">
-                  {selectedPage.content}
-                </div>
+                <div 
+                  className="whitespace-pre-wrap text-sm leading-relaxed bg-gray-50 p-4 rounded border"
+                  dangerouslySetInnerHTML={{ __html: selectedPage.content }}
+                />
               </div>
             </div>
           )}

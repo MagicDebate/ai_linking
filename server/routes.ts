@@ -1014,6 +1014,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to insert anchors into content
+  async function insertAnchorsIntoContent(content: string, sourceUrl: string, projectId: string): Promise<string> {
+    try {
+      // Get all accepted links for this source page
+      const links = await db
+        .select({
+          anchorText: linkCandidates.anchorText,
+          targetUrl: linkCandidates.targetUrl,
+          modifiedSentence: linkCandidates.modifiedSentence
+        })
+        .from(linkCandidates)
+        .innerJoin(generationRuns, eq(linkCandidates.runId, generationRuns.runId))
+        .where(
+          and(
+            eq(linkCandidates.sourceUrl, sourceUrl),
+            eq(linkCandidates.isRejected, false),
+            eq(generationRuns.projectId, projectId)
+          )
+        )
+        .orderBy(desc(linkCandidates.createdAt)); // Most recent generation first
+
+      if (links.length === 0) {
+        return content; // No links to insert
+      }
+
+      let modifiedContent = content;
+      
+      // Process each link
+      for (const link of links) {
+        if (!link.anchorText || !link.targetUrl) continue;
+        
+        const anchorHtml = `<a href="${link.targetUrl}" class="internal-link">${link.anchorText}</a>`;
+        
+        // Try to replace exact anchor text match first
+        const anchorRegex = new RegExp(`\\b${link.anchorText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        
+        if (anchorRegex.test(modifiedContent)) {
+          // Replace first occurrence only to avoid duplicate links
+          modifiedContent = modifiedContent.replace(anchorRegex, anchorHtml);
+        } else {
+          // If exact match not found, try to insert into a sentence context
+          // Look for words from anchor text and insert link around them
+          const words = link.anchorText.toLowerCase().split(' ');
+          if (words.length > 0) {
+            const firstWord = words[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const firstWordRegex = new RegExp(`\\b${firstWord}\\b`, 'gi');
+            
+            if (firstWordRegex.test(modifiedContent)) {
+              // Replace first occurrence of first word with full anchor
+              modifiedContent = modifiedContent.replace(firstWordRegex, anchorHtml);
+            }
+          }
+        }
+      }
+
+      return modifiedContent;
+    } catch (error) {
+      console.error('Error inserting anchors:', error);
+      return content; // Return original content on error
+    }
+  }
+
   // Get page content for viewing full article text
   app.get("/api/projects/:id/page-content", authenticateToken, async (req: any, res) => {
     try {
@@ -1045,7 +1107,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'Page not found' });
       }
       
-      res.json(page[0]);
+      // Insert anchors into content
+      const contentWithAnchors = await insertAnchorsIntoContent(page[0].content, url, projectId);
+      
+      res.json({
+        ...page[0],
+        content: contentWithAnchors,
+        hasAnchors: contentWithAnchors !== page[0].content
+      });
     } catch (error) {
       console.error('Error fetching page content:', error);
       res.status(500).json({ error: 'Internal server error' });

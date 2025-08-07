@@ -56,4 +56,16 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+  
+  /* Internal link styles */
+  .internal-link {
+    @apply text-primary underline transition-colors;
+    text-decoration-color: hsl(var(--primary));
+    text-underline-offset: 2px;
+  }
+  
+  .internal-link:hover {
+    color: hsl(var(--primary) / 0.8);
+    text-decoration-color: hsl(var(--primary) / 0.8);
+  }
 }
