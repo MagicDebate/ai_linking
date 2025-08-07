@@ -711,8 +711,8 @@ export default function ProjectUnifiedSpec() {
                       </div>
                     </div>
 
-                    {/* Стоп-лист и money URLs */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Стоп-лист анкоров */}
+                    <div className="space-y-4">
                       <div>
                         <Label htmlFor="stopAnchors">Стоп-лист анкоров</Label>
                         <Textarea
@@ -726,40 +726,47 @@ export default function ProjectUnifiedSpec() {
                           className="mt-1"
                         />
                       </div>
-                      
-                      <div>
-                        <Label htmlFor="priorityPages">Приоритетные (money) URL</Label>
-                        <Textarea
-                          id="priorityPages"
-                          placeholder="Введите URL через запятую"
-                          value={seoProfile.priorityPages.join(', ')}
-                          onChange={(e) => {
-                            const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                            setSeoProfile(prev => ({ ...prev, priorityPages: urls }));
-                          }}
-                          className="mt-1"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">URL с повышенным приоритетом для Commercial Routing</p>
-                      </div>
                     </div>
 
-                    {/* Hub Pages */}
-                    <div className="space-y-2">
-                      <div>
-                        <Label htmlFor="hubPages">Hub Pages</Label>
-                        <Textarea
-                          id="hubPages"
-                          placeholder="Введите URL хаб-страниц через запятую"
-                          value={seoProfile.hubPages.join(', ')}
-                          onChange={(e) => {
-                            const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                            setSeoProfile(prev => ({ ...prev, hubPages: urls }));
-                          }}
-                          className="mt-1"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Канонические/хаб-страницы для Head Consolidation</p>
+                    {/* Priority Pages - видно только если Commercial Routing включен */}
+                    {seoProfile.scenarios.commercialRouting && (
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="priorityPages">Priority (Money) Pages</Label>
+                          <Textarea
+                            id="priorityPages"
+                            placeholder="Введите URL через запятую или загрузите CSV"
+                            value={seoProfile.priorityPages.join(', ')}
+                            onChange={(e) => {
+                              const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                              setSeoProfile(prev => ({ ...prev, priorityPages: urls }));
+                            }}
+                            className="mt-1"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">URL с повышенным приоритетом при Commercial Routing. Можно загрузить CSV или ввести вручную.</p>
+                        </div>
                       </div>
-                    </div>
+                    )}
+
+                    {/* Hub Pages - видно только если Head Consolidation включен */}
+                    {seoProfile.scenarios.headConsolidation && (
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="hubPages">Hub Pages</Label>
+                          <Textarea
+                            id="hubPages"
+                            placeholder="Введите URL хаб-страниц через запятую или загрузите CSV"
+                            value={seoProfile.hubPages.join(', ')}
+                            onChange={(e) => {
+                              const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                              setSeoProfile(prev => ({ ...prev, hubPages: urls }));
+                            }}
+                            className="mt-1"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Канонические/хаб-страницы для Head Consolidation. Можно импортировать CSV (clusterId, url) или выбрать вручную.</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Сценарии */}
