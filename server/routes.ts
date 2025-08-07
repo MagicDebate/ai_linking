@@ -1117,41 +1117,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const anchorHtml = `<a href="${link.targetUrl}" class="internal-link">${cyrillicAnchor}</a>`;
         
-        // Try to replace exact cyrillic anchor text match first
-        const anchorRegex = new RegExp(`\\b${cyrillicAnchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        // Try multiple matching strategies
+        let matched = false;
         
-        console.log('🔗 Testing cyrillic regex:', anchorRegex.toString());
-        console.log('🔗 Against content length:', modifiedContent.length);
+        // Strategy 1: Exact phrase match
+        const exactRegex = new RegExp(`\\b${cyrillicAnchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        if (exactRegex.test(modifiedContent)) {
+          console.log('🔗 Exact match found:', cyrillicAnchor);
+          modifiedContent = modifiedContent.replace(exactRegex, anchorHtml);
+          matched = true;
+        }
         
-        if (anchorRegex.test(modifiedContent)) {
-          console.log('🔗 Exact cyrillic match found, replacing');
-          modifiedContent = modifiedContent.replace(anchorRegex, anchorHtml);
-        } else {
-          console.log('🔗 No exact match, trying first word approach');
-          // Try with individual words
-          const words = cyrillicAnchor.toLowerCase().split(' ');
-          if (words.length > 0) {
-            const firstWord = words[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const firstWordRegex = new RegExp(`\\b${firstWord}\\b`, 'gi');
-            
-            console.log('🔗 Testing first cyrillic word regex:', firstWordRegex.toString());
-            
-            if (firstWordRegex.test(modifiedContent)) {
-              console.log('🔗 First word match found, replacing with full anchor');
-              modifiedContent = modifiedContent.replace(firstWordRegex, anchorHtml);
-            } else {
-              console.log('🔗 No match found for this link');
+        // Strategy 2: Try partial match (2+ words from phrase)
+        if (!matched) {
+          const words = cyrillicAnchor.split(' ');
+          if (words.length >= 2) {
+            for (let i = 0; i <= words.length - 2; i++) {
+              const phrase = words.slice(i, i + 2).join(' ');
+              const phraseRegex = new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
               
-              // As last resort, just append the link at the end of first paragraph
-              const firstParagraphEnd = modifiedContent.indexOf('\n\n');
-              if (firstParagraphEnd !== -1) {
-                console.log('🔗 Appending link to first paragraph');
-                modifiedContent = modifiedContent.slice(0, firstParagraphEnd) + 
-                  ` Читайте также: ${anchorHtml}` + 
-                  modifiedContent.slice(firstParagraphEnd);
+              if (phraseRegex.test(modifiedContent)) {
+                console.log('🔗 Partial match found:', phrase);
+                modifiedContent = modifiedContent.replace(phraseRegex, anchorHtml);
+                matched = true;
+                break;
               }
             }
           }
+        }
+        
+        // Strategy 3: Try key words individually (like "депрессия", "атака" etc)
+        if (!matched) {
+          const keyWords = cyrillicAnchor.split(' ').filter(word => word.length > 3);
+          for (const word of keyWords) {
+            const wordRegex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+            
+            if (wordRegex.test(modifiedContent)) {
+              console.log('🔗 Key word match found:', word);
+              modifiedContent = modifiedContent.replace(wordRegex, anchorHtml);
+              matched = true;
+              break;
+            }
+          }
+        }
+        
+        if (!matched) {
+          console.log('🔗 No suitable text found for anchor:', cyrillicAnchor);
         }
       }
 
