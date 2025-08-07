@@ -1382,9 +1382,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         runId: run[0].runId,
         status: run[0].status,
         startedAt: run[0].startedAt,
-        completedAt: run[0].completedAt,
+        finishedAt: run[0].finishedAt,
         currentLinksGenerated: linkCount[0]?.count || 0,
-        progress: run[0].status === 'completed' ? 100 : 
+        progress: run[0].status === 'published' ? 100 : 
                  run[0].status === 'running' ? Math.min(95, (linkCount[0]?.count || 0) * 2) : 0
       });
     } catch (error) {

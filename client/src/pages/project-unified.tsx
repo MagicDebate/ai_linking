@@ -1303,7 +1303,7 @@ function GenerationProgressModal({ projectId, onClose, onComplete }: GenerationP
 
   // Handle completion
   useEffect(() => {
-    if (status?.status === 'completed') {
+    if (status?.status === 'published' || status?.status === 'draft') {
       toast({
         title: "Генерация завершена",
         description: `Создано ${status.currentLinksGenerated} внутренних ссылок`
@@ -1345,7 +1345,7 @@ function GenerationProgressModal({ projectId, onClose, onComplete }: GenerationP
               <div className="text-center space-y-2">
                 <p className="font-medium">
                   Статус: {status.status === 'running' ? 'В процессе' : 
-                           status.status === 'completed' ? 'Завершено' : 
+                           status.status === 'published' || status.status === 'draft' ? 'Завершено' : 
                            status.status}
                 </p>
                 <p className="text-sm text-gray-600">
@@ -1359,7 +1359,7 @@ function GenerationProgressModal({ projectId, onClose, onComplete }: GenerationP
                 )}
               </div>
 
-              {status.status !== 'completed' && (
+              {status.status !== 'published' && status.status !== 'draft' && (
                 <div className="flex justify-center">
                   <Button variant="outline" onClick={onClose}>
                     Скрыть окно
