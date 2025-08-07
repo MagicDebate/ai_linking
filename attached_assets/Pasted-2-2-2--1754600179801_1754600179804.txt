@@ -1,0 +1,105 @@
+2.2 Шаг 2: Выбор пресета (шаблона настроек)
+
+На этом экране пользователь выбирает один из готовых шаблонов (пресетов), которые служат лишь для быстрого заполнения всех нижеперечисленных параметров. Пресеты не запускают логику генерирации самостоятельно — они заполняют поля, после чего пользователь может редактировать каждое вручную.
+
+Доступные пресеты:
+
+«Базовый»
+
+Включены пассы: Orphan Fix, Head Consolidation, Cluster Cross-Link, Commercial Routing
+
+Depth Lift = ON (minDepth = 5), Freshness Push = ON (days = 30, linksPerDonor = 1)
+
+«E-commerce»
+
+Включены: Orphan Fix, Head Consolidation, Commercial Routing
+
+Depth Lift = ON (minDepth = 4), Freshness Push = OFF
+
+«Свежесть»
+
+Включен только Freshness Push (days = 30, linksPerDonor = 1)
+
+«Другое»
+
+Не изменяет текущие значения полей; позволяет сохранить и переиспользовать собственный набор настроек.
+
+Важно: пресет — это лишь UI-шорткат для установки значений полей ниже в шаге 3. Он не влияет на выполнение алгоритма напрямую.
+
+2.3 Шаг 3: Настройка параметров перелинковки
+
+Здесь перечислены все параметры, которые повлияют на алгоритм генерации ссылок. Каждое поле имеет своё назначение и участвует в проверках и отборе кандидатов.
+
+2.3.1 Сценарии (пасс-переключатели)
+
+Orphan Fix (ON/OFF) — приземляет сироты.
+
+Head Consolidation (ON/OFF) — сливает вес в хаб-страницы.
+
+Cluster Cross-Link (ON/OFF) — сшивает однотематичные статьи.
+
+Commercial Routing (ON/OFF) — направляет ссылки на money-pages.
+
+Depth Lift — добавляет короткие пути на deep URL:
+
+ON/OFF
+
+minDepth (3–8)
+
+Freshness Push — ускоряет индексацию новых:
+
+ON/OFF
+
+daysFresh (7–60)
+
+linksPerDonor (0–3)
+
+2.3.2 Основные лимиты и стоп‑анкоры
+
+Max links / page (maxLinks, 1–10)
+
+Min gap (minGap, 50–400 слов)
+
+Exact-anchor % (exactAnchorPercent, 0–50%)
+
+Stop-anchors (textarea) — фразы, которые никогда не используются в качестве анкоров.
+
+2.3.3 Дополнительные политики и ручные списки
+
+Priority (money) pages (chip-input) — список URL, которые получат повышенный приоритет при Commercial Routing и общем ранжировании; может загружаться из CSV или вводиться вручную.
+
+Hub pages (chip-input) — список канонических/хаб-страниц для Head Consolidation, если авто-детект не устраивает; можно импортировать CSV clusterId, url или выбрать вручную.
+
+Old Links Policy: Enrich / Regenerate / Audit only
+
+Remove Duplicates (ON/OFF)
+
+Broken-link Policy: Delete / Replace / Ignore
+
+HTML Attributes: className, rel, targetBlank, classMode Дополнительные политики
+
+Priority (money) pages (chip-input) — URL с повышенным приоритетом при Commercial Routing и в общем ранжировании.
+
+Old Links Policy: Enrich / Regenerate / Audit only
+
+Remove Duplicates (ON/OFF)
+
+Broken-link Policy: Delete / Replace / Ignore
+
+HTML Attributes: className, rel, targetBlank, classMode
+
+2.3.4 Каннибализация
+
+Порог похожести (Low/Medium/High → 0.75/0.80/0.85)
+
+Действие: Block / Flag only
+
+Выбор каноника: Length / URL / Manual
+
+Ручная правка при необходимости
+
+Навигация:
+
+«Назад» → шаг 2: выбор пресета
+
+«Далее» → запуск импорта

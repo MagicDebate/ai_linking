@@ -62,6 +62,7 @@ export interface IStorage {
   // Imports
   createImport(importData: InsertImport): Promise<Import>;
   getImportByUploadId(uploadId: string): Promise<Import | undefined>;
+  getImportsByProjectId(projectId: string): Promise<Import[]>;
   updateImportFieldMapping(uploadId: string, fieldMapping: string): Promise<Import | undefined>;
 
   // Import Jobs
@@ -221,6 +222,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(imports.id, uploadId))
       .returning();
     return updatedImport || undefined;
+  }
+
+  async getImportsByProjectId(projectId: string): Promise<Import[]> {
+    const result = await db.select().from(imports)
+      .where(eq(imports.projectId, projectId))
+      .orderBy(desc(imports.createdAt));
+    return result;
   }
 
   // Import Jobs - in-memory implementation with persistence

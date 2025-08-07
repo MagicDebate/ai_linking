@@ -54,9 +54,10 @@ interface SEOProfile {
   minGap: number;            // 50-400 слов
   exactAnchorPercent: number; // 0-50%
   
-  // Стоп-лист и money URLs
+  // Стоп-лист и priority/hub URLs
   stopAnchors: string[];
-  moneyUrls: string[];
+  priorityPages: string[];    // Money pages for Commercial Routing
+  hubPages: string[];        // Hub pages for Head Consolidation
   
   // Сценарии ON/OFF + настройки
   scenarios: {
@@ -79,7 +80,7 @@ interface SEOProfile {
   cannibalization: {
     threshold: 'low' | 'medium' | 'high'; // 0.75/0.80/0.85
     action: 'block' | 'flag';
-    canonicRule: 'content' | 'url' | 'manual';
+    canonicRule: 'length' | 'url' | 'manual'; // По ТЗ: Length/URL/Manual
   };
   
   // Политики ссылок
@@ -108,7 +109,8 @@ const DEFAULT_PROFILE: SEOProfile = {
   minGap: 100,
   exactAnchorPercent: 20,
   stopAnchors: [],
-  moneyUrls: [],
+  priorityPages: [],
+  hubPages: [],
   scenarios: {
     orphanFix: true,
     headConsolidation: true,
@@ -120,7 +122,7 @@ const DEFAULT_PROFILE: SEOProfile = {
   cannibalization: {
     threshold: 'medium',
     action: 'block',
-    canonicRule: 'content'
+    canonicRule: 'length'
   },
   policies: {
     oldLinks: 'enrich',
@@ -726,17 +728,36 @@ export default function ProjectUnifiedSpec() {
                       </div>
                       
                       <div>
-                        <Label htmlFor="moneyUrls">Приоритетные (money) URL</Label>
+                        <Label htmlFor="priorityPages">Приоритетные (money) URL</Label>
                         <Textarea
-                          id="moneyUrls"
+                          id="priorityPages"
                           placeholder="Введите URL через запятую"
-                          value={seoProfile.moneyUrls.join(', ')}
+                          value={seoProfile.priorityPages.join(', ')}
                           onChange={(e) => {
                             const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                            setSeoProfile(prev => ({ ...prev, moneyUrls: urls }));
+                            setSeoProfile(prev => ({ ...prev, priorityPages: urls }));
                           }}
                           className="mt-1"
                         />
+                        <p className="text-xs text-gray-500 mt-1">URL с повышенным приоритетом для Commercial Routing</p>
+                      </div>
+                    </div>
+
+                    {/* Hub Pages */}
+                    <div className="space-y-2">
+                      <div>
+                        <Label htmlFor="hubPages">Hub Pages</Label>
+                        <Textarea
+                          id="hubPages"
+                          placeholder="Введите URL хаб-страниц через запятую"
+                          value={seoProfile.hubPages.join(', ')}
+                          onChange={(e) => {
+                            const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                            setSeoProfile(prev => ({ ...prev, hubPages: urls }));
+                          }}
+                          className="mt-1"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Канонические/хаб-страницы для Head Consolidation</p>
                       </div>
                     </div>
                   </div>
@@ -917,14 +938,14 @@ export default function ProjectUnifiedSpec() {
                         <Label>Правило выбора каноника</Label>
                         <RadioGroup 
                           value={seoProfile.cannibalization.canonicRule}
-                          onValueChange={(value: 'content' | 'url' | 'manual') => 
+                          onValueChange={(value: 'length' | 'url' | 'manual') => 
                             setSeoProfile(prev => ({ ...prev, cannibalization: { ...prev.cannibalization, canonicRule: value } }))
                           }
                           className="mt-2"
                         >
                           <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="content" id="content" />
-                            <Label htmlFor="content">По полноте текста</Label>
+                            <RadioGroupItem value="length" id="length" />
+                            <Label htmlFor="length">По полноте текста</Label>
                           </div>
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="url" id="url" />
