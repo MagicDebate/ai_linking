@@ -534,12 +534,12 @@ export class LinkGenerator {
         .select()
         .from(blocks)
         .where(eq(blocks.pageId, sourcePage.id))
-        .limit(5); // Уменьшаем количество блоков
+        .limit(5);
 
       const sourceContent = sourceBlocks
         .map(block => block.text)
         .join(' ')
-        .substring(0, 500); // Уменьшаем объем контента
+        .substring(0, 1000);
 
       const targetTitle = targetPage.title || this.extractTitle(targetPage.cleanHtml || '');
       
@@ -548,6 +548,18 @@ export class LinkGenerator {
       if (contentAnchor) {
         console.log(`📌 Found existing anchor: "${contentAnchor}"`);
         return { anchor: contentAnchor };
+      }
+
+      console.log(`🤖 No existing anchor found, trying OpenAI rewrite for: ${targetTitle}`);
+      
+      // Пытаемся создать модифицированный контент с OpenAI
+      const rewriteResult = await this.generateRewrittenSentence(sourceContent, targetTitle);
+      if (rewriteResult) {
+        console.log(`✨ OpenAI generated rewrite: "${rewriteResult.modifiedSentence}"`);
+        return { 
+          anchor: rewriteResult.anchor, 
+          modifiedContent: rewriteResult.modifiedSentence 
+        };
       }
 
       // Быстрая генерация анкора без OpenAI для скорости
@@ -565,6 +577,67 @@ export class LinkGenerator {
       console.log('Smart anchor generation failed, using fallback:', error);
       const fallbackAnchor = this.generateSimpleAnchorText(sourcePage, targetPage);
       return { anchor: fallbackAnchor };
+    }
+  }
+
+  // Новая функция для создания переписанных предложений с OpenAI
+  private async generateRewrittenSentence(sourceContent: string, targetTitle: string): Promise<{ anchor: string, modifiedSentence: string } | null> {
+    try {
+      const openai = new (await import('openai')).default({ 
+        apiKey: process.env.OPENAI_API_KEY 
+      });
+
+      const prompt = `Ты эксперт по SEO и внутренней перелинковке. 
+
+ЗАДАЧА: Найди в тексте предложение, которое можно естественно переписать, чтобы добавить ссылку на статью "${targetTitle}".
+
+ИСХОДНЫЙ ТЕКСТ:
+"${sourceContent}"
+
+ТРЕБОВАНИЯ:
+1. Найди наиболее подходящее предложение для модификации
+2. Перепиши его так, чтобы естественно упомянуть тему "${targetTitle}"
+3. Создай анкор-текст для ссылки (2-5 слов на русском языке)
+4. В переписанном предложении используй точное место для анкора
+
+ФОРМАТ ОТВЕТА (JSON):
+{
+  "originalSentence": "исходное предложение",
+  "modifiedSentence": "переписанное предложение с местом для ссылки",
+  "anchor": "текст анкора"
+}
+
+ПРИМЕР:
+Исходное: "Депрессия может быть вызвана разными факторами."
+Переписанное: "Депрессия может быть вызвана разными факторами, включая тяжелую депрессию."
+Анкор: "тяжелая депрессия"
+
+ВАЖНО: Переписывай только если можешь сделать это естественно и релевантно!`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o", // используем лучшую модель
+        messages: [
+          { role: "system", content: "Ты эксперт по SEO и созданию естественных внутренних ссылок. Отвечай только на русском языке." },
+          { role: "user", content: prompt }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+        max_tokens: 300
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || '{}');
+      
+      if (result.modifiedSentence && result.anchor) {
+        return {
+          anchor: result.anchor,
+          modifiedSentence: result.modifiedSentence
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.log('OpenAI rewrite failed:', error);
+      return null;
     }
   }
 

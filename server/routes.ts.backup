@@ -1204,6 +1204,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const union = Array.from(new Set([...words1, ...words2]));
     
     return intersection.length / union.length;
+    } catch (error) {
+      console.error('Error inserting anchors:', error);
+      return content; // Return original content on error
+    }
   }
 
   // Get page content for viewing full article text
