@@ -712,10 +712,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create import job record
       await db.insert(importJobs).values({
-        id: jobId, // используем jobId как primary key
+        id: jobId,
         jobId,
         projectId,
-        importId: uploadId, // используем uploadId как importId
+        importId: uploadId,
         status: 'running',
         phase: 'parsing',
         percent: 0
