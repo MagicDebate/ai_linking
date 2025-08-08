@@ -715,7 +715,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         jobId,
         projectId,
         importId: uploadId, // используем uploadId как importId
-        uploadId,
         status: 'running',
         phase: 'parsing',
         percent: 0
