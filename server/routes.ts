@@ -1095,9 +1095,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Cannibalization (full support)
         cannibalization: {
-          threshold: seoProfile.cannibalization?.threshold || 'medium',
-          action: seoProfile.cannibalization?.action || 'block',
-          canonicRule: seoProfile.cannibalization?.canonicRule || 'length'
+          enabled: seoProfile.cannibalization?.enabled !== false,
+          level: (seoProfile.cannibalization?.level || 'medium') as 'low' | 'medium' | 'high'
         },
         
         // Policies (full support)
@@ -1582,11 +1581,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create link generator
       const generator = new LinkGenerator(projectId);
 
-      // Prepare generation parameters
+      // Prepare generation parameters with proper typing
       const generationParams = {
+        maxLinks: 3,
+        exactAnchorPercent: 20,
+        priorityPages: [],
+        hubPages: [],
+        stopAnchors: [],
         scenarios,
-        rules,
-        check404Policy: check404Policy || 'disabled'
+        cannibalization: { enabled: true, level: 'medium' as const },
+        policies: {
+          oldLinks: 'enrich' as const,
+          removeDuplicates: true,
+          brokenLinks: 'replace' as const
+        },
+        htmlAttributes: {
+          className: '',
+          rel: { noopener: false, noreferrer: false, nofollow: false },
+          targetBlank: false,
+          classMode: 'append' as const
+        }
       };
 
       // Start generation in background
@@ -2984,7 +2998,7 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
       }
 
       // Count blocks and words
-      const blocks = content.split('\n\n').filter(b => b.trim());
+      const blocks = content.split('\n\n').filter((b: string) => b.trim());
       totalBlocks += blocks.length;
       totalWords += content.split(/\s+/).length;
 
