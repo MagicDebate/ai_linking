@@ -269,7 +269,7 @@ export default function ProjectUnifiedSpec() {
     },
     onSuccess: async () => {
       toast({ title: "Настройки сохранены!" });
-      setCurrentStep(4);
+      setCurrentStep(3); // Переходим на шаг импорта
       // Запускаем импорт автоматически
       if (csvPreview?.uploadId) {
         startImportMutation.mutate();
@@ -294,13 +294,47 @@ export default function ProjectUnifiedSpec() {
       if (!response.ok) throw new Error('Import start failed');
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({ title: "Импорт запущен!" });
+      setImportJobId(data.jobId); // Сохраняем ID для отслеживания
     },
     onError: (error: any) => {
       toast({ title: "Ошибка импорта", description: error.message, variant: "destructive" });
     }
   });
+
+  // Состояние импорта
+  const [importJobId, setImportJobId] = useState<string | null>(null);
+  
+  // Запрос статуса импорта с автообновлением
+  const { data: importStatus, isLoading: importStatusLoading } = useQuery({
+    queryKey: ['/api/import/status', importJobId],
+    queryFn: async () => {
+      if (!importJobId) return null;
+      const response = await fetch(`/api/import/status/${importJobId}`);
+      if (!response.ok) throw new Error('Failed to get import status');
+      return response.json();
+    },
+    enabled: !!importJobId && currentStep === 3,
+    refetchInterval: (data) => {
+      // Обновляем каждую секунду пока импорт активен
+      return data?.status === 'running' ? 1000 : false;
+    }
+  });
+
+  // Автоматический переход на следующий шаг после завершения импорта
+  useEffect(() => {
+    if (importStatus?.status === 'completed' && currentStep === 3) {
+      toast({ title: "Импорт завершен успешно!" });
+      setTimeout(() => setCurrentStep(4), 1000);
+    } else if (importStatus && importStatus.status === 'failed' && currentStep === 3) {
+      toast({ 
+        title: "Ошибка импорта", 
+        description: importStatus.error || "Неизвестная ошибка",
+        variant: "destructive" 
+      });
+    }
+  }, [importStatus, currentStep]);
 
   // Мутация запуска генерации ссылок с полным SEO профилем
   const generateLinksMutation = useMutation({
@@ -413,10 +447,13 @@ export default function ProjectUnifiedSpec() {
   }
 
   const steps = [
-    { number: 1, title: "Загрузка и маппинг CSV", description: "Загрузите файл и настройте поля" },
-    { number: 2, title: "Базовые настройки (SEO-профиль)", description: "Пресеты и основные параметры" },
-    { number: 3, title: "Прогресс импорта", description: "Обработка контента" },
-    { number: 4, title: "Настройка области генерации", description: "Выбор scope" },
+    { number: 1, title: "Шаг 1: Загрузка CSV", description: "Загрузите файл и настройте поля данных" },
+    { number: 2, title: "Шаг 2: SEO профиль", description: "Настройте пресеты, сценарии и параметры" },
+    { number: 3, title: "Шаг 3: Импорт данных", description: "Обработка и анализ загруженного контента" },
+    { number: 4, title: "Шаг 4: Настройка области", description: "Выберите scope для генерации ссылок" },
+    { number: 5, title: "Шаг 5: Генерация ссылок", description: "Создание внутренних ссылок по сценариям" },
+    { number: 6, title: "Шаг 6: Проверка черновика", description: "Просмотр и редактирование предложенных ссылок" },
+    { number: 7, title: "Шаг 7: Публикация", description: "Экспорт готовых ссылок для внедрения" }
   ];
 
   return (
@@ -1154,38 +1191,174 @@ export default function ProjectUnifiedSpec() {
                 </div>
               )}
 
-              {/* Шаг 4: Прогресс импорта */}
-              {currentStep === 4 && (
-                <div className="text-center space-y-6">
-                  {startImportMutation.isPending ? (
-                    <div className="space-y-4">
-                      <Loader2 className="h-16 w-16 text-blue-600 mx-auto animate-spin" />
-                      <h3 className="text-xl font-semibold text-gray-900">
-                        Запускаем импорт...
-                      </h3>
-                      <p className="text-gray-600">
-                        Обрабатываем данные и подготавливаем контент для создания ссылок.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto" />
-                      <h3 className="text-xl font-semibold text-gray-900">
-                        Настройки сохранены!
-                      </h3>
-                      <p className="text-gray-600">
-                        Ваш контент будет обработан и готов для создания внутренних ссылок.
-                      </p>
+              {/* Шаг 3: Импорт данных с прогрессом */}
+              {currentStep === 3 && (
+                <div className="space-y-6">
+                  {/* Заголовок */}
+                  <div className="text-center">
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                      Импорт и анализ контента
+                    </h3>
+                    <p className="text-gray-600">
+                      Обрабатываем загруженные данные и подготавливаем контент для создания ссылок
+                    </p>
+                  </div>
+
+                  {/* Прогресс импорта */}
+                  <div className="bg-gray-50 rounded-lg p-6">
+                    {importStatusLoading || !importStatus ? (
+                      <div className="text-center space-y-4">
+                        <Loader2 className="h-12 w-12 text-blue-600 mx-auto animate-spin" />
+                        <p className="text-blue-600 font-medium">Запускаем импорт...</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {/* Прогресс бар */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium text-gray-700">
+                              {importStatus.phase === 'parsing' && 'Парсинг CSV файла'}
+                              {importStatus.phase === 'processing' && 'Обработка контента'}
+                              {importStatus.phase === 'embedding' && 'Создание векторных представлений'}
+                              {importStatus.phase === 'graph' && 'Построение графа связей'}
+                              {importStatus.phase === 'cleanup' && 'Финализация'}
+                              {importStatus.phase === 'completed' && 'Импорт завершен'}
+                            </span>
+                            <span className="text-blue-600 font-medium">
+                              {importStatus.percent}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div 
+                              className="bg-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
+                              style={{ width: `${importStatus.percent}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Статистика */}
+                        <div className="grid grid-cols-3 gap-4 text-center">
+                          <div className="bg-white rounded-lg p-4">
+                            <div className="text-2xl font-bold text-gray-900">
+                              {importStatus.stats?.totalPages || 0}
+                            </div>
+                            <div className="text-sm text-gray-600">Страниц обработано</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-4">
+                            <div className="text-2xl font-bold text-gray-900">
+                              {importStatus.stats?.totalBlocks || 0}
+                            </div>
+                            <div className="text-sm text-gray-600">Блоков контента</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-4">
+                            <div className="text-2xl font-bold text-gray-900">
+                              {importStatus.stats?.totalWords || 0}
+                            </div>
+                            <div className="text-sm text-gray-600">Слов проанализировано</div>
+                          </div>
+                        </div>
+
+                        {/* Детали текущей фазы */}
+                        {importStatus.currentItem && (
+                          <div className="bg-white rounded-lg p-4 border-l-4 border-blue-500">
+                            <div className="text-sm text-gray-600 mb-1">Обрабатываем:</div>
+                            <div className="font-medium text-gray-900 truncate">
+                              {importStatus.currentItem}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Ошибки если есть */}
+                        {importStatus.errors && importStatus.errors.length > 0 && (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <div className="flex items-start">
+                              <AlertCircle className="h-5 w-5 text-yellow-600 mr-3 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <h4 className="text-yellow-800 font-medium mb-1">
+                                  Обнаружены предупреждения ({importStatus.errors.length})
+                                </h4>
+                                <div className="text-yellow-700 text-sm space-y-1">
+                                  {importStatus.errors.slice(0, 3).map((error: string, i: number) => (
+                                    <div key={i}>• {error}</div>
+                                  ))}
+                                  {importStatus.errors.length > 3 && (
+                                    <div>• ... и еще {importStatus.errors.length - 3} предупреждений</div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Статус завершения */}
+                        {importStatus.status === 'completed' && (
+                          <div className="text-center">
+                            <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-2" />
+                            <p className="text-green-700 font-medium">
+                              Импорт завершен успешно! Переходим к настройке области генерации.
+                            </p>
+                          </div>
+                        )}
+
+                        {importStatus.status === 'failed' && (
+                          <div className="text-center">
+                            <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-2" />
+                            <p className="text-red-700 font-medium">
+                              Ошибка импорта: {importStatus.error}
+                            </p>
+                            <Button 
+                              variant="outline" 
+                              className="mt-4"
+                              onClick={() => startImportMutation.mutate()}
+                            >
+                              Повторить импорт
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Кнопки управления */}
+                  {importStatus?.status === 'completed' && (
+                    <div className="flex justify-between">
+                      <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                        <ArrowLeft className="h-4 w-4 mr-2" />
+                        Назад к настройкам
+                      </Button>
+                      <Button 
+                        onClick={() => setCurrentStep(4)}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        Настроить область генерации
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Шаг 4: Настройка области генерации */}
+              {currentStep === 4 && (
+                <div className="text-center space-y-6">
+                  <div className="space-y-4">
+                    <Settings className="h-16 w-16 text-blue-600 mx-auto" />
+                    <h3 className="text-xl font-semibold text-gray-900">
+                      Настройка области генерации
+                    </h3>
+                    <p className="text-gray-600">
+                      Выберите scope для создания внутренних ссылок и запустите генерацию.
+                    </p>
+                  </div>
 
                   <div className="flex justify-center gap-4">
-                    <Button variant="outline" onClick={() => window.history.back()}>
-                      Вернуться к проектам
+                    <Button variant="outline" onClick={() => setCurrentStep(3)}>
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Назад к импорту
                     </Button>
                     <Button 
                       onClick={() => generateLinksMutation.mutate()}
-                      disabled={startImportMutation.isPending || generateLinksMutation.isPending}
+                      disabled={generateLinksMutation.isPending}
                       className="bg-green-600 hover:bg-green-700"
                     >
                       {generateLinksMutation.isPending ? (

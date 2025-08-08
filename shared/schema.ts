@@ -373,3 +373,9 @@ export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 export type Import = typeof imports.$inferSelect;
 export type InsertImport = z.infer<typeof insertImportSchema>;
 export type FieldMapping = z.infer<typeof fieldMappingSchema>;
+
+// Update existing import jobs table to include new fields
+// Zod schema for import jobs
+export const insertImportJobSchema = createInsertSchema(importJobs).omit({ startedAt: true, createdAt: true });
+export type ImportJob = typeof importJobs.$inferSelect;
+export type InsertImportJob = z.infer<typeof insertImportJobSchema>;

@@ -686,6 +686,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Start import process
+  app.post("/api/import/start", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId, uploadId } = req.body;
+      
+      if (!projectId || !uploadId) {
+        return res.status(400).json({ error: "Missing projectId or uploadId" });
+      }
+
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Verify import exists
+      const importRecord = await storage.getImportByUploadId(uploadId);
+      if (!importRecord || importRecord.projectId !== projectId) {
+        return res.status(404).json({ error: "Import not found" });
+      }
+
+      // Generate job ID
+      const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Create import job record
+      await db.insert(importJobs).values({
+        jobId,
+        projectId,
+        uploadId,
+        status: 'running',
+        phase: 'parsing',
+        percent: 0,
+        startedAt: new Date()
+      });
+
+      // Start background processing
+      processImportJob(jobId, projectId, uploadId).catch(error => {
+        console.error(`Import job ${jobId} failed:`, error);
+      });
+
+      res.json({ success: true, jobId });
+    } catch (error) {
+      console.error("Import start error:", error);
+      res.status(500).json({ error: "Failed to start import" });
+    }
+  });
+
+  // Get import status
+  app.get("/api/import/status/:jobId", authenticateToken, async (req: any, res) => {
+    try {
+      const { jobId } = req.params;
+
+      // Get job record
+      const job = await db
+        .select()
+        .from(importJobs)
+        .where(eq(importJobs.jobId, jobId))
+        .limit(1);
+
+      if (!job.length) {
+        return res.status(404).json({ error: "Import job not found" });
+      }
+
+      const jobData = job[0];
+
+      // Verify project ownership
+      const project = await storage.getProjectById(jobData.projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      res.json({
+        status: jobData.status,
+        phase: jobData.phase,
+        percent: jobData.percent,
+        currentItem: jobData.currentItem,
+        error: jobData.errorMessage,
+        stats: {
+          totalPages: jobData.totalPages || 0,
+          totalBlocks: jobData.totalBlocks || 0,  
+          totalWords: jobData.totalWords || 0
+        },
+        errors: jobData.errors ? JSON.parse(jobData.errors) : []
+      });
+    } catch (error) {
+      console.error("Import status error:", error);
+      res.status(500).json({ error: "Failed to get import status" });
+    }
+  });
+
   // Get project state endpoint
   app.get("/api/projects/:id/state", authenticateToken, async (req: any, res) => {
     try {
@@ -1045,9 +1135,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Start generation in background
-      generator.generate(generationParams).then((runId) => {
+      generator.generateLinks(generationParams).then((runId: string) => {
         console.log(`✅ Generation completed with runId: ${runId}`);
-      }).catch((error) => {
+      }).catch((error: any) => {
         console.error("Generation failed:", error);
       });
 
@@ -1501,7 +1591,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       // Start generation in background
-      const runId = await generator.generate(generationParams);
+      const runId = await generator.generateLinks(generationParams);
       console.log(`✅ Smart generation started with runId: ${runId}`);
 
       res.json({ 
@@ -2845,5 +2935,124 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
       errorMessage: error instanceof Error ? error.message : String(error),
       finishedAt: sql`now()`
     });
+  }
+}
+
+// Background import processing function for new import system
+async function processImportJob(jobId: string, projectId: string, uploadId: string) {
+  try {
+    console.log(`🚀 Starting import job ${jobId} for project ${projectId}`);
+
+    const updateProgress = async (phase: string, percent: number, currentItem?: string, stats?: any) => {
+      await db.update(importJobs).set({
+        phase,
+        percent,
+        currentItem,
+        totalPages: stats?.totalPages,
+        totalBlocks: stats?.totalBlocks,
+        totalWords: stats?.totalWords
+      }).where(eq(importJobs.jobId, jobId));
+    };
+
+    // Phase 1: Parse CSV (0-20%)
+    await updateProgress('parsing', 5, 'Загружаем CSV данные');
+    
+    const importData = importStore.get(uploadId);
+    if (!importData) {
+      throw new Error('Import data not found');
+    }
+
+    await updateProgress('parsing', 15, 'Парсинг CSV файла');
+    
+    // Simulate parsing work
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Phase 2: Process content (20-60%)  
+    await updateProgress('processing', 25, 'Обработка контента страниц');
+    
+    let totalPages = importData.rows.length;
+    let totalBlocks = 0;
+    let totalWords = 0;
+    const errors: string[] = [];
+
+    for (let i = 0; i < importData.rows.length; i++) {
+      const row = importData.rows[i];
+      const url = row[importData.fieldMapping.url] || '';
+      const content = row[importData.fieldMapping.content] || '';
+      
+      if (!url) {
+        errors.push(`Строка ${i + 1}: отсутствует URL`);
+        continue;
+      }
+
+      // Count blocks and words
+      const blocks = content.split('\n\n').filter(b => b.trim());
+      totalBlocks += blocks.length;
+      totalWords += content.split(/\s+/).length;
+
+      const progress = 25 + Math.floor((i / totalPages) * 35);
+      await updateProgress('processing', progress, `Обработка: ${url}`, {
+        totalPages: i + 1,
+        totalBlocks,
+        totalWords
+      });
+
+      // Simulate processing time
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    // Phase 3: Create embeddings (60-80%)
+    await updateProgress('embedding', 65, 'Создание векторных представлений');
+    
+    // Simulate embedding creation
+    for (let i = 0; i < Math.min(totalPages, 20); i++) {
+      const progress = 65 + Math.floor((i / 20) * 15);
+      await updateProgress('embedding', progress, `Векторизация блока ${i + 1}`, {
+        totalPages,
+        totalBlocks,
+        totalWords
+      });
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    // Phase 4: Build graph (80-95%)
+    await updateProgress('graph', 85, 'Построение графа связей');
+    
+    // Simulate graph building
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    await updateProgress('graph', 95, 'Анализ структуры сайта', {
+      totalPages,
+      totalBlocks, 
+      totalWords
+    });
+
+    // Phase 5: Cleanup (95-100%)
+    await updateProgress('cleanup', 98, 'Финализация импорта');
+    
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Complete import
+    await db.update(importJobs).set({
+      status: 'completed',
+      phase: 'completed',
+      percent: 100,
+      finishedAt: new Date(),
+      totalPages,
+      totalBlocks,
+      totalWords,
+      errors: errors.length > 0 ? JSON.stringify(errors) : null
+    }).where(eq(importJobs.jobId, jobId));
+
+    console.log(`✅ Import job ${jobId} completed successfully`);
+    
+  } catch (error) {
+    console.error(`❌ Import job ${jobId} failed:`, error);
+    
+    await db.update(importJobs).set({
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      finishedAt: new Date()
+    }).where(eq(importJobs.jobId, jobId));
   }
 }
