@@ -2994,27 +2994,64 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
     }
     
     const csvContent = fs.default.readFileSync(csvFilePath, 'utf-8');
-    const rows = csvContent.split('\n').filter((line: string) => line.trim());
-    const headers = rows[0].split(',').map((h: string) => h.replace(/"/g, '').trim());
-    const dataRows = rows.slice(1).map((row: string) => {
-      const cells = [];
-      let currentCell = '';
+    
+    // Use proper CSV parser (same as in upload)
+    const properCSVParse = (csvText: string) => {
+      const results: string[][] = [];
+      let currentRow: string[] = [];
+      let currentField = '';
       let inQuotes = false;
+      let i = 0;
       
-      for (let i = 0; i < row.length; i++) {
-        const char = row[i];
+      while (i < csvText.length) {
+        const char = csvText[i];
+        const nextChar = csvText[i + 1];
+        
         if (char === '"') {
-          inQuotes = !inQuotes;
+          if (inQuotes && nextChar === '"') {
+            currentField += '"';
+            i += 2;
+            continue;
+          } else {
+            inQuotes = !inQuotes;
+          }
         } else if (char === ',' && !inQuotes) {
-          cells.push(currentCell.replace(/"/g, '').trim());
-          currentCell = '';
+          currentRow.push(currentField);
+          currentField = '';
+        } else if ((char === '\n' || char === '\r') && !inQuotes) {
+          currentRow.push(currentField);
+          if (currentRow.length > 0 && currentRow.some(field => field.trim().length > 0)) {
+            results.push(currentRow.map(field => field.trim()));
+          }
+          currentRow = [];
+          currentField = '';
+          if (char === '\r' && nextChar === '\n') i++;
         } else {
-          currentCell += char;
+          currentField += char;
+        }
+        i++;
+      }
+      
+      if (currentField.length > 0 || currentRow.length > 0) {
+        currentRow.push(currentField);
+        if (currentRow.length > 0 && currentRow.some(field => field.trim().length > 0)) {
+          results.push(currentRow.map(field => field.trim()));
         }
       }
-      cells.push(currentCell.replace(/"/g, '').trim());
-      return cells;
-    });
+      
+      console.log(`🎯 CSV properly parsed: ${results.length} records (including header)`);
+      return results;
+    };
+    
+    const parsed = properCSVParse(csvContent);
+    if (parsed.length === 0) {
+      throw new Error('CSV parsing failed');
+    }
+    
+    const headers = parsed[0];
+    const dataRows = parsed.slice(1);
+    
+    console.log(`📊 CORRECT PARSING: ${dataRows.length} data records from CSV`);
     
     const importData = { headers, rows: dataRows, fieldMapping };
 
