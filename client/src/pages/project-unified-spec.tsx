@@ -271,8 +271,19 @@ export default function ProjectUnifiedSpec() {
       toast({ title: "Настройки сохранены!" });
       setCurrentStep(3); // Переходим на шаг импорта
       // Запускаем импорт автоматически
+      console.log('🚀 Trying to start import with uploadId:', csvPreview?.uploadId);
       if (csvPreview?.uploadId) {
-        startImportMutation.mutate();
+        // Небольшая задержка чтобы UI обновился
+        setTimeout(() => {
+          startImportMutation.mutate();
+        }, 100);
+      } else {
+        console.error('❌ No uploadId available for import');
+        toast({ 
+          title: "Ошибка", 
+          description: "Не найден ID загрузки. Попробуйте загрузить CSV снова.",
+          variant: "destructive" 
+        });
       }
     },
     onError: (error: any) => {
@@ -283,6 +294,11 @@ export default function ProjectUnifiedSpec() {
   // Мутация запуска импорта
   const startImportMutation = useMutation({
     mutationFn: async () => {
+      console.log('📤 Starting import with data:', {
+        projectId,
+        uploadId: csvPreview?.uploadId
+      });
+      
       const response = await fetch('/api/import/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -291,14 +307,24 @@ export default function ProjectUnifiedSpec() {
           uploadId: csvPreview?.uploadId 
         })
       });
-      if (!response.ok) throw new Error('Import start failed');
-      return response.json();
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Import start error:', errorData);
+        throw new Error(errorData.error || 'Import start failed');
+      }
+      
+      const result = await response.json();
+      console.log('✅ Import start response:', result);
+      return result;
     },
     onSuccess: (data) => {
+      console.log('🎯 Import started successfully:', data);
       toast({ title: "Импорт запущен!" });
       setImportJobId(data.jobId); // Сохраняем ID для отслеживания
     },
     onError: (error: any) => {
+      console.error('❌ Import start error:', error);
       toast({ title: "Ошибка импорта", description: error.message, variant: "destructive" });
     }
   });
@@ -324,6 +350,13 @@ export default function ProjectUnifiedSpec() {
 
   // Автоматический переход на следующий шаг после завершения импорта
   useEffect(() => {
+    console.log('🔄 Import status check:', { 
+      importStatus, 
+      currentStep, 
+      importJobId,
+      statusCheck: importStatus?.status 
+    });
+    
     if (importStatus?.status === 'completed' && currentStep === 3) {
       toast({ title: "Импорт завершен успешно!" });
       setTimeout(() => setCurrentStep(4), 1000);
@@ -334,7 +367,7 @@ export default function ProjectUnifiedSpec() {
         variant: "destructive" 
       });
     }
-  }, [importStatus, currentStep]);
+  }, [importStatus, currentStep, importJobId]);
 
   // Мутация запуска генерации ссылок с полным SEO профилем
   const generateLinksMutation = useMutation({
@@ -1191,7 +1224,7 @@ export default function ProjectUnifiedSpec() {
                 </div>
               )}
 
-              {/* Шаг 3: Импорт данных с прогрессом */}
+              {/* Шаг 3: Импорт данных с прогрессом - БЕЗ НАСТРОЕК SEO */}
               {currentStep === 3 && (
                 <div className="space-y-6">
                   {/* Заголовок */}
@@ -1206,10 +1239,15 @@ export default function ProjectUnifiedSpec() {
 
                   {/* Прогресс импорта */}
                   <div className="bg-gray-50 rounded-lg p-6">
-                    {importStatusLoading || !importStatus ? (
+                    {(!importJobId || importStatusLoading || !importStatus) ? (
                       <div className="text-center space-y-4">
                         <Loader2 className="h-12 w-12 text-blue-600 mx-auto animate-spin" />
-                        <p className="text-blue-600 font-medium">Запускаем импорт...</p>
+                        <p className="text-blue-600 font-medium">
+                          {!importJobId ? 'Инициализация импорта...' : 'Запускаем импорт...'}
+                        </p>
+                        <div className="text-xs text-gray-500">
+                          JobId: {importJobId || 'не установлен'}
+                        </div>
                       </div>
                     ) : (
                       <div className="space-y-4">
@@ -1320,21 +1358,38 @@ export default function ProjectUnifiedSpec() {
                   </div>
 
                   {/* Кнопки управления */}
-                  {importStatus?.status === 'completed' && (
-                    <div className="flex justify-between">
-                      <Button variant="outline" onClick={() => setCurrentStep(2)}>
-                        <ArrowLeft className="h-4 w-4 mr-2" />
-                        Назад к настройкам
-                      </Button>
+                  <div className="flex justify-between">
+                    <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Назад к настройкам
+                    </Button>
+                    
+                    {/* Показываем кнопку перехода только когда импорт завершен ИЛИ если jobId не установлен */}
+                    {(importStatus?.status === 'completed' || !importJobId) && (
                       <Button 
                         onClick={() => setCurrentStep(4)}
                         className="bg-blue-600 hover:bg-blue-700"
                       >
-                        Настроить область генерации
+                        {!importJobId ? 'Пропустить импорт' : 'Настроить область генерации'}
                         <ArrowRight className="h-4 w-4 ml-2" />
                       </Button>
-                    </div>
-                  )}
+                    )}
+                    
+                    {/* Кнопка повтора импорта при ошибке */}
+                    {importStatus?.status === 'failed' && (
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          setImportJobId(null);
+                          if (csvPreview?.uploadId) {
+                            startImportMutation.mutate();
+                          }
+                        }}
+                      >
+                        Повторить импорт
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
 
