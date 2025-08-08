@@ -2978,15 +2978,15 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
     const fieldMapping = JSON.parse(importRecord.fieldMapping || '{}');
     
     // Read CSV data from file
-    const fs = require('fs');
-    const path = require('path');
+    const fs = await import('fs');
+    const path = await import('path');
     const csvFilePath = importRecord.filePath;
     
-    if (!csvFilePath || !fs.existsSync(csvFilePath)) {
+    if (!csvFilePath || !fs.default.existsSync(csvFilePath)) {
       throw new Error('CSV file not found');
     }
     
-    const csvContent = fs.readFileSync(csvFilePath, 'utf-8');
+    const csvContent = fs.default.readFileSync(csvFilePath, 'utf-8');
     const rows = csvContent.split('\n').filter((line: string) => line.trim());
     const headers = rows[0].split(',').map((h: string) => h.replace(/"/g, '').trim());
     const dataRows = rows.slice(1).map((row: string) => {
