@@ -385,10 +385,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "CSV file is empty" });
         }
 
-        // Proper CSV parsing with multiline support
+        // Proper CSV parsing with multiline support - FIXED VERSION
         const properCSVParse = (csvText: string) => {
           const results: string[][] = [];
-          const lines = csvText.split('\n');
           let currentRow: string[] = [];
           let currentField = '';
           let inQuotes = false;
@@ -400,36 +399,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             if (char === '"') {
               if (inQuotes && nextChar === '"') {
+                // Escaped quote inside quoted field
                 currentField += '"';
                 i += 2;
                 continue;
               } else {
+                // Toggle quote state
                 inQuotes = !inQuotes;
               }
             } else if (char === ',' && !inQuotes) {
-              currentRow.push(currentField.trim());
+              // End of field
+              currentRow.push(currentField);
               currentField = '';
             } else if ((char === '\n' || char === '\r') && !inQuotes) {
-              currentRow.push(currentField.trim());
-              if (currentRow.some(field => field.length > 0)) {
-                results.push(currentRow);
+              // End of row (only if not inside quotes)
+              currentRow.push(currentField);
+              if (currentRow.length > 0 && currentRow.some(field => field.trim().length > 0)) {
+                results.push(currentRow.map(field => field.trim()));
               }
               currentRow = [];
               currentField = '';
+              // Handle CRLF
               if (char === '\r' && nextChar === '\n') i++;
             } else {
+              // Regular character or newline inside quotes
               currentField += char;
             }
             i++;
           }
           
-          if (currentField || currentRow.length > 0) {
-            currentRow.push(currentField.trim());
-            if (currentRow.some(field => field.length > 0)) {
-              results.push(currentRow);
+          // Handle last row if exists
+          if (currentField.length > 0 || currentRow.length > 0) {
+            currentRow.push(currentField);
+            if (currentRow.length > 0 && currentRow.some(field => field.trim().length > 0)) {
+              results.push(currentRow.map(field => field.trim()));
             }
           }
           
+          console.log(`🎯 CSV parsed correctly: ${results.length} records (including header)`);
           return results;
         };
         
