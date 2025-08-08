@@ -82,7 +82,6 @@ export const importJobs = pgTable("import_jobs", {
   importDuration: integer("import_duration"), // seconds
   logs: text("logs").array().notNull().default(sql`ARRAY[]::text[]`),
   errorMessage: text("error_message"),
-  uploadId: varchar("upload_id", { length: 50 }),
   startedAt: timestamp("started_at").defaultNow().notNull(),
   finishedAt: timestamp("finished_at"),
 });
