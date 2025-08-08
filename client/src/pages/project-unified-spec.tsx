@@ -438,9 +438,10 @@ export default function ProjectUnifiedSpec() {
           const response = await fetch(`/api/projects/${projectId}/state`);
           if (response.ok) {
             const state = await response.json();
-            if (state.hasImports) {
-              setCurrentStep(state.lastCompletedStep + 1);
-            }
+            // Не переходим автоматически, всегда начинаем с шага 1
+            // if (state.hasImports) {
+            //   setCurrentStep(state.lastCompletedStep + 1);
+            // }
           }
         } catch (error) {
           console.log('No saved state found, starting from step 1');
@@ -1301,7 +1302,7 @@ export default function ProjectUnifiedSpec() {
                       onClick={() => setCurrentStep(1)}
                     >
                       <ArrowLeft className="h-4 w-4 mr-2" />
-                      Назад
+                      Назад к загрузке CSV
                     </Button>
                     <Button
                       onClick={() => profileMutation.mutate(seoProfile)}
@@ -1454,7 +1455,7 @@ export default function ProjectUnifiedSpec() {
                   <div className="flex justify-between">
                     <Button variant="outline" onClick={() => setCurrentStep(2)}>
                       <ArrowLeft className="h-4 w-4 mr-2" />
-                      Назад к настройкам
+                      Назад к SEO профилю
                     </Button>
                     
                     {/* Показываем кнопку перехода только когда импорт завершен ИЛИ если jobId не установлен */}
