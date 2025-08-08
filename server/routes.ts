@@ -712,6 +712,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create import job record
       await db.insert(importJobs).values({
+        id: jobId, // используем jobId как primary key
         jobId,
         projectId,
         importId: uploadId, // используем uploadId как importId
@@ -1108,14 +1109,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // HTML attributes (full support)
         htmlAttributes: {
-          className: seoProfile.htmlAttributes?.className || '',
+          cssClass: seoProfile.htmlAttributes?.className || '',
+          targetBlank: seoProfile.htmlAttributes?.targetBlank || false,
           rel: {
             noopener: seoProfile.htmlAttributes?.rel?.noopener || false,
             noreferrer: seoProfile.htmlAttributes?.rel?.noreferrer || false,
             nofollow: seoProfile.htmlAttributes?.rel?.nofollow || false
-          },
-          targetBlank: seoProfile.htmlAttributes?.targetBlank || false,
-          classMode: seoProfile.htmlAttributes?.classMode || 'append'
+          }
         }
       };
 
@@ -1596,10 +1596,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           brokenLinks: 'replace' as const
         },
         htmlAttributes: {
-          className: '',
-          rel: { noopener: false, noreferrer: false, nofollow: false },
+          cssClass: '',
           targetBlank: false,
-          classMode: 'append' as const
+          rel: { noopener: false, noreferrer: false, nofollow: false }
         }
       };
 
