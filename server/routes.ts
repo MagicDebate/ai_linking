@@ -2987,7 +2987,7 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
     }
     
     const csvContent = fs.readFileSync(csvFilePath, 'utf-8');
-    const rows = csvContent.split('\n').filter(line => line.trim());
+    const rows = csvContent.split('\n').filter((line: string) => line.trim());
     const headers = rows[0].split(',').map((h: string) => h.replace(/"/g, '').trim());
     const dataRows = rows.slice(1).map((row: string) => {
       const cells = [];
