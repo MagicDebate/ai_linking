@@ -2968,10 +2968,48 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
     // Phase 1: Parse CSV (0-20%)
     await updateProgress('parsing', 5, 'Загружаем CSV данные');
     
-    const importData = (global as any).importStore?.get(uploadId);
-    if (!importData) {
-      throw new Error('Import data not found');
+    // Get import record from database
+    const importRecord = await storage.getImportByUploadId(uploadId);
+    if (!importRecord) {
+      throw new Error('Import record not found');
     }
+    
+    // Parse field mapping
+    const fieldMapping = JSON.parse(importRecord.fieldMapping || '{}');
+    
+    // Read CSV data from file
+    const fs = require('fs');
+    const path = require('path');
+    const csvFilePath = importRecord.filePath;
+    
+    if (!csvFilePath || !fs.existsSync(csvFilePath)) {
+      throw new Error('CSV file not found');
+    }
+    
+    const csvContent = fs.readFileSync(csvFilePath, 'utf-8');
+    const rows = csvContent.split('\n').filter(line => line.trim());
+    const headers = rows[0].split(',').map((h: string) => h.replace(/"/g, '').trim());
+    const dataRows = rows.slice(1).map((row: string) => {
+      const cells = [];
+      let currentCell = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < row.length; i++) {
+        const char = row[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          cells.push(currentCell.replace(/"/g, '').trim());
+          currentCell = '';
+        } else {
+          currentCell += char;
+        }
+      }
+      cells.push(currentCell.replace(/"/g, '').trim());
+      return cells;
+    });
+    
+    const importData = { headers, rows: dataRows, fieldMapping };
 
     await updateProgress('parsing', 15, 'Парсинг CSV файла');
     
@@ -2988,8 +3026,11 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
 
     for (let i = 0; i < importData.rows.length; i++) {
       const row = importData.rows[i];
-      const url = row[importData.fieldMapping.url] || '';
-      const content = row[importData.fieldMapping.content] || '';
+      const urlIndex = headers.indexOf(importData.fieldMapping.url);
+      const contentIndex = headers.indexOf(importData.fieldMapping.content);
+      
+      const url = urlIndex >= 0 ? row[urlIndex] || '' : '';
+      const content = contentIndex >= 0 ? row[contentIndex] || '' : '';
       
       if (!url) {
         errors.push(`Строка ${i + 1}: отсутствует URL`);
