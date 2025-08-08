@@ -245,8 +245,14 @@ export default function ProjectUnifiedSpec() {
       return response.json();
     },
     onSuccess: () => {
-      setCurrentStep(2); // Переходим к SEO профилю, а НЕ к импорту
-      toast({ title: "Маппинг сохранен! Переходим к настройке SEO профиля." });
+      setCurrentStep(3); // Переходим к импорту после маппинга
+      toast({ title: "Маппинг сохранен! Переходим к импорту данных." });
+      // Автоматически запускаем импорт
+      setTimeout(() => {
+        if (csvPreview?.uploadId) {
+          startImportMutation.mutate();
+        }
+      }, 500);
     },
     onError: (error: any) => {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
@@ -715,7 +721,7 @@ export default function ProjectUnifiedSpec() {
                           </>
                         ) : (
                           <>
-                            Сохранить маппинг и продолжить
+                            Сохранить маппинг и запустить импорт
                             <ArrowRight className="h-4 w-4 ml-2" />
                           </>
                         )}
@@ -1468,18 +1474,18 @@ export default function ProjectUnifiedSpec() {
 
                   {/* Кнопки управления */}
                   <div className="flex justify-between">
-                    <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                    <Button variant="outline" onClick={() => setCurrentStep(1)}>
                       <ArrowLeft className="h-4 w-4 mr-2" />
-                      Назад к SEO профилю
+                      Назад к маппингу
                     </Button>
                     
                     {/* Показываем кнопку перехода только когда импорт завершен ИЛИ если jobId не установлен */}
                     {(importStatus?.status === 'completed' || !importJobId) && (
                       <Button 
-                        onClick={() => setCurrentStep(4)}
+                        onClick={() => setCurrentStep(2)} // Переходим к SEO профилю после импорта
                         className="bg-blue-600 hover:bg-blue-700"
                       >
-                        {!importJobId ? 'Пропустить импорт' : 'Настроить область генерации'}
+                        {!importJobId ? 'Пропустить импорт' : 'Перейти к SEO профилю'}
                         <ArrowRight className="h-4 w-4 ml-2" />
                       </Button>
                     )}
@@ -1516,9 +1522,9 @@ export default function ProjectUnifiedSpec() {
                   </div>
 
                   <div className="flex justify-center gap-4">
-                    <Button variant="outline" onClick={() => setCurrentStep(3)}>
+                    <Button variant="outline" onClick={() => setCurrentStep(2)}>
                       <ArrowLeft className="h-4 w-4 mr-2" />
-                      Назад к импорту
+                      Назад к SEO профилю
                     </Button>
                     <Button 
                       onClick={() => generateLinksMutation.mutate()}
