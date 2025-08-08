@@ -66,7 +66,7 @@ export const imports = pgTable("imports", {
 // Import jobs for Step 4 processing
 export const importJobs = pgTable("import_jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
-  jobId: uuid("job_id").unique().notNull().defaultRandom(),
+  jobId: varchar("job_id", { length: 50 }).unique().notNull(),
   projectId: varchar("project_id").references(() => projects.id).notNull(),
   importId: varchar("import_id").references(() => imports.id).notNull(),
   status: varchar("status", { length: 20 }).notNull().default("pending"), // pending, running, completed, failed, canceled
@@ -82,6 +82,7 @@ export const importJobs = pgTable("import_jobs", {
   importDuration: integer("import_duration"), // seconds
   logs: text("logs").array().notNull().default(sql`ARRAY[]::text[]`),
   errorMessage: text("error_message"),
+  uploadId: varchar("upload_id", { length: 50 }),
   startedAt: timestamp("started_at").defaultNow().notNull(),
   finishedAt: timestamp("finished_at"),
 });
@@ -89,7 +90,7 @@ export const importJobs = pgTable("import_jobs", {
 // Raw pages data
 export const pagesRaw = pgTable("pages_raw", {
   id: uuid("id").primaryKey().defaultRandom(),
-  jobId: uuid("job_id").references(() => importJobs.jobId).notNull(),
+  jobId: varchar("job_id", { length: 50 }).references(() => importJobs.jobId).notNull(),
   url: text("url").notNull(),
   rawHtml: text("raw_html").notNull(),
   meta: jsonb("meta").notNull().default(sql`'{}'::jsonb`),
@@ -127,7 +128,7 @@ export const embeddings = pgTable("embeddings", {
 // Link edges between pages
 export const edges = pgTable("edges", {
   id: uuid("id").primaryKey().defaultRandom(),
-  jobId: uuid("job_id").references(() => importJobs.jobId).notNull(),
+  jobId: varchar("job_id", { length: 50 }).references(() => importJobs.jobId).notNull(),
   fromPageId: uuid("from_page_id").references(() => pagesClean.id).notNull(),
   toPageId: uuid("to_page_id").references(() => pagesClean.id).notNull(),
   fromUrl: text("from_url").notNull(),
@@ -141,7 +142,7 @@ export const edges = pgTable("edges", {
 export const graphMeta = pgTable("graph_meta", {
   id: uuid("id").primaryKey().defaultRandom(),
   pageId: uuid("page_id").references(() => pagesClean.id).notNull().unique(),
-  jobId: uuid("job_id").references(() => importJobs.jobId).notNull(),
+  jobId: varchar("job_id", { length: 50 }).references(() => importJobs.jobId).notNull(),
   url: text("url").notNull(),
   clickDepth: integer("click_depth").notNull().default(1),
   inDegree: integer("in_degree").notNull().default(0),
@@ -180,7 +181,7 @@ export const generationRuns = pgTable("generation_runs", {
 export const pageEmbeddings = pgTable("page_embeddings", {
   id: uuid("id").primaryKey().defaultRandom(),
   pageId: uuid("page_id").references(() => pagesClean.id).notNull(),
-  jobId: uuid("job_id").references(() => importJobs.jobId).notNull(),
+  jobId: varchar("job_id", { length: 50 }).references(() => importJobs.jobId).notNull(),
   url: text("url").notNull(),
   title: text("title").notNull(),
   contentVector: text("content_vector").notNull(), // JSON string of keywords/embeddings
@@ -297,7 +298,6 @@ export type PageClean = typeof pagesClean.$inferSelect;
 export type ProjectImportConfig = typeof projectImportConfigs.$inferSelect;
 export type InsertProjectImportConfig = z.infer<typeof insertProjectImportConfigSchema>;
 export type GraphMeta = typeof graphMeta.$inferSelect;
-export type ImportJob = typeof importJobs.$inferSelect;
 
 export type InsertGenerationRun = z.infer<typeof insertGenerationRunSchema>;
 export type InsertLinkCandidate = z.infer<typeof insertLinkCandidateSchema>;
@@ -376,6 +376,10 @@ export type FieldMapping = z.infer<typeof fieldMappingSchema>;
 
 // Update existing import jobs table to include new fields
 // Zod schema for import jobs
-export const insertImportJobSchema = createInsertSchema(importJobs).omit({ startedAt: true, createdAt: true });
+export const insertImportJobSchema = createInsertSchema(importJobs).omit({ 
+  id: true, 
+  startedAt: true, 
+  finishedAt: true
+});
 export type ImportJob = typeof importJobs.$inferSelect;
 export type InsertImportJob = z.infer<typeof insertImportJobSchema>;

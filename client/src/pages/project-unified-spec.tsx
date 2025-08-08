@@ -750,7 +750,7 @@ export default function ProjectUnifiedSpec() {
                       <table className="min-w-full text-sm border-collapse">
                         <thead>
                           <tr className="border-b border-gray-300">
-                            {csvPreview.headers.map((header, index) => (
+                            {csvPreview?.headers?.map((header, index) => (
                               <th key={index} className="text-left py-3 px-4 font-medium text-gray-700 bg-white border-r border-gray-200">
                                 {header}
                               </th>
@@ -758,7 +758,7 @@ export default function ProjectUnifiedSpec() {
                           </tr>
                         </thead>
                         <tbody className="bg-white">
-                          {csvPreview.rows.slice(0, 3).map((row, rowIndex) => (
+                          {csvPreview?.rows?.slice(0, 3).map((row, rowIndex) => (
                             <tr key={rowIndex} className="border-b border-gray-100">
                               {row.map((cell, cellIndex) => (
                                 <td key={cellIndex} className="py-3 px-4 text-gray-600 border-r border-gray-100 max-w-xs">
@@ -801,7 +801,7 @@ export default function ProjectUnifiedSpec() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__none__">Не используется</SelectItem>
-                              {csvPreview.headers.map((header) => (
+                              {csvPreview?.headers?.map((header) => (
                                 <SelectItem key={header} value={header}>
                                   {header}
                                 </SelectItem>

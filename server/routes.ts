@@ -351,7 +351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // In-memory store for import data
-  const importStore = new Map<string, {
+  (global as any).importStore = new Map<string, {
     headers: string[];
     rows: string[][];
     fileName: string;
@@ -585,7 +585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "uploadId is required" });
       }
 
-      const importData = importStore.get(uploadId);
+      const importData = (global as any).importStore?.get(uploadId);
       if (!importData) {
         return res.status(404).json({ message: "Import data not found" });
       }
@@ -714,11 +714,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await db.insert(importJobs).values({
         jobId,
         projectId,
+        importId: uploadId, // используем uploadId как importId
         uploadId,
         status: 'running',
         phase: 'parsing',
-        percent: 0,
-        startedAt: new Date()
+        percent: 0
       });
 
       // Start background processing
@@ -761,14 +761,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: jobData.status,
         phase: jobData.phase,
         percent: jobData.percent,
-        currentItem: jobData.currentItem,
+        currentItem: jobData.logs?.[jobData.logs.length - 1] || null,
         error: jobData.errorMessage,
         stats: {
-          totalPages: jobData.totalPages || 0,
-          totalBlocks: jobData.totalBlocks || 0,  
-          totalWords: jobData.totalWords || 0
+          totalPages: jobData.pagesTotal || 0,
+          totalBlocks: jobData.blocksDone || 0,  
+          totalWords: jobData.avgWordCount || 0
         },
-        errors: jobData.errors ? JSON.parse(jobData.errors) : []
+        errors: jobData.logs || []
       });
     } catch (error) {
       console.error("Import status error:", error);
@@ -2944,20 +2944,19 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
     console.log(`🚀 Starting import job ${jobId} for project ${projectId}`);
 
     const updateProgress = async (phase: string, percent: number, currentItem?: string, stats?: any) => {
-      await db.update(importJobs).set({
-        phase,
-        percent,
-        currentItem,
-        totalPages: stats?.totalPages,
-        totalBlocks: stats?.totalBlocks,
-        totalWords: stats?.totalWords
-      }).where(eq(importJobs.jobId, jobId));
+      const updateData: any = { phase, percent };
+      if (currentItem) updateData.logs = sql`array_append(logs, ${currentItem})`;
+      if (stats?.totalPages) updateData.pagesTotal = stats.totalPages;
+      if (stats?.totalBlocks) updateData.blocksDone = stats.totalBlocks;
+      if (stats?.totalWords) updateData.avgWordCount = stats.totalWords;
+      
+      await db.update(importJobs).set(updateData).where(eq(importJobs.jobId, jobId));
     };
 
     // Phase 1: Parse CSV (0-20%)
     await updateProgress('parsing', 5, 'Загружаем CSV данные');
     
-    const importData = importStore.get(uploadId);
+    const importData = (global as any).importStore?.get(uploadId);
     if (!importData) {
       throw new Error('Import data not found');
     }
@@ -3038,10 +3037,10 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
       phase: 'completed',
       percent: 100,
       finishedAt: new Date(),
-      totalPages,
-      totalBlocks,
-      totalWords,
-      errors: errors.length > 0 ? JSON.stringify(errors) : null
+      pagesTotal: totalPages,
+      blocksDone: totalBlocks,
+      avgWordCount: totalWords,
+      logs: errors.length > 0 ? sql`array_append(logs, ${JSON.stringify(errors)})` : sql`logs`
     }).where(eq(importJobs.jobId, jobId));
 
     console.log(`✅ Import job ${jobId} completed successfully`);
