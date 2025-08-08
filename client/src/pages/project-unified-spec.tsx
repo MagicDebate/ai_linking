@@ -480,13 +480,13 @@ export default function ProjectUnifiedSpec() {
   }
 
   const steps = [
-    { number: 1, title: "Шаг 1: Загрузка CSV", description: "Загрузите файл и настройте поля данных" },
-    { number: 2, title: "Шаг 2: SEO профиль", description: "Настройте пресеты, сценарии и параметры" },
-    { number: 3, title: "Шаг 3: Импорт данных", description: "Обработка и анализ загруженного контента" },
-    { number: 4, title: "Шаг 4: Настройка области", description: "Выберите scope для генерации ссылок" },
-    { number: 5, title: "Шаг 5: Генерация ссылок", description: "Создание внутренних ссылок по сценариям" },
-    { number: 6, title: "Шаг 6: Проверка черновика", description: "Просмотр и редактирование предложенных ссылок" },
-    { number: 7, title: "Шаг 7: Публикация", description: "Экспорт готовых ссылок для внедрения" }
+    { number: 1, title: "Загрузка CSV и маппинг", description: "Загрузите файл и настройте поля данных" },
+    { number: 2, title: "SEO профиль", description: "Настройте пресеты, сценарии и параметры" },
+    { number: 3, title: "Импорт данных", description: "Обработка и анализ загруженного контента" },
+    { number: 4, title: "Настройка области", description: "Выберите scope для генерации ссылок" },
+    { number: 5, title: "Генерация ссылок", description: "Создание внутренних ссылок по сценариям" },
+    { number: 6, title: "Проверка черновика", description: "Просмотр и редактирование предложенных ссылок" },
+    { number: 7, title: "Публикация", description: "Экспорт готовых ссылок для внедрения" }
   ];
 
   return (
@@ -612,12 +612,105 @@ export default function ProjectUnifiedSpec() {
                         Скачать пример CSV
                       </a>
                     </div>
+
+                    {/* Маппинг полей - показываем если есть CSV */}
+                    {csvPreview && (
+                      <>
+                        <div className="mt-8 pt-8 border-t border-gray-200">
+                          <h4 className="text-lg font-medium text-gray-900 mb-4">
+                            Сопоставьте поля CSV
+                          </h4>
+                          <p className="text-sm text-gray-600 mb-6">
+                            Укажите какие столбцы содержат: URL, Текст, meta_title, meta_description, pub_date, lang
+                          </p>
+
+                          {/* Preview table */}
+                          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                            <h5 className="text-sm font-medium text-gray-900 mb-3">Превью данных:</h5>
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full text-sm border-collapse">
+                                <thead>
+                                  <tr className="border-b border-gray-300">
+                                    {csvPreview.headers.map((header, index) => (
+                                      <th key={index} className="text-left py-3 px-4 font-medium text-gray-700 bg-white border-r border-gray-200">
+                                        {header}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody className="bg-white">
+                                  {csvPreview.rows.slice(0, 3).map((row, rowIndex) => (
+                                    <tr key={rowIndex} className="border-b border-gray-100">
+                                      {row.map((cell, cellIndex) => (
+                                        <td key={cellIndex} className="py-3 px-4 text-gray-600 border-r border-gray-100 max-w-xs">
+                                          <div className="truncate" title={cell || ''}>
+                                            {cell && cell.length > 40 ? `${cell.substring(0, 40)}...` : cell || '—'}
+                                          </div>
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* Field mapping */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {[
+                              { key: 'url', label: 'URL страницы', required: true },
+                              { key: 'title', label: 'Заголовок (текст)', required: true },
+                              { key: 'content', label: 'Контент страницы', required: true },
+                              { key: 'meta_title', label: 'Meta Title', required: false },
+                              { key: 'meta_description', label: 'Meta Description', required: false },
+                              { key: 'pub_date', label: 'Дата публикации', required: false },
+                              { key: 'lang', label: 'Язык', required: false }
+                            ].map((field) => (
+                              <div key={field.key} className="space-y-2">
+                                <Label htmlFor={field.key} className="text-sm font-medium">
+                                  {field.label}
+                                  {field.required && <span className="text-red-500 ml-1">*</span>}
+                                </Label>
+                                <Select
+                                  value={fieldMapping[field.key as keyof typeof fieldMapping] || ''}
+                                  onValueChange={(value) => setFieldMapping(prev => ({ ...prev, [field.key]: value }))}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Выберите столбец" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="">Не используется</SelectItem>
+                                    {csvPreview.headers.map((header, index) => (
+                                      <SelectItem key={index} value={header}>
+                                        {header}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Кнопка продолжения */}
+                    <div className="flex justify-center mt-8">
+                      <Button
+                        onClick={() => setCurrentStep(2)}
+                        disabled={!csvPreview || !fieldMapping.url || !fieldMapping.title || !fieldMapping.content}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        Продолжить к SEO профилю
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Шаг 2: Маппинг полей (показываем только если есть preview) */}
-              {currentStep === 2 && csvPreview && (
+              {/* Удаляем старый шаг 2 - маппинг полей будет объединен с шагом 1 */}
+              {false && (
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -707,18 +800,18 @@ export default function ProjectUnifiedSpec() {
                       Назад
                     </Button>
                     <Button
-                      onClick={() => mappingMutation.mutate(fieldMapping)}
-                      disabled={mappingMutation.isPending || !fieldMapping.url || !fieldMapping.title || !fieldMapping.content}
+                      onClick={() => setCurrentStep(2)}
+                      disabled={!fieldMapping.url || !fieldMapping.title || !fieldMapping.content}
                     >
-                      {mappingMutation.isPending ? "Сохраняем..." : "Продолжить"}
+                      Продолжить к SEO профилю
                       <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
                   </div>
                 </div>
               )}
 
-              {/* Шаг 3: Базовые настройки (SEO-профиль) */}
-              {currentStep === 3 && (
+              {/* Шаг 2: Базовые настройки (SEO-профиль) */}
+              {currentStep === 2 && csvPreview && (
                 <div className="space-y-8">
                   <div>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -1205,7 +1298,7 @@ export default function ProjectUnifiedSpec() {
                   <div className="flex justify-between">
                     <Button
                       variant="outline"
-                      onClick={() => setCurrentStep(2)}
+                      onClick={() => setCurrentStep(1)}
                     >
                       <ArrowLeft className="h-4 w-4 mr-2" />
                       Назад
