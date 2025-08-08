@@ -218,8 +218,8 @@ export default function ProjectUnifiedSpec() {
     onSuccess: (data) => {
       console.log('Upload success:', data);
       setCsvPreview({ ...data.preview, uploadId: data.uploadId });
-      setCurrentStep(2);
-      toast({ title: "Файл загружен!" });
+      // НЕ переходим сразу на шаг 2, остаемся на шаге 1 для маппинга
+      toast({ title: "Файл загружен! Теперь настройте маппинг полей." });
     },
     onError: (error: any) => {
       toast({ title: "Ошибка загрузки", description: error.message, variant: "destructive" });
@@ -245,8 +245,8 @@ export default function ProjectUnifiedSpec() {
       return response.json();
     },
     onSuccess: () => {
-      setCurrentStep(3);
-      toast({ title: "Маппинг сохранен!" });
+      setCurrentStep(2); // Переходим к SEO профилю, а НЕ к импорту
+      toast({ title: "Маппинг сохранен! Переходим к настройке SEO профиля." });
     },
     onError: (error: any) => {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
@@ -673,14 +673,17 @@ export default function ProjectUnifiedSpec() {
                                   {field.required && <span className="text-red-500 ml-1">*</span>}
                                 </Label>
                                 <Select
-                                  value={fieldMapping[field.key as keyof typeof fieldMapping] || ''}
-                                  onValueChange={(value) => setFieldMapping(prev => ({ ...prev, [field.key]: value }))}
+                                  value={fieldMapping[field.key as keyof typeof fieldMapping] || 'none'}
+                                  onValueChange={(value) => setFieldMapping(prev => ({ 
+                                    ...prev, 
+                                    [field.key]: value === 'none' ? '' : value 
+                                  }))}
                                 >
                                   <SelectTrigger>
                                     <SelectValue placeholder="Выберите столбец" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="">Не используется</SelectItem>
+                                    <SelectItem value="none">Не используется</SelectItem>
                                     {csvPreview.headers.map((header, index) => (
                                       <SelectItem key={index} value={header}>
                                         {header}
@@ -698,19 +701,31 @@ export default function ProjectUnifiedSpec() {
                     {/* Кнопка продолжения */}
                     <div className="flex justify-center mt-8">
                       <Button
-                        onClick={() => setCurrentStep(2)}
-                        disabled={!csvPreview || !fieldMapping.url || !fieldMapping.title || !fieldMapping.content}
+                        onClick={() => {
+                          // Сначала сохраняем маппинг, потом переходим к SEO профилю
+                          mappingMutation.mutate(fieldMapping);
+                        }}
+                        disabled={!csvPreview || !fieldMapping.url || !fieldMapping.title || !fieldMapping.content || mappingMutation.isPending}
                         className="bg-blue-600 hover:bg-blue-700"
                       >
-                        Продолжить к SEO профилю
-                        <ArrowRight className="h-4 w-4 ml-2" />
+                        {mappingMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Сохраняем маппинг...
+                          </>
+                        ) : (
+                          <>
+                            Сохранить маппинг и продолжить
+                            <ArrowRight className="h-4 w-4 ml-2" />
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Удаляем старый шаг 2 - маппинг полей будет объединен с шагом 1 */}
+              {/* СТАРЫЙ КОД УДАЛЕН */}
               {false && (
                 <div className="space-y-6">
                   <div>
