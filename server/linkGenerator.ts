@@ -647,7 +647,7 @@ export class LinkGenerator {
 
       const page1 = pages[i];
 
-      const similarPages = this.findSimilarPages(page1, pages, 3);
+      const similarPages = await this.findSimilarPagesByCosine(page1, pages, 3, 0.3);
 
       
 
@@ -1060,103 +1060,5 @@ export class LinkGenerator {
   }
 
 
-
-  private async finalizeDraft(runId: string) {
-
-    console.log('📝 Finalizing draft...');
-
-    // Логика финализации
-
-  }
-
-
-
-  private findSimilarPages(page: any, allPages: any[], limit: number): any[] {
-
-    // Упрощенный поиск похожих страниц
-
-    return allPages
-
-      .filter(p => p.id !== page.id)
-
-      .sort(() => Math.random() - 0.5)
-
-      .slice(0, limit);
-
-  }
-
-
-
-  private async generateAnchorText(sourcePage: any, targetPage: any, params: GenerationParams): Promise<string> {
-
-    const targetTitle = this.extractTitle(targetPage.cleanHtml || '');
-
-    const shouldUseExact = Math.random() * 100 < params.exactAnchorPercent;
-
-    
-
-    if (shouldUseExact && targetTitle) {
-
-      return targetTitle.substring(0, 50);
-
-    } else {
-
-      return 'подробнее';
-
-    }
-
-  }
-
-
-
-  private extractTitle(html: string): string {
-
-    const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-
-    return match ? match[1].trim() : '';
-
-  }
-
-
-
-  private async isDuplicateLink(sourceUrl: string, targetUrl: string): Promise<boolean> {
-
-    return false; // Упрощенная проверка
-
-  }
-
-
-
-  private async checkCannibalization(sourceUrl: string, targetUrl: string, params: GenerationParams): Promise<boolean> {
-
-    if (params.cannibalization.enabled) {
-
-      const threshold = { low: 0.3, medium: 0.5, high: 0.7 }[params.cannibalization.level];
-
-      const similarity = 0.4; // Заглушка
-
-      
-
-      if (similarity > threshold) {
-
-        this.stats.cannibalBlocks++;
-
-        return true;
-
-      }
-
-    }
-
-    return false;
-
-  }
-
-
-
-  private isStopAnchor(anchorText: string, stopAnchors: string[]): boolean {
-
-    return stopAnchors.some(stop => anchorText.toLowerCase().includes(stop.toLowerCase()));
-
-  }
 
 }
