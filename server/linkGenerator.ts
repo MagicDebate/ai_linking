@@ -1,6 +1,8 @@
 import { db } from './db';
-import { linkCandidates, generationRuns, pageEmbeddings, pagesClean, graphMeta, importJobs } from '../shared/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { linkCandidates, generationRuns, pageEmbeddings, pagesClean, graphMeta, importJobs, embeddings, blocks, pagesRaw } from '@shared/schema';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
+import { embeddingService } from './embeddingService';
+import { linkGenerationQueue } from './queue';
 
 // Интерфейс параметров генерации (точно по UI)
 interface GenerationParams {
@@ -57,23 +59,23 @@ interface GenerationParams {
 
 // Статистика генерации
 interface GenerationStats {
-  stopAnchorsApplied: number;
+  totalGenerated: number;
+  totalRejected: number;
   duplicatesRemoved: number;
-  brokenLinksDeleted: number;
   cannibalBlocks: number;
-  priorityPagesUsed: number;
-  hubPagesUsed: number;
+  stopAnchorsApplied: number;
+  similarityMatches: number;
 }
 
 export class LinkGenerator {
   private projectId: string;
   private stats: GenerationStats = {
-    stopAnchorsApplied: 0,
+    totalGenerated: 0,
+    totalRejected: 0,
     duplicatesRemoved: 0,
-    brokenLinksDeleted: 0,
     cannibalBlocks: 0,
-    priorityPagesUsed: 0,
-    hubPagesUsed: 0
+    stopAnchorsApplied: 0,
+    similarityMatches: 0
   };
 
   constructor(projectId: string) {
@@ -124,82 +126,86 @@ export class LinkGenerator {
       const scenarioCount = Object.values(params.scenarios).filter(s => 
         typeof s === 'boolean' ? s : s.enabled
       ).length;
-      const progressPerScenario = scenarioCount > 0 ? 60 / scenarioCount : 0;
+      const progressPerScenario = 60 / Math.max(scenarioCount, 1);
 
       // ORPHAN FIX SCENARIO
       if (params.scenarios.orphanFix) {
-        console.log('\n🔍 EXECUTING: Orphan Fix Scenario');
+        console.log('🔗 Executing ORPHAN FIX scenario...');
         const result = await this.executeOrphanFixScenario(runId, pages, params);
         totalGenerated += result.generated;
         totalRejected += result.rejected;
         progressBase += progressPerScenario;
-        await this.updateProgress(runId, 'orphan_fix', progressBase, totalGenerated, totalRejected);
-        console.log(`✅ Orphan Fix completed: ${result.generated} generated, ${result.rejected} rejected`);
+        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
       }
 
       // HEAD CONSOLIDATION SCENARIO
       if (params.scenarios.headConsolidation) {
-        console.log('\n🔗 EXECUTING: Head Consolidation Scenario');
+        console.log('🔗 Executing HEAD CONSOLIDATION scenario...');
         const result = await this.executeHeadConsolidationScenario(runId, pages, params);
         totalGenerated += result.generated;
         totalRejected += result.rejected;
         progressBase += progressPerScenario;
-        await this.updateProgress(runId, 'head_consolidation', progressBase, totalGenerated, totalRejected);
-        console.log(`✅ Head Consolidation completed: ${result.generated} generated, ${result.rejected} rejected`);
+        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
       }
 
       // CLUSTER CROSS-LINK SCENARIO
       if (params.scenarios.clusterCrossLink) {
-        console.log('\n🔄 EXECUTING: Cluster Cross-Link Scenario');
+        console.log('🔗 Executing CLUSTER CROSS-LINK scenario...');
         const result = await this.executeClusterCrossLinkScenario(runId, pages, params);
         totalGenerated += result.generated;
         totalRejected += result.rejected;
         progressBase += progressPerScenario;
-        await this.updateProgress(runId, 'cluster_cross_link', progressBase, totalGenerated, totalRejected);
-        console.log(`✅ Cluster Cross-Link completed: ${result.generated} generated, ${result.rejected} rejected`);
+        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
       }
 
       // COMMERCIAL ROUTING SCENARIO
       if (params.scenarios.commercialRouting) {
-        console.log('\n💰 EXECUTING: Commercial Routing Scenario');
+        console.log('🔗 Executing COMMERCIAL ROUTING scenario...');
         const result = await this.executeCommercialRoutingScenario(runId, pages, params);
         totalGenerated += result.generated;
         totalRejected += result.rejected;
         progressBase += progressPerScenario;
-        await this.updateProgress(runId, 'commercial_routing', progressBase, totalGenerated, totalRejected);
-        console.log(`✅ Commercial Routing completed: ${result.generated} generated, ${result.rejected} rejected`);
+        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
       }
 
       // DEPTH LIFT SCENARIO
       if (params.scenarios.depthLift.enabled) {
-        console.log(`\n📏 EXECUTING: Depth Lift Scenario (minDepth: ${params.scenarios.depthLift.minDepth})`);
+        console.log('🔗 Executing DEPTH LIFT scenario...');
         const result = await this.executeDepthLiftScenario(runId, pages, params);
         totalGenerated += result.generated;
         totalRejected += result.rejected;
         progressBase += progressPerScenario;
-        await this.updateProgress(runId, 'depth_lift', progressBase, totalGenerated, totalRejected);
-        console.log(`✅ Depth Lift completed: ${result.generated} generated, ${result.rejected} rejected`);
+        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
       }
 
       // FRESHNESS PUSH SCENARIO
       if (params.scenarios.freshnessPush.enabled) {
-        console.log(`\n🆕 EXECUTING: Freshness Push Scenario (${params.scenarios.freshnessPush.daysFresh} days, ${params.scenarios.freshnessPush.linksPerDonor} links per donor)`);
+        console.log('🔗 Executing FRESHNESS PUSH scenario...');
         const result = await this.executeFreshnessPushScenario(runId, pages, params);
         totalGenerated += result.generated;
         totalRejected += result.rejected;
         progressBase += progressPerScenario;
-        await this.updateProgress(runId, 'freshness_push', progressBase, totalGenerated, totalRejected);
-        console.log(`✅ Freshness Push completed: ${result.generated} generated, ${result.rejected} rejected`);
+        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
       }
 
-      // Phase 3: Finalize (80-100%)
+      // Final phase (80-100%)
       await this.updateProgress(runId, 'finalizing', 90, totalGenerated, totalRejected);
-      await this.finalizeDraft(runId);
       
+      // Final statistics
+      const finalStats = {
+        totalGenerated,
+        totalRejected,
+        duplicatesRemoved: this.stats.duplicatesRemoved,
+        cannibalBlocks: this.stats.cannibalBlocks,
+        stopAnchorsApplied: this.stats.stopAnchorsApplied,
+        similarityMatches: this.stats.similarityMatches
+      };
+
+      // Update run with final status
       await db
         .update(generationRuns)
         .set({
-          status: 'published',
+          status: 'draft',
           phase: 'completed',
           percent: 100,
           generated: totalGenerated,
@@ -208,18 +214,15 @@ export class LinkGenerator {
         })
         .where(eq(generationRuns.runId, runId));
 
-      console.log(`\n🏁 ALL SCENARIOS COMPLETED!`);
-      console.log(`📊 Final stats:`, {
-        generated: totalGenerated,
-        rejected: totalRejected,
-        ...this.stats
-      });
+      console.log('✅ Link generation completed successfully!');
+      console.log('📊 Final statistics:', finalStats);
 
       return runId;
 
     } catch (error) {
-      console.error('Generation failed:', error);
+      console.error('❌ Link generation failed:', error);
       
+      // Update run with error status
       await db
         .update(generationRuns)
         .set({
@@ -233,26 +236,21 @@ export class LinkGenerator {
     }
   }
 
-  // ORPHAN FIX: находит страницы-сироты и подшивает к ним 1-2 ссылки
+  // ORPHAN FIX: поднимает сиротские страницы
   private async executeOrphanFixScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
-    const orphanPages = pages.filter(page => page.isOrphan);
     let generated = 0, rejected = 0;
 
-    for (const orphan of orphanPages) {
-      // Найти 2-3 потенциальных донора для каждой сироты
-      const potentialDonors = pages
-        .filter(p => !p.isOrphan && p.id !== orphan.id)
-        .sort((a, b) => (b.inDegree || 0) - (a.inDegree || 0)) // Приоритет по авторитетности
-        .slice(0, 3);
+    // Получаем сиротские страницы
+    const orphanPages = pages.filter(page => page.isOrphan);
 
-      let linksToOrphan = 0;
-      for (const donor of potentialDonors) {
-        if (linksToOrphan >= 2) break; // Максимум 2 ссылки на сироту
-
-        const result = await this.tryCreateLink(runId, donor, orphan, 'orphan_fix', params);
+    for (const orphanPage of orphanPages) {
+      // Ищем похожие страницы через cosine similarity
+      const similarPages = await this.findSimilarPagesByCosine(orphanPage, pages, 5, 0.70); // Пониженный порог для сирот
+      
+      for (const similarPage of similarPages) {
+        const result = await this.tryCreateLink(runId, similarPage, orphanPage, 'orphan_fix', params);
         if (result.created) {
           generated++;
-          linksToOrphan++;
         } else {
           rejected++;
         }
@@ -262,26 +260,21 @@ export class LinkGenerator {
     return { generated, rejected };
   }
 
-  // HEAD CONSOLIDATION: укрепляет хабовые страницы
+  // HEAD CONSOLIDATION: консолидирует головные страницы
   private async executeHeadConsolidationScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
-    // Используем hubPages если указаны, иначе автоматически определяем хабы
-    const hubPages = params.hubPages.length > 0 
-      ? pages.filter(p => params.hubPages.some(hubUrl => p.url.includes(hubUrl)))
-      : pages.filter(p => (p.inDegree || 0) > 5); // Автоматические хабы
-
     let generated = 0, rejected = 0;
 
-    for (const hub of hubPages) {
-      // Все остальные страницы из того же кластера ссылаются на хаб
-      const clusterPages = pages
-        .filter(p => p.id !== hub.id)
-        .slice(0, 10); // Ограничиваем для производительности
+    // Получаем hub страницы
+    const hubPages = pages.filter(page => params.hubPages.includes(page.url));
 
-      for (const page of clusterPages) {
-        const result = await this.tryCreateLink(runId, page, hub, 'head_consolidation', params);
+    for (const hubPage of hubPages) {
+      // Ищем похожие страницы через cosine similarity
+      const similarPages = await this.findSimilarPagesByCosine(hubPage, pages, 3, 0.78);
+      
+      for (const similarPage of similarPages) {
+        const result = await this.tryCreateLink(runId, similarPage, hubPage, 'head_consolidation', params);
         if (result.created) {
           generated++;
-          this.stats.hubPagesUsed++;
         } else {
           rejected++;
         }
@@ -298,7 +291,7 @@ export class LinkGenerator {
     // Группируем страницы по семантической близости
     for (let i = 0; i < pages.length; i++) {
       const page1 = pages[i];
-      const similarPages = this.findSimilarPages(page1, pages, 3);
+      const similarPages = await this.findSimilarPagesByCosine(page1, pages, 3, 0.78);
       
       for (const page2 of similarPages) {
         const result = await this.tryCreateLink(runId, page1, page2, 'cluster_cross_link', params);
@@ -315,49 +308,42 @@ export class LinkGenerator {
 
   // COMMERCIAL ROUTING: направляет трафик на коммерческие страницы
   private async executeCommercialRoutingScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
-    if (params.priorityPages.length === 0) {
-      console.log('⚠️ No priority pages specified, skipping Commercial Routing');
-      return { generated: 0, rejected: 0 };
-    }
-
-    const priorityPages = pages.filter(p => 
-      params.priorityPages.some(priorityUrl => p.url.includes(priorityUrl))
-    );
-    const informationalPages = pages.filter(p => 
-      !params.priorityPages.some(url => p.url.includes(url))
-    );
-    
     let generated = 0, rejected = 0;
 
-    for (const infoPage of informationalPages) {
-      // Выбираем релевантную приоритетную страницу
-      const priorityPage = priorityPages[Math.floor(Math.random() * priorityPages.length)];
+    // Получаем money страницы
+    const moneyPages = pages.filter(page => params.priorityPages.includes(page.url));
+
+    for (const moneyPage of moneyPages) {
+      // Ищем страницы, которые могут ссылаться на коммерческие
+      const potentialDonors = pages.filter(page => !params.priorityPages.includes(page.url));
       
-      const result = await this.tryCreateLink(runId, infoPage, priorityPage, 'commercial_routing', params);
+      for (const donorPage of potentialDonors) {
+        const result = await this.tryCreateLink(runId, donorPage, moneyPage, 'commercial_routing', params);
       if (result.created) {
         generated++;
-        this.stats.priorityPagesUsed++;
       } else {
         rejected++;
+        }
       }
     }
 
     return { generated, rejected };
   }
 
-  // DEPTH LIFT: сокращает путь до глубоких страниц
+  // DEPTH LIFT: поднимает глубокие страницы
   private async executeDepthLiftScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
-    const deepPages = pages.filter(p => (p.clickDepth || 0) >= params.scenarios.depthLift.minDepth);
-    const topLevelPages = pages.filter(p => (p.clickDepth || 0) <= 2);
-    
     let generated = 0, rejected = 0;
+
+    // Получаем глубокие страницы
+    const deepPages = pages.filter(page => page.clickDepth >= params.scenarios.depthLift.minDepth);
 
     for (const deepPage of deepPages) {
-      // Создаем шорткаты с верхних уровней (максимум 3)
-      const shortcuts = topLevelPages.slice(0, 3);
+      // Ищем похожие страницы с меньшей глубиной
+      const shallowPages = pages.filter(page => page.clickDepth < params.scenarios.depthLift.minDepth);
+      const similarPages = await this.findSimilarPagesByCosine(deepPage, shallowPages, 3, 0.70);
       
-      for (const topPage of shortcuts) {
-        const result = await this.tryCreateLink(runId, topPage, deepPage, 'depth_lift', params);
+      for (const similarPage of similarPages) {
+        const result = await this.tryCreateLink(runId, similarPage, deepPage, 'depth_lift', params);
         if (result.created) {
           generated++;
         } else {
@@ -369,34 +355,29 @@ export class LinkGenerator {
     return { generated, rejected };
   }
 
-  // FRESHNESS PUSH: ускоряет продвижение нового контента
+  // FRESHNESS PUSH: продвигает свежие страницы
   private async executeFreshnessPushScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
-    const now = new Date();
-    const freshnessCutoff = new Date(now.getTime() - params.scenarios.freshnessPush.daysFresh * 24 * 60 * 60 * 1000);
-    
-    // Разделяем на старые и новые страницы
-    const oldPages = pages.filter(p => {
-      const publishDate = p.publishedAt || p.createdAt || new Date(2020, 0, 1);
-      return new Date(publishDate) < freshnessCutoff;
-    });
-    
-    const freshPages = pages.filter(p => {
-      const publishDate = p.publishedAt || p.createdAt || new Date();
-      return new Date(publishDate) >= freshnessCutoff;
-    });
-
     let generated = 0, rejected = 0;
 
-    for (const oldPage of oldPages) {
-      let linksFromThisPage = 0;
+    const daysFresh = params.scenarios.freshnessPush.daysFresh;
+    const linksPerDonor = params.scenarios.freshnessPush.linksPerDonor;
+    
+    // Получаем свежие страницы
+    const freshPages = pages.filter(page => {
+      const publishedAt = new Date(page.publishedAt || page.createdAt);
+      const daysSincePublished = (Date.now() - publishedAt.getTime()) / (1000 * 60 * 60 * 24);
+      return daysSincePublished <= daysFresh;
+    });
       
       for (const freshPage of freshPages) {
-        if (linksFromThisPage >= params.scenarios.freshnessPush.linksPerDonor) break;
+      // Ищем доноров для свежих страниц
+      const potentialDonors = pages.filter(page => page.id !== freshPage.id);
+      const selectedDonors = potentialDonors.slice(0, linksPerDonor);
         
-        const result = await this.tryCreateLink(runId, oldPage, freshPage, 'freshness_push', params);
+      for (const donorPage of selectedDonors) {
+        const result = await this.tryCreateLink(runId, donorPage, freshPage, 'freshness_push', params);
         if (result.created) {
           generated++;
-          linksFromThisPage++;
         } else {
           rejected++;
         }
@@ -404,6 +385,65 @@ export class LinkGenerator {
     }
 
     return { generated, rejected };
+  }
+
+  // НОВЫЙ МЕТОД: Поиск похожих страниц через cosine similarity
+  private async findSimilarPagesByCosine(sourcePage: any, allPages: any[], limit: number, threshold: number): Promise<any[]> {
+    console.log(`🔍 Finding similar pages for ${sourcePage.url} (threshold: ${threshold})`);
+    
+    // Получаем блоки исходной страницы
+    const sourceBlocks = await db
+      .select({ id: blocks.id })
+      .from(blocks)
+      .where(eq(blocks.pageId, sourcePage.id));
+
+    if (sourceBlocks.length === 0) {
+      console.log('⚠️ No blocks found for source page');
+      return [];
+    }
+
+    const similarities: Array<{ page: any, score: number }> = [];
+
+    // Для каждого блока исходной страницы ищем похожие блоки
+    for (const sourceBlock of sourceBlocks) {
+      const similarBlocks = await embeddingService.findSimilarBlocks(
+        sourceBlock.id,
+        this.projectId,
+        10, // topK
+        threshold
+      );
+
+             // Группируем результаты по страницам
+       for (const similarBlock of similarBlocks) {
+         // Получаем pageId из blockId
+         const targetBlock = await db
+           .select({ pageId: blocks.pageId })
+           .from(blocks)
+           .where(eq(blocks.id, similarBlock.blockId))
+           .limit(1);
+         
+         if (targetBlock.length > 0) {
+           const targetPage = allPages.find(p => p.id === targetBlock[0].pageId);
+           if (targetPage && targetPage.id !== sourcePage.id) {
+             const existing = similarities.find(s => s.page.id === targetPage.id);
+             if (existing) {
+               existing.score = Math.max(existing.score, similarBlock.pageScore);
+             } else {
+               similarities.push({
+                 page: targetPage,
+                 score: similarBlock.pageScore
+               });
+             }
+           }
+         }
+       }
+    }
+
+    // Сортируем по score и берем top limit
+    return similarities
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(s => s.page);
   }
 
   // Попытка создать ссылку с проверкой всех политик
@@ -459,85 +499,65 @@ export class LinkGenerator {
     }
   }
 
-  // Вспомогательные методы
-  private async loadPages() {
-    const jobs = await db
-      .select()
-      .from(importJobs)
-      .where(and(
-        eq(importJobs.projectId, this.projectId),
-        eq(importJobs.status, 'completed')
-      ))
-      .orderBy(desc(importJobs.startedAt))
-      .limit(1);
+  // Обновление прогресса генерации
+  private async updateProgress(runId: string, phase: string, percent: number, generated: number, rejected: number) {
+    await db
+      .update(generationRuns)
+      .set({
+        phase,
+        percent,
+        generated,
+        rejected
+      })
+      .where(eq(generationRuns.runId, runId));
+  }
 
-    if (!jobs[0]) {
-      throw new Error(`No completed import job found for project ${this.projectId}`);
-    }
-
+  // Загрузка страниц проекта
+  private async loadPages(): Promise<any[]> {
     const pages = await db
       .select({
         id: pagesClean.id,
-        cleanHtml: pagesClean.cleanHtml,
+        url: pagesRaw.url,
+        title: pagesRaw.meta,
         wordCount: pagesClean.wordCount,
-        url: graphMeta.url,
         clickDepth: graphMeta.clickDepth,
-        isOrphan: graphMeta.isOrphan,
         inDegree: graphMeta.inDegree,
-        outDegree: graphMeta.outDegree
+        outDegree: graphMeta.outDegree,
+        isOrphan: graphMeta.isOrphan,
+        publishedAt: pagesRaw.createdAt,
+        createdAt: pagesClean.createdAt
       })
       .from(pagesClean)
-      .innerJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
-      .where(eq(graphMeta.jobId, jobs[0].jobId));
+      .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
+      .leftJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
+      .where(eq(pagesRaw.jobId, 'default-job')); // Упрощенно
 
     return pages;
   }
 
-  private async updateProgress(runId: string, phase: string, percent: number, generated: number, rejected: number) {
-    await db
-      .update(generationRuns)
-      .set({ phase, percent, generated, rejected })
-      .where(eq(generationRuns.runId, runId));
-  }
-
-  private async handleOldLinksPolicy(policy: string, runId: string) {
+  // Обработка политики старых ссылок
+  private async handleOldLinksPolicy(policy: string, runId: string): Promise<void> {
+    // PLACEHOLDER: Реализация политики старых ссылок
     console.log(`📋 Applying old links policy: ${policy}`);
-    // Логика обработки старых ссылок
   }
 
-  private async finalizeDraft(runId: string) {
-    console.log('📝 Finalizing draft...');
-    // Логика финализации
-  }
-
-  private findSimilarPages(page: any, allPages: any[], limit: number): any[] {
-    // Упрощенный поиск похожих страниц
-    return allPages
-      .filter(p => p.id !== page.id)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, limit);
-  }
-
-  private async generateAnchorText(sourcePage: any, targetPage: any, params: GenerationParams): Promise<string> {
-    const targetTitle = this.extractTitle(targetPage.cleanHtml || '');
-    const shouldUseExact = Math.random() * 100 < params.exactAnchorPercent;
-    
-    if (shouldUseExact && targetTitle) {
-      return targetTitle.substring(0, 50);
-    } else {
-      return 'подробнее';
-    }
-  }
-
-  private extractTitle(html: string): string {
-    const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    return match ? match[1].trim() : '';
-  }
-
+  // Проверка дубликатов ссылок
   private async isDuplicateLink(sourceUrl: string, targetUrl: string): Promise<boolean> {
-    return false; // Упрощенная проверка
+    const existing = await db
+      .select()
+      .from(linkCandidates)
+      .where(
+        and(
+          eq(linkCandidates.sourceUrl, sourceUrl),
+          eq(linkCandidates.targetUrl, targetUrl)
+        )
+      )
+      .limit(1);
+
+    return existing.length > 0;
   }
 
+  // Проверка каннибализации
   private async checkCannibalization(sourceUrl: string, targetUrl: string, params: GenerationParams): Promise<boolean> {
     if (params.cannibalization.enabled) {
       const threshold = { low: 0.3, medium: 0.5, high: 0.7 }[params.cannibalization.level];
@@ -551,7 +571,592 @@ export class LinkGenerator {
     return false;
   }
 
-  private isStopAnchor(anchorText: string, stopAnchors: string[]): boolean {
-    return stopAnchors.some(stop => anchorText.toLowerCase().includes(stop.toLowerCase()));
+  // Генерация текста анкора
+  private async generateAnchorText(sourcePage: any, targetPage: any, params: GenerationParams): Promise<string> {
+    // PLACEHOLDER: Реализация генерации анкора
+    return `Ссылка на ${targetPage.title || targetPage.url}`;
   }
+
+  // Проверка стоп-листа анкоров
+  private isStopAnchor(anchorText: string, stopAnchors: string[]): boolean {
+    const lowerAnchor = anchorText.toLowerCase();
+    return stopAnchors.some(stop => lowerAnchor.includes(stop.toLowerCase()));
+  }
+
+  // Добавление задачи в очередь генерации ссылок
+  async queueLinkGeneration(params: GenerationParams): Promise<string> {
+    const runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const job = await linkGenerationQueue.add('generate-links', {
+      runId,
+      projectId: this.projectId,
+      scenarios: params.scenarios,
+      rules: {
+        maxLinks: params.maxLinks,
+        exactAnchorPercent: params.exactAnchorPercent
+      },
+      scope: {
+        projectId: this.projectId
+      }
+    });
+
+    console.log(`📋 Queued link generation job ${job.id} with runId ${runId}`);
+    return runId;
+  }
+}
+
+      for (const page of clusterPages) {
+
+        const result = await this.tryCreateLink(runId, page, hub, 'head_consolidation', params);
+
+        if (result.created) {
+
+          generated++;
+
+          this.stats.hubPagesUsed++;
+
+        } else {
+
+          rejected++;
+
+        }
+
+      }
+
+    }
+
+
+
+    return { generated, rejected };
+
+  }
+
+
+
+  // CLUSTER CROSS-LINK: создает взаимные ссылки внутри тематических кластеров
+
+  private async executeClusterCrossLinkScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
+
+    let generated = 0, rejected = 0;
+
+
+
+    // Группируем страницы по семантической близости
+
+    for (let i = 0; i < pages.length; i++) {
+
+      const page1 = pages[i];
+
+      const similarPages = this.findSimilarPages(page1, pages, 3);
+
+      
+
+      for (const page2 of similarPages) {
+
+        const result = await this.tryCreateLink(runId, page1, page2, 'cluster_cross_link', params);
+
+        if (result.created) {
+
+          generated++;
+
+        } else {
+
+          rejected++;
+
+        }
+
+      }
+
+    }
+
+
+
+    return { generated, rejected };
+
+  }
+
+
+
+  // COMMERCIAL ROUTING: направляет трафик на коммерческие страницы
+
+  private async executeCommercialRoutingScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
+
+    if (params.priorityPages.length === 0) {
+
+      console.log('⚠️ No priority pages specified, skipping Commercial Routing');
+
+      return { generated: 0, rejected: 0 };
+
+    }
+
+
+
+    const priorityPages = pages.filter(p => 
+
+      params.priorityPages.some(priorityUrl => p.url.includes(priorityUrl))
+
+    );
+
+    const informationalPages = pages.filter(p => 
+
+      !params.priorityPages.some(url => p.url.includes(url))
+
+    );
+
+    
+
+    let generated = 0, rejected = 0;
+
+
+
+    for (const infoPage of informationalPages) {
+
+      // Выбираем релевантную приоритетную страницу
+
+      const priorityPage = priorityPages[Math.floor(Math.random() * priorityPages.length)];
+
+      
+
+      const result = await this.tryCreateLink(runId, infoPage, priorityPage, 'commercial_routing', params);
+
+      if (result.created) {
+
+        generated++;
+
+        this.stats.priorityPagesUsed++;
+
+      } else {
+
+        rejected++;
+
+      }
+
+    }
+
+
+
+    return { generated, rejected };
+
+  }
+
+
+
+  // DEPTH LIFT: сокращает путь до глубоких страниц
+
+  private async executeDepthLiftScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
+
+    const deepPages = pages.filter(p => (p.clickDepth || 0) >= params.scenarios.depthLift.minDepth);
+
+    const topLevelPages = pages.filter(p => (p.clickDepth || 0) <= 2);
+
+    
+
+    let generated = 0, rejected = 0;
+
+
+
+    for (const deepPage of deepPages) {
+
+      // Создаем шорткаты с верхних уровней (максимум 3)
+
+      const shortcuts = topLevelPages.slice(0, 3);
+
+      
+
+      for (const topPage of shortcuts) {
+
+        const result = await this.tryCreateLink(runId, topPage, deepPage, 'depth_lift', params);
+
+        if (result.created) {
+
+          generated++;
+
+        } else {
+
+          rejected++;
+
+        }
+
+      }
+
+    }
+
+
+
+    return { generated, rejected };
+
+  }
+
+
+
+  // FRESHNESS PUSH: ускоряет продвижение нового контента
+
+  private async executeFreshnessPushScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
+
+    const now = new Date();
+
+    const freshnessCutoff = new Date(now.getTime() - params.scenarios.freshnessPush.daysFresh * 24 * 60 * 60 * 1000);
+
+    
+
+    // Разделяем на старые и новые страницы
+
+    const oldPages = pages.filter(p => {
+
+      const publishDate = p.publishedAt || p.createdAt || new Date(2020, 0, 1);
+
+      return new Date(publishDate) < freshnessCutoff;
+
+    });
+
+    
+
+    const freshPages = pages.filter(p => {
+
+      const publishDate = p.publishedAt || p.createdAt || new Date();
+
+      return new Date(publishDate) >= freshnessCutoff;
+
+    });
+
+
+
+    let generated = 0, rejected = 0;
+
+
+
+    for (const oldPage of oldPages) {
+
+      let linksFromThisPage = 0;
+
+      
+
+      for (const freshPage of freshPages) {
+
+        if (linksFromThisPage >= params.scenarios.freshnessPush.linksPerDonor) break;
+
+        
+
+        const result = await this.tryCreateLink(runId, oldPage, freshPage, 'freshness_push', params);
+
+        if (result.created) {
+
+          generated++;
+
+          linksFromThisPage++;
+
+        } else {
+
+          rejected++;
+
+        }
+
+      }
+
+    }
+
+
+
+    return { generated, rejected };
+
+  }
+
+
+
+  // Попытка создать ссылку с проверкой всех политик
+
+  private async tryCreateLink(runId: string, sourcePage: any, targetPage: any, scenario: string, params: GenerationParams): Promise<{ created: boolean, reason?: string, anchor?: string }> {
+
+    try {
+
+      // 1. Базовые проверки
+
+      if (sourcePage.id === targetPage.id) {
+
+        return { created: false, reason: 'Self-link not allowed' };
+
+      }
+
+
+
+      // 2. Проверка дубликатов
+
+      if (params.policies.removeDuplicates) {
+
+        const isDuplicate = await this.isDuplicateLink(sourcePage.url, targetPage.url);
+
+        if (isDuplicate) {
+
+          this.stats.duplicatesRemoved++;
+
+          return { created: false, reason: 'Duplicate link removed' };
+
+        }
+
+      }
+
+
+
+      // 3. Проверка каннибализации
+
+      const isCannibal = await this.checkCannibalization(sourcePage.url, targetPage.url, params);
+
+      if (isCannibal) {
+
+        return { created: false, reason: 'Cannibalization blocked' };
+
+      }
+
+
+
+      // 4. Генерация анкора
+
+      const anchorText = await this.generateAnchorText(sourcePage, targetPage, params);
+
+      
+
+      // 5. Проверка стоп-листа
+
+      if (this.isStopAnchor(anchorText, params.stopAnchors)) {
+
+        this.stats.stopAnchorsApplied++;
+
+        return { created: false, reason: 'Anchor in stop list' };
+
+      }
+
+
+
+      // 6. Создание ссылки в БД
+
+      await db.insert(linkCandidates).values({
+
+        runId: runId,
+
+        sourcePageId: sourcePage.id,
+
+        targetPageId: targetPage.id,
+
+        sourceUrl: sourcePage.url,
+
+        targetUrl: targetPage.url,
+
+        anchorText: anchorText,
+
+        scenario: scenario,
+
+        isRejected: false,
+
+        rejectionReason: null
+
+      });
+
+
+
+      return { created: true, anchor: anchorText };
+
+
+
+    } catch (error) {
+
+      console.error('Error creating link:', error);
+
+      return { created: false, reason: 'Database error' };
+
+    }
+
+  }
+
+
+
+  // Вспомогательные методы
+
+  private async loadPages() {
+
+    const jobs = await db
+
+      .select()
+
+      .from(importJobs)
+
+      .where(and(
+
+        eq(importJobs.projectId, this.projectId),
+
+        eq(importJobs.status, 'completed')
+
+      ))
+
+      .orderBy(desc(importJobs.startedAt))
+
+      .limit(1);
+
+
+
+    if (!jobs[0]) {
+
+      throw new Error(`No completed import job found for project ${this.projectId}`);
+
+    }
+
+
+
+    const pages = await db
+
+      .select({
+
+        id: pagesClean.id,
+
+        cleanHtml: pagesClean.cleanHtml,
+
+        wordCount: pagesClean.wordCount,
+
+        url: graphMeta.url,
+
+        clickDepth: graphMeta.clickDepth,
+
+        isOrphan: graphMeta.isOrphan,
+
+        inDegree: graphMeta.inDegree,
+
+        outDegree: graphMeta.outDegree
+
+      })
+
+      .from(pagesClean)
+
+      .innerJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
+
+      .where(eq(graphMeta.jobId, jobs[0].jobId));
+
+
+
+    return pages;
+
+  }
+
+
+
+  private async updateProgress(runId: string, phase: string, percent: number, generated: number, rejected: number) {
+
+    await db
+
+      .update(generationRuns)
+
+      .set({ phase, percent, generated, rejected })
+
+      .where(eq(generationRuns.runId, runId));
+
+  }
+
+
+
+  private async handleOldLinksPolicy(policy: string, runId: string) {
+
+    console.log(`📋 Applying old links policy: ${policy}`);
+
+    // Логика обработки старых ссылок
+
+  }
+
+
+
+  private async finalizeDraft(runId: string) {
+
+    console.log('📝 Finalizing draft...');
+
+    // Логика финализации
+
+  }
+
+
+
+  private findSimilarPages(page: any, allPages: any[], limit: number): any[] {
+
+    // Упрощенный поиск похожих страниц
+
+    return allPages
+
+      .filter(p => p.id !== page.id)
+
+      .sort(() => Math.random() - 0.5)
+
+      .slice(0, limit);
+
+  }
+
+
+
+  private async generateAnchorText(sourcePage: any, targetPage: any, params: GenerationParams): Promise<string> {
+
+    const targetTitle = this.extractTitle(targetPage.cleanHtml || '');
+
+    const shouldUseExact = Math.random() * 100 < params.exactAnchorPercent;
+
+    
+
+    if (shouldUseExact && targetTitle) {
+
+      return targetTitle.substring(0, 50);
+
+    } else {
+
+      return 'подробнее';
+
+    }
+
+  }
+
+
+
+  private extractTitle(html: string): string {
+
+    const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+
+    return match ? match[1].trim() : '';
+
+  }
+
+
+
+  private async isDuplicateLink(sourceUrl: string, targetUrl: string): Promise<boolean> {
+
+    return false; // Упрощенная проверка
+
+  }
+
+
+
+  private async checkCannibalization(sourceUrl: string, targetUrl: string, params: GenerationParams): Promise<boolean> {
+
+    if (params.cannibalization.enabled) {
+
+      const threshold = { low: 0.3, medium: 0.5, high: 0.7 }[params.cannibalization.level];
+
+      const similarity = 0.4; // Заглушка
+
+      
+
+      if (similarity > threshold) {
+
+        this.stats.cannibalBlocks++;
+
+        return true;
+
+      }
+
+    }
+
+    return false;
+
+  }
+
+
+
+  private isStopAnchor(anchorText: string, stopAnchors: string[]): boolean {
+
+    return stopAnchors.some(stop => anchorText.toLowerCase().includes(stop.toLowerCase()));
+
+  }
+
 }

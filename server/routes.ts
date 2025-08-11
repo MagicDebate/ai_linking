@@ -25,6 +25,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
 import type { AuthRequest } from "./auth";
+import { importQueue, embeddingQueue, linkGenerationQueue } from "./queue";
+import { embeddingService } from "./embeddingService";
 
 // Rate limiting for auth endpoints
 const authLimiter = rateLimit({
@@ -1609,13 +1611,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
 
-      // Start generation in background
-      const runId = await generator.generateLinks(generationParams);
-      console.log(`✅ Smart generation started with runId: ${runId}`);
+      // Добавляем задачу в очередь вместо синхронного выполнения
+      const runId = await generator.queueLinkGeneration(generationParams);
+      console.log(`✅ Link generation queued with runId: ${runId}`);
 
       res.json({ 
         success: true, 
-        message: "Smart generation started", 
+        message: "Link generation queued successfully", 
         runId: runId 
       });
     } catch (error) {
@@ -2805,40 +2807,29 @@ class ContentProcessor {
   }
 
   private async generateEmbeddings(blocksData: any[], jobId: string) {
-    const embeddingsList = [];
-    
     console.log(`🔢 Starting vectorization of ${blocksData.length} blocks...`);
     
-    for (let i = 0; i < blocksData.length; i++) {
-      const block = blocksData[i];
-      
-      // Update progress every 100 blocks
-      if (i % 100 === 0) {
-        const percent = Math.round((i / blocksData.length) * 100);
-        await this.updateProgress(jobId, "vectorizing", percent, 
-          `Векторизация: ${i}/${blocksData.length} блоков`);
-      }
-      
-      // PLACEHOLDER: In real implementation, use S-BERT MiniLM
-      // For now, create zero vectors to avoid fake data
-      const vector = Array.from({ length: 384 }, () => 0);
-      
-      const embeddingResult = await db.insert(embeddings).values({
-        blockId: block.id,
-        vector
-      }).returning({ id: embeddings.id });
-      
-      embeddingsList.push({
-        id: embeddingResult[0].id,
-        blockId: block.id,
-        vector
-      });
+    // Получаем projectId из jobId
+    const job = await db
+      .select({ projectId: importJobs.projectId })
+      .from(importJobs)
+      .where(eq(importJobs.jobId, jobId))
+      .limit(1);
+    
+    if (job.length === 0) {
+      throw new Error(`Job ${jobId} not found`);
     }
     
+    const projectId = job[0].projectId;
+    const blockIds = blocksData.map(block => block.id);
+    
+    // Используем новый сервис эмбеддингов
+    const results = await embeddingService.generateEmbeddings(blockIds, projectId);
+    
     await this.updateProgress(jobId, "vectorizing", 100, 
-      `Векторизация завершена: ${embeddingsList.length} векторов`);
-    console.log(`🔢 Generated ${embeddingsList.length} embeddings`);
-    return embeddingsList;
+      `Векторизация завершена: ${results.length} векторов (${results.filter(r => !r.cached).length} новых, ${results.filter(r => r.cached).length} из кэша)`);
+    console.log(`🔢 Generated ${results.length} embeddings`);
+    return results;
   }
 
   private async buildLinkGraph(cleanPages: any[], jobId: string) {
