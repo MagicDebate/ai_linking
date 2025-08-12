@@ -94,8 +94,9 @@ export function ImportPage() {
       return response.json();
     },
     enabled: !!projectId && autoRefresh,
-    refetchInterval: importStatus?.status === "running" ? 1000 : 5000, // Быстрее обновляем во время выполнения
+    refetchInterval: importStatus?.status === "running" ? 1000 : 2000, // Быстрее обновляем во время выполнения
     refetchIntervalInBackground: true,
+    staleTime: 0, // Всегда считаем данные устаревшими для получения актуальной информации
   });
 
   // Start import when coming from Step 3
@@ -273,10 +274,10 @@ export function ImportPage() {
                 Обновление...
               </div>
             )}
-            <Badge className={getStatusColor(importStatus.status)}>
-              {getStatusIcon(importStatus.status)}
-              <span className="ml-2 capitalize">{importStatus.status}</span>
-            </Badge>
+          <Badge className={getStatusColor(importStatus.status)}>
+            {getStatusIcon(importStatus.status)}
+            <span className="ml-2 capitalize">{importStatus.status}</span>
+          </Badge>
           </div>
         </div>
 
@@ -305,9 +306,9 @@ export function ImportPage() {
                 <p className="font-medium text-blue-900">
                   Текущая фаза: {phaseLabels[importStatus.phase] || importStatus.phase}
                 </p>
-                <p className="text-sm text-blue-700">
+                  <p className="text-sm text-blue-700">
                   {phaseDescriptions[importStatus.phase] || "Обработка данных..."}
-                </p>
+                  </p>
                 {importStatus.status === "running" && (
                   <div className="mt-2">
                     <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
@@ -369,6 +370,49 @@ export function ImportPage() {
           </CardContent>
         </Card>
 
+        {/* Results Summary - Show when completed */}
+        {importStatus.status === "completed" && (
+          <Card className="border-green-200 bg-green-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-green-800">
+                <CheckCircle2 className="h-5 w-5" />
+                Импорт успешно завершен!
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="text-center p-3 bg-white rounded-lg border">
+                  <div className="text-2xl font-bold text-green-600">
+                    {importStatus.pagesTotal}
+                  </div>
+                  <div className="text-sm text-green-700">страниц обработано</div>
+                </div>
+                <div className="text-center p-3 bg-white rounded-lg border">
+                  <div className="text-2xl font-bold text-green-600">
+                    {importStatus.blocksDone}
+                  </div>
+                  <div className="text-sm text-green-700">блоков создано</div>
+                </div>
+                <div className="text-center p-3 bg-white rounded-lg border">
+                  <div className="text-2xl font-bold text-green-600">
+                    {importStatus.orphanCount}
+                  </div>
+                  <div className="text-sm text-green-700">сирот найдено</div>
+                </div>
+                <div className="text-center p-3 bg-white rounded-lg border">
+                  <div className="text-2xl font-bold text-green-600">
+                    {importStatus.avgClickDepth.toFixed(1)}
+                  </div>
+                  <div className="text-sm text-green-700">средняя глубина</div>
+                </div>
+              </div>
+              <div className="text-sm text-green-700">
+                Теперь вы можете сгенерировать внутренние ссылки для улучшения SEO вашего сайта.
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Action Buttons */}
         <div className="flex gap-3 flex-wrap">
           {importStatus.status === "running" && (
@@ -391,6 +435,13 @@ export function ImportPage() {
               >
                 <AlertCircle className="h-4 w-4 mr-2" />
                 Отладка данных
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => window.location.href = `/project/${projectId}`}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Вернуться к проекту
               </Button>
             </>
           )}
@@ -475,8 +526,8 @@ export function ImportPage() {
                             'text-green-400'
                           }`}
                         >
-                          {log}
-                        </div>
+                      {log}
+                    </div>
                       );
                     })}
                   </div>
