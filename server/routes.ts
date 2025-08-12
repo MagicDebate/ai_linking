@@ -3015,197 +3015,34 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
   }
 }
 
-// Background import processing function for new import system
+// Background import processing function - now uses ContentProcessor
 async function processImportJob(jobId: string, projectId: string, uploadId: string) {
   try {
     console.log(`🚀 Starting import job ${jobId} for project ${projectId}`);
-
-    const updateProgress = async (phase: string, percent: number, currentItem?: string, stats?: any) => {
-      const updateData: any = { phase, percent };
-      if (currentItem) updateData.logs = sql`array_append(logs, ${currentItem})`;
-      if (stats?.totalPages) updateData.pagesTotal = stats.totalPages;
-      if (stats?.totalBlocks) updateData.blocksDone = stats.totalBlocks;
-      if (stats?.totalWords) updateData.avgWordCount = stats.totalWords;
-      
-      await db.update(importJobs).set(updateData).where(eq(importJobs.jobId, jobId));
-    };
-
-    // Phase 1: Parse CSV (0-20%)
-    await updateProgress('parsing', 5, 'Загружаем CSV данные');
     
-    // Get import record from database
+    // Get import record to find importId
     const importRecord = await storage.getImportByUploadId(uploadId);
     if (!importRecord) {
       throw new Error('Import record not found');
     }
     
-    // Parse field mapping
-    const fieldMapping = JSON.parse(importRecord.fieldMapping || '{}');
+    const importId = importRecord.id;
+    console.log(`📋 Found importId: ${importId} for uploadId: ${uploadId}`);
     
-    // Read CSV data from file
-    const fs = await import('fs');
-    const path = await import('path');
-    const csvFilePath = importRecord.filePath;
-    
-    if (!csvFilePath || !fs.default.existsSync(csvFilePath)) {
-      throw new Error('CSV file not found');
-    }
-    
-    const csvContent = fs.default.readFileSync(csvFilePath, 'utf-8');
-    
-    // Use proper CSV parser (same as in upload)
-    const properCSVParse = (csvText: string) => {
-      const results: string[][] = [];
-      let currentRow: string[] = [];
-      let currentField = '';
-      let inQuotes = false;
-      let i = 0;
-      
-      while (i < csvText.length) {
-        const char = csvText[i];
-        const nextChar = csvText[i + 1];
-        
-        if (char === '"') {
-          if (inQuotes && nextChar === '"') {
-            currentField += '"';
-            i += 2;
-            continue;
-          } else {
-            inQuotes = !inQuotes;
-          }
-        } else if (char === ',' && !inQuotes) {
-          currentRow.push(currentField);
-          currentField = '';
-        } else if ((char === '\n' || char === '\r') && !inQuotes) {
-          currentRow.push(currentField);
-          if (currentRow.length > 0 && currentRow.some(field => field.trim().length > 0)) {
-            results.push(currentRow.map(field => field.trim()));
-          }
-          currentRow = [];
-          currentField = '';
-          if (char === '\r' && nextChar === '\n') i++;
-        } else {
-          currentField += char;
-        }
-        i++;
-      }
-      
-      if (currentField.length > 0 || currentRow.length > 0) {
-        currentRow.push(currentField);
-        if (currentRow.length > 0 && currentRow.some(field => field.trim().length > 0)) {
-          results.push(currentRow.map(field => field.trim()));
-        }
-      }
-      
-      console.log(`🎯 CSV properly parsed: ${results.length} records (including header)`);
-      return results;
-    };
-    
-    const parsed = properCSVParse(csvContent);
-    if (parsed.length === 0) {
-      throw new Error('CSV parsing failed');
-    }
-    
-    const headers = parsed[0];
-    const dataRows = parsed.slice(1);
-    
-    console.log(`📊 CORRECT PARSING: ${dataRows.length} data records from CSV`);
-    
-    const importData = { headers, rows: dataRows, fieldMapping };
-
-    await updateProgress('parsing', 15, 'Парсинг CSV файла');
-    
-    // Simulate parsing work
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Phase 2: Process content (20-60%)  
-    await updateProgress('processing', 25, 'Обработка контента страниц');
-    
-    let totalPages = importData.rows.length;
-    let totalBlocks = 0;
-    let totalWords = 0;
-    const errors: string[] = [];
-
-    for (let i = 0; i < importData.rows.length; i++) {
-      const row = importData.rows[i];
-      const urlIndex = headers.indexOf(importData.fieldMapping.url);
-      const contentIndex = headers.indexOf(importData.fieldMapping.content);
-      
-      const url = urlIndex >= 0 ? row[urlIndex] || '' : '';
-      const content = contentIndex >= 0 ? row[contentIndex] || '' : '';
-      
-      if (!url) {
-        errors.push(`Строка ${i + 1}: отсутствует URL`);
-        continue;
-      }
-
-      // Count blocks and words
-      const blocks = content.split('\n\n').filter((b: string) => b.trim());
-      totalBlocks += blocks.length;
-      totalWords += content.split(/\s+/).length;
-
-      const progress = 25 + Math.floor((i / totalPages) * 35);
-      await updateProgress('processing', progress, `Обработка: ${url}`, {
-        totalPages: i + 1,
-        totalBlocks,
-        totalWords
-      });
-
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-
-    // Phase 3: Create embeddings (60-80%)
-    await updateProgress('embedding', 65, 'Создание векторных представлений');
-    
-    // Simulate embedding creation
-    for (let i = 0; i < Math.min(totalPages, 20); i++) {
-      const progress = 65 + Math.floor((i / 20) * 15);
-      await updateProgress('embedding', progress, `Векторизация блока ${i + 1}`, {
-        totalPages,
-        totalBlocks,
-        totalWords
-      });
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-
-    // Phase 4: Build graph (80-95%)
-    await updateProgress('graph', 85, 'Построение графа связей');
-    
-    // Simulate graph building
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    await updateProgress('graph', 95, 'Анализ структуры сайта', {
-      totalPages,
-      totalBlocks, 
-      totalWords
-    });
-
-    // Phase 5: Cleanup (95-100%)
-    await updateProgress('cleanup', 98, 'Финализация импорта');
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Complete import
-    await db.update(importJobs).set({
-      status: 'completed',
-      phase: 'completed',
-      percent: 100,
-      finishedAt: new Date(),
-      pagesTotal: totalPages,
-      blocksDone: totalBlocks,
-      avgWordCount: totalWords,
-      logs: errors.length > 0 ? sql`array_append(logs, ${JSON.stringify(errors)})` : sql`logs`
-    }).where(eq(importJobs.jobId, jobId));
-
-    console.log(`✅ Import job ${jobId} completed successfully`);
+    // Use the new ContentProcessor
+    console.log(`📦 Creating ContentProcessor instance...`);
+    const processor = new ContentProcessor(storage);
+    console.log(`🎯 Starting processContent...`);
+    await processor.processContent(jobId, projectId, importId);
+    console.log(`✅ processContent completed successfully`);
     
   } catch (error) {
     console.error(`❌ Import job ${jobId} failed:`, error);
+    console.error(`❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
     
     await db.update(importJobs).set({
       status: 'failed',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorMessage: error instanceof Error ? error.message : String(error),
       finishedAt: new Date()
     }).where(eq(importJobs.jobId, jobId));
   }
