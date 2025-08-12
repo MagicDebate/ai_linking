@@ -2697,19 +2697,13 @@ class ContentProcessor {
       const page = csvData[i];
       
       try {
-        // Get the actual UUID from importJobs table
-        const importJob = await db.select({ id: importJobs.id }).from(importJobs).where(eq(importJobs.jobId, jobId)).limit(1);
-        if (!importJob.length) {
-          throw new Error(`Import job not found for jobId: ${jobId}`);
-        }
-        
         // Save raw page data first
         const pageRawResult = await db.insert(pagesRaw).values({
           url: page.url,
           jobId,
           rawHtml: page.content,
           meta: { title: page.title },
-          importBatchId: importJob[0].id
+          importBatchId: crypto.randomUUID()
         }).returning({ id: pagesRaw.id });
         
         // Now clean the HTML
