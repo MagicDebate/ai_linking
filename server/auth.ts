@@ -55,6 +55,7 @@ export function setTokenCookies(res: Response, accessToken: string, refreshToken
     httpOnly: true,
     secure: isProduction,
     sameSite: "lax",
+    path: "/",
     maxAge: 15 * 60 * 1000, // 15 minutes
   });
 
@@ -62,20 +63,28 @@ export function setTokenCookies(res: Response, accessToken: string, refreshToken
     httpOnly: true,
     secure: isProduction,
     sameSite: "lax",
+    path: "/",
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   });
 }
 
 export function clearTokenCookies(res: Response) {
-  res.clearCookie("accessToken");
-  res.clearCookie("refreshToken");
+  res.clearCookie("accessToken", { path: "/" });
+  res.clearCookie("refreshToken", { path: "/" });
 }
 
 export async function authenticateToken(req: any, res: Response, next: NextFunction) {
   const accessToken = req.cookies?.accessToken;
   const refreshToken = req.cookies?.refreshToken;
 
+  console.log("🔍 Auth check - Cookies:", { 
+    accessToken: accessToken ? "present" : "missing", 
+    refreshToken: refreshToken ? "present" : "missing",
+    allCookies: Object.keys(req.cookies || {})
+  });
+
   if (!accessToken && !refreshToken) {
+    console.log("❌ No tokens provided");
     return res.status(401).json({ message: "No tokens provided" });
   }
 
