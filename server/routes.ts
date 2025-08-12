@@ -2090,23 +2090,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing projectId parameter" });
       }
 
-      // Try to get from memory first, then from database
-      let job = null;
+      // Always get from database first for consistency
+      let job = await storage.getImportJobStatus(projectId as string, jobId as string);
+      console.log(`Found job in database:`, job ? 'YES' : 'NO');
       
-      // Check in-memory jobs first
-      if ((global as any).importJobs && (global as any).importJobs.has(jobId as string)) {
-        const memoryJob = (global as any).importJobs.get(jobId as string);
-        console.log(`Found job in memory:`, memoryJob ? 'YES' : 'NO');
-        job = memoryJob;
-      }
-      
-      // If not in memory, get from database and restart processing if needed
-      if (!job) {
-        job = await storage.getImportJobStatus(projectId as string, jobId as string);
-        console.log(`Found job in database:`, job ? 'YES' : 'NO');
-        
-        // If job exists in DB but not in memory and is still running, mark as failed
-        if (job && job.status === 'running') {
+      // If job exists in DB but not in memory and is still running, mark as failed
+      if (job && job.status === 'running') {
+        // Check if job is actually running in memory
+        const memoryJob = (global as any).importJobs?.get(jobId as string);
+        if (!memoryJob) {
           console.log(`⚠️ Job ${jobId} found in DB but not in memory, marking as failed (server restart)...`);
           await storage.updateImportJob(jobId as string, {
             status: "failed",

@@ -297,60 +297,151 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getImportJobStatus(projectId: string, jobId?: string): Promise<any> {
-    if (!global.importJobs) return null;
-    
-    if (jobId && jobId !== 'undefined') {
-      return global.importJobs.get(jobId) || null;
+    try {
+      // First try to get from database
+      if (jobId && jobId !== 'undefined') {
+        const [dbJob] = await db.select().from(importJobs).where(eq(importJobs.jobId, jobId));
+        if (dbJob) {
+          console.log(`Found job ${jobId} in database`);
+          return {
+            jobId: dbJob.jobId,
+            projectId: dbJob.projectId,
+            importId: dbJob.importId,
+            status: dbJob.status,
+            phase: dbJob.phase,
+            percent: dbJob.percent,
+            pagesTotal: dbJob.pagesTotal,
+            pagesDone: dbJob.pagesDone,
+            blocksDone: dbJob.blocksDone,
+            orphanCount: dbJob.orphanCount,
+            avgWordCount: dbJob.avgWordCount,
+            deepPages: dbJob.deepPages,
+            avgClickDepth: dbJob.avgClickDepth,
+            logs: dbJob.logs || [],
+            errorMessage: dbJob.errorMessage,
+            startedAt: dbJob.startedAt,
+            finishedAt: dbJob.finishedAt
+          };
+        }
+      } else {
+        // Get latest job for project from database
+        const dbJobs = await db.select().from(importJobs)
+          .where(eq(importJobs.projectId, projectId))
+          .orderBy(desc(importJobs.startedAt))
+          .limit(1);
+        
+        if (dbJobs.length > 0) {
+          const dbJob = dbJobs[0];
+          console.log(`Found latest job for project ${projectId} in database: ${dbJob.jobId}`);
+          return {
+            jobId: dbJob.jobId,
+            projectId: dbJob.projectId,
+            importId: dbJob.importId,
+            status: dbJob.status,
+            phase: dbJob.phase,
+            percent: dbJob.percent,
+            pagesTotal: dbJob.pagesTotal,
+            pagesDone: dbJob.pagesDone,
+            blocksDone: dbJob.blocksDone,
+            orphanCount: dbJob.orphanCount,
+            avgWordCount: dbJob.avgWordCount,
+            deepPages: dbJob.deepPages,
+            avgClickDepth: dbJob.avgClickDepth,
+            logs: dbJob.logs || [],
+            errorMessage: dbJob.errorMessage,
+            startedAt: dbJob.startedAt,
+            finishedAt: dbJob.finishedAt
+          };
+        }
+      }
+      
+      // Fallback to memory if not found in database
+      if (!global.importJobs) return null;
+      
+      if (jobId && jobId !== 'undefined') {
+        return global.importJobs.get(jobId) || null;
+      }
+      
+      // Get latest job for project from memory
+      const jobs = Array.from(global.importJobs.values())
+        .filter(job => job.projectId === projectId)
+        .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+      
+      return jobs[0] || null;
+    } catch (error) {
+      console.error('Error getting import job status:', error);
+      return null;
     }
-    
-    // Get latest job for project
-    const jobs = Array.from(global.importJobs.values())
-      .filter(job => job.projectId === projectId)
-      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
-    
-    return jobs[0] || null;
   }
 
   async updateImportJob(jobId: string, updates: any): Promise<any> {
-    // Initialize global.importJobs if not exists
-    if (!global.importJobs) {
-      global.importJobs = new Map();
-      console.log(`updateImportJob: Initialized global.importJobs for ${jobId}`);
-    }
-    
-    let job = global.importJobs.get(jobId);
-    if (!job) {
-      // Create basic job structure if missing
-      job = {
-        jobId,
-        status: 'running',
-        phase: 'loading',
-        percent: 0,
-        pagesTotal: 0,
-        pagesDone: 0,
-        blocksDone: 0,
-        orphanCount: 0,
-        avgWordCount: 0,
-        logs: [],
-        startedAt: new Date()
-      };
-      global.importJobs.set(jobId, job);
-      console.log(`updateImportJob: Created missing job ${jobId}`);
-    }
-    
-    // Apply updates
-    Object.assign(job, updates);
-    
-    // Handle logs properly
-    if (updates.logs && Array.isArray(updates.logs)) {
-      job.logs = [...(job.logs || []), ...updates.logs];
-      if (job.logs.length > 1000) {
-        job.logs = job.logs.slice(-1000);
+    try {
+      // Initialize global.importJobs if not exists
+      if (!global.importJobs) {
+        global.importJobs = new Map();
+        console.log(`updateImportJob: Initialized global.importJobs for ${jobId}`);
       }
+      
+      let job = global.importJobs.get(jobId);
+      if (!job) {
+        // Create basic job structure if missing
+        job = {
+          jobId,
+          status: 'running',
+          phase: 'loading',
+          percent: 0,
+          pagesTotal: 0,
+          pagesDone: 0,
+          blocksDone: 0,
+          orphanCount: 0,
+          avgWordCount: 0,
+          logs: [],
+          startedAt: new Date()
+        };
+        global.importJobs.set(jobId, job);
+        console.log(`updateImportJob: Created missing job ${jobId}`);
+      }
+      
+      // Apply updates
+      Object.assign(job, updates);
+      
+      // Handle logs properly
+      if (updates.logs && Array.isArray(updates.logs)) {
+        job.logs = [...(job.logs || []), ...updates.logs];
+        if (job.logs.length > 1000) {
+          job.logs = job.logs.slice(-1000);
+        }
+      }
+      
+      // Update database
+      try {
+        await db.update(importJobs)
+          .set({
+            status: job.status,
+            phase: job.phase,
+            percent: job.percent,
+            pagesTotal: job.pagesTotal,
+            pagesDone: job.pagesDone,
+            blocksDone: job.blocksDone,
+            orphanCount: job.orphanCount,
+            avgWordCount: job.avgWordCount,
+            deepPages: job.deepPages,
+            avgClickDepth: job.avgClickDepth,
+            logs: job.logs,
+            errorMessage: job.errorMessage,
+            finishedAt: job.finishedAt
+          })
+          .where(eq(importJobs.jobId, jobId));
+      } catch (dbError) {
+        console.error(`Failed to update job ${jobId} in database:`, dbError);
+      }
+      
+      console.log(`updateImportJob: updated ${jobId} - phase: ${job.phase}, percent: ${job.percent}`);
+      return job;
+    } catch (error) {
+      console.error(`Error updating import job ${jobId}:`, error);
+      return null;
     }
-    
-    console.log(`updateImportJob: updated ${jobId} - phase: ${job.phase}, percent: ${job.percent}`);
-    return job;
   }
 
   async cancelImportJob(jobId: string): Promise<void> {
