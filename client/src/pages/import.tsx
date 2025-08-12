@@ -75,13 +75,15 @@ export function ImportPage() {
 
   // Poll import status every 1 second for better responsiveness
   const { data: importStatus, refetch, isError, isFetching } = useQuery<ImportStatus>({
-    queryKey: ["/api/import/status", projectId],
+    queryKey: ["/api/import/status", projectId, jobId],
     queryFn: async () => {
       const url = new URL(`/api/import/status`, window.location.origin);
       url.searchParams.set('projectId', projectId!);
       if (jobId) {
         url.searchParams.set('jobId', jobId);
       }
+      
+      console.log('🔍 Fetching import status:', { projectId, jobId, url: url.toString() });
       
       const response = await fetch(url, {
         credentials: 'include',
@@ -91,7 +93,9 @@ export function ImportPage() {
         throw new Error('Failed to fetch import status');
       }
       
-      return response.json();
+      const data = await response.json();
+      console.log('📊 Import status response:', data);
+      return data;
     },
     enabled: !!projectId && autoRefresh,
     refetchInterval: importStatus?.status === "running" ? 1000 : 2000, // Быстрее обновляем во время выполнения
@@ -108,9 +112,17 @@ export function ImportPage() {
     
     if (startJobId) {
       setJobId(startJobId);
-      console.log('Set jobId to:', startJobId);
+      console.log('✅ Set jobId to:', startJobId);
+    } else {
+      // Если jobId не указан в URL, попробуем найти последний джоб для проекта
+      console.log('⚠️ No jobId in URL, will try to find latest job for project');
     }
   }, [projectId]);
+
+  // Log when jobId changes
+  useEffect(() => {
+    console.log('🔄 jobId changed:', jobId);
+  }, [jobId]);
 
   // Stop auto-refresh when job is completed/failed/canceled
   useEffect(() => {

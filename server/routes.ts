@@ -2091,7 +2091,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Always get from database first for consistency
-      console.log(`🔍 Looking for job - projectId: ${projectId}, jobId: ${jobId}`);
+      console.log(`🔍 Looking for job - projectId: ${projectId}, jobId: ${jobId || 'not specified'}`);
       let job = await storage.getImportJobStatus(projectId as string, jobId as string);
       console.log(`Found job in database:`, job ? 'YES' : 'NO');
       if (job) {
