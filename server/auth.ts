@@ -51,9 +51,11 @@ export async function comparePassword(password: string, hash: string): Promise<b
 export function setTokenCookies(res: Response, accessToken: string, refreshToken: string) {
   const isProduction = process.env.NODE_ENV === "production";
   
+  console.log("🍪 Setting cookies - secure:", false, "production:", isProduction);
+  
   res.cookie("accessToken", accessToken, {
     httpOnly: true,
-    secure: isProduction,
+    secure: false, // Отключаем secure для HTTP
     sameSite: "lax",
     path: "/",
     maxAge: 15 * 60 * 1000, // 15 minutes
@@ -61,11 +63,13 @@ export function setTokenCookies(res: Response, accessToken: string, refreshToken
 
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
-    secure: isProduction,
+    secure: false, // Отключаем secure для HTTP
     sameSite: "lax",
     path: "/",
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   });
+  
+  console.log("🍪 Cookies set successfully");
 }
 
 export function clearTokenCookies(res: Response) {
