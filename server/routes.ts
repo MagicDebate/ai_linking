@@ -2756,8 +2756,10 @@ class ContentProcessor {
       const htmlContent = page.cleanHtml;
       
       try {
-      const blockList = this.extractBlocks(htmlContent);
-      
+        console.log(`📝 Processing page ${pageIndex + 1}/${totalPages}: ${page.url}`);
+        const blockList = this.extractBlocks(htmlContent);
+        console.log(`📝 Extracted ${blockList.length} blocks from page ${pageIndex + 1}`);
+        
         // Обновляем прогресс каждые 5 страниц или каждую страницу если их мало
         const updateInterval = totalPages > 20 ? 5 : 1;
         if ((pageIndex + 1) % updateInterval === 0 || pageIndex === totalPages - 1) {
@@ -2766,25 +2768,44 @@ class ContentProcessor {
             `Разбивка: ${pageIndex + 1}/${totalPages} страниц (${allBlocks.length} блоков) - ${page.url}`, {
             blocksDone: allBlocks.length
           });
-      }
-      
-      for (let i = 0; i < blockList.length; i++) {
-        const block = blockList[i];
+        }
         
-        const blockResult = await db.insert(blocks).values({
-          pageId: page.id,
-          blockType: block.type,
-          text: block.text,
-          position: i
-        }).returning({ id: blocks.id });
-        
-        allBlocks.push({
-          id: blockResult[0].id,
-          pageId: page.id,
-          type: block.type,
-          text: block.text,
-          position: i
-        });
+        // Вставляем блоки в базу данных пакетами для оптимизации
+        const batchSize = 10;
+        for (let i = 0; i < blockList.length; i += batchSize) {
+          const batch = blockList.slice(i, i + batchSize);
+          const batchValues = batch.map((block, batchIndex) => ({
+            pageId: page.id,
+            blockType: block.type,
+            text: block.text,
+            position: i + batchIndex
+          }));
+          
+          try {
+            // Добавляем таймаут для предотвращения зависания
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Database insert timeout')), 30000); // 30 секунд
+            });
+            
+            const insertPromise = db.insert(blocks).values(batchValues).returning({ id: blocks.id });
+            const blockResults = await Promise.race([insertPromise, timeoutPromise]) as any[];
+            
+            // Добавляем результаты в allBlocks
+            for (let j = 0; j < batch.length; j++) {
+              allBlocks.push({
+                id: blockResults[j].id,
+                pageId: page.id,
+                type: batch[j].type,
+                text: batch[j].text,
+                position: i + j
+              });
+            }
+            
+            console.log(`📝 Inserted batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(blockList.length/batchSize)} for page ${pageIndex + 1}`);
+          } catch (dbError) {
+            console.error(`❌ Database error inserting blocks for page ${page.url}, batch ${Math.floor(i/batchSize) + 1}:`, dbError);
+            throw dbError;
+          }
         }
         
         console.log(`📝 Page ${pageIndex + 1}/${totalPages}: ${blockList.length} blocks (total: ${allBlocks.length})`);
@@ -2793,6 +2814,8 @@ class ContentProcessor {
         console.error(`❌ Error processing blocks for page ${page.url}:`, error);
         await this.updateProgress(jobId, "chunking", 35 + Math.floor((pageIndex + 1) / totalPages * 20), 
           `❌ Ошибка при разбивке ${page.url}: ${error instanceof Error ? error.message : String(error)}`);
+        // Продолжаем с следующей страницей вместо полной остановки
+        continue;
       }
     }
     
