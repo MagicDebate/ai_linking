@@ -2091,8 +2091,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Always get from database first for consistency
+      console.log(`🔍 Looking for job - projectId: ${projectId}, jobId: ${jobId}`);
       let job = await storage.getImportJobStatus(projectId as string, jobId as string);
       console.log(`Found job in database:`, job ? 'YES' : 'NO');
+      if (job) {
+        console.log(`Job details:`, {
+          jobId: job.jobId,
+          status: job.status,
+          phase: job.phase,
+          percent: job.percent
+        });
+      }
       
       // If job exists in DB but not in memory and is still running, mark as failed
       if (job && job.status === 'running') {

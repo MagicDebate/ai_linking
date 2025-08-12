@@ -300,9 +300,11 @@ export class DatabaseStorage implements IStorage {
     try {
       // First try to get from database
       if (jobId && jobId !== 'undefined') {
+        console.log(`🔍 Searching for job ${jobId} in database...`);
         const [dbJob] = await db.select().from(importJobs).where(eq(importJobs.jobId, jobId));
+        console.log(`Database query result:`, dbJob ? 'Found' : 'Not found');
         if (dbJob) {
-          console.log(`Found job ${jobId} in database`);
+          console.log(`Found job ${jobId} in database with status: ${dbJob.status}`);
           return {
             jobId: dbJob.jobId,
             projectId: dbJob.projectId,
