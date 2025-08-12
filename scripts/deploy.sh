@@ -53,7 +53,8 @@ pkill -f "node.*dist/index.js" || true
 
 # 6. Запускаем новый процесс
 echo "▶️ Starting new process..."
-nohup NODE_ENV=production node -r dotenv/config dist/index.js > app.log 2>&1 &
+export NODE_ENV=production
+nohup node -r dotenv/config dist/index.js > app.log 2>&1 &
 
 # 7. Ждем запуска
 echo "⏳ Waiting for server to start..."
