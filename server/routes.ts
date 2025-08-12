@@ -749,41 +749,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🔍 Direct status endpoint - jobId: ${jobId}`);
 
-      // Get job record using our improved method
-      const job = await storage.getImportJobStatus(null, jobId);
-
-      console.log(`🔍 Storage query result:`, job ? 'Found' : 'Not found');
-
-      if (!job) {
+      // Force refresh from database with explicit query
+      const [dbJob] = await db.select().from(importJobs).where(eq(importJobs.jobId, jobId));
+      
+      console.log(`🔍 Direct DB query result:`, dbJob ? 'Found' : 'Not found');
+      
+      if (!dbJob) {
         return res.status(404).json({ error: "Import job not found" });
       }
 
-      console.log(`🔍 Job data from storage:`, {
-        status: job.status,
-        phase: job.phase,
-        percent: job.percent,
-        pagesTotal: job.pagesTotal,
-        blocksDone: job.blocksDone
+      console.log(`🔍 Fresh job data from DB:`, {
+        status: dbJob.status,
+        phase: dbJob.phase,
+        percent: dbJob.percent,
+        pagesTotal: dbJob.pagesTotal,
+        pagesDone: dbJob.pagesDone,
+        blocksDone: dbJob.blocksDone
       });
 
       // Verify project ownership
-      const project = await storage.getProjectById(job.projectId);
+      const project = await storage.getProjectById(dbJob.projectId);
       if (!project || project.userId !== req.user.id) {
         return res.status(404).json({ error: "Project not found" });
       }
 
       res.json({
-        status: job.status,
-        phase: job.phase,
-        percent: job.percent,
-        currentItem: job.logs?.[job.logs.length - 1] || null,
-        error: job.errorMessage,
+        status: dbJob.status,
+        phase: dbJob.phase,
+        percent: dbJob.percent,
+        currentItem: dbJob.logs?.[dbJob.logs.length - 1] || null,
+        error: dbJob.errorMessage,
         stats: {
-          totalPages: job.pagesTotal || 0,
-          totalBlocks: job.blocksDone || 0,  
-          totalWords: job.avgWordCount || 0
+          totalPages: dbJob.pagesTotal || 0,
+          totalBlocks: dbJob.blocksDone || 0,  
+          totalWords: dbJob.avgWordCount || 0
         },
-        errors: job.logs || []
+        errors: dbJob.logs || []
       });
     } catch (error) {
       console.error("Import status error:", error);
