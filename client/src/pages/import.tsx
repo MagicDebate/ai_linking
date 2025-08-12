@@ -85,6 +85,7 @@ export function ImportPage() {
     queryKey: ["/api/import/status", projectId, jobId],
     queryFn: async () => {
       if (!jobId) {
+        console.log('❌ No jobId available for API call');
         throw new Error('JobId is required');
       }
       
@@ -97,6 +98,7 @@ export function ImportPage() {
       });
       
       if (!response.ok) {
+        console.log('❌ API response not ok:', response.status, response.statusText);
         throw new Error('Failed to fetch import status');
       }
       
@@ -108,6 +110,8 @@ export function ImportPage() {
     refetchInterval: importStatus?.status === "running" ? 1000 : 2000, // Быстрее обновляем во время выполнения
     refetchIntervalInBackground: true,
     staleTime: 0, // Всегда считаем данные устаревшими для получения актуальной информации
+    retry: 3,
+    retryDelay: 1000,
   });
 
   // Start import when coming from Step 3
@@ -115,7 +119,12 @@ export function ImportPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const startJobId = urlParams.get("jobId");
     
-    console.log('ImportPage useEffect:', { projectId, startJobId, urlParams: urlParams.toString() });
+    console.log('ImportPage useEffect:', { 
+      projectId, 
+      startJobId, 
+      urlParams: urlParams.toString(),
+      currentUrl: window.location.href 
+    });
     
     if (startJobId) {
       setJobId(startJobId);
@@ -216,13 +225,27 @@ export function ImportPage() {
               <p className="text-sm text-gray-500">
                 Project ID: {projectId}, Job ID: {jobId || 'не указан'}
               </p>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => window.location.href = `/project/${projectId}`}
-              >
-                Вернуться к проекту
-              </Button>
+              <p className="text-sm text-gray-500">
+                Auto Refresh: {autoRefresh ? 'Включено' : 'Выключено'}, 
+                Is Fetching: {isFetching ? 'Да' : 'Нет'}, 
+                Is Error: {isError ? 'Да' : 'Нет'}
+              </p>
+              <div className="flex gap-2 justify-center">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => refetch()}
+                >
+                  Обновить вручную
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.location.href = `/project/${projectId}`}
+                >
+                  Вернуться к проекту
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
