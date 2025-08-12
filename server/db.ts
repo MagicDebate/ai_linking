@@ -4,11 +4,12 @@ import ws from "ws";
 import * as schema from "@shared/schema";
 
 // Отключаем WebSocket для локальной PostgreSQL
-if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL?.includes('localhost')) {
+if (process.env.DATABASE_URL?.includes('localhost')) {
   // Для локальной PostgreSQL отключаем WebSocket
   console.log('🔧 Using local PostgreSQL, disabling WebSocket connection');
 } else {
   // Для Neon Database используем WebSocket
+  console.log('🔧 Using Neon Database, enabling WebSocket connection');
   neonConfig.webSocketConstructor = ws;
 }
 
