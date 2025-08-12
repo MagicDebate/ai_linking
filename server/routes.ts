@@ -716,8 +716,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Import not found" });
       }
 
-      // Generate job ID
-      const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Generate job ID as UUID
+      const jobId = crypto.randomUUID();
 
       // Create import job record
       await db.insert(importJobs).values({
@@ -1973,7 +1973,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test endpoint to debug import job creation
   app.post("/api/import/test-create", async (req, res) => {
     try {
-      const testJobId = "test-job-" + Date.now();
+      const testJobId = crypto.randomUUID();
       console.log(`Creating test job: ${testJobId}`);
       
       if (!(global as any).importJobs) {
@@ -2697,13 +2697,19 @@ class ContentProcessor {
       const page = csvData[i];
       
       try {
+        // Get the actual UUID from importJobs table
+        const importJob = await db.select({ id: importJobs.id }).from(importJobs).where(eq(importJobs.jobId, jobId)).limit(1);
+        if (!importJob.length) {
+          throw new Error(`Import job not found for jobId: ${jobId}`);
+        }
+        
         // Save raw page data first
         const pageRawResult = await db.insert(pagesRaw).values({
           url: page.url,
           jobId,
           rawHtml: page.content,
           meta: { title: page.title },
-          importBatchId: jobId
+          importBatchId: importJob[0].id
         }).returning({ id: pagesRaw.id });
         
         // Now clean the HTML
