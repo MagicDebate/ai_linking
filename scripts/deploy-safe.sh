@@ -4,9 +4,27 @@ set -e
 
 echo "🚀 Starting safe deployment..."
 
+# Проверяем наличие файла .env
+if [ ! -f ".env" ]; then
+    echo "📝 Creating .env file from example..."
+    if [ -f "env.example" ]; then
+        cp env.example .env
+        echo "✅ .env file created from env.example"
+        echo "⚠️  Please edit .env file with your actual values before continuing"
+        echo "   Required: DATABASE_URL, JWT_SECRET, SESSION_SECRET"
+        exit 1
+    else
+        echo "❌ env.example file not found"
+        exit 1
+    fi
+fi
+
+# Загружаем переменные из .env
+export $(cat .env | grep -v '^#' | xargs)
+
 # Проверяем переменные окружения
 if [ -z "$DATABASE_URL" ]; then
-    echo "❌ DATABASE_URL is not set"
+    echo "❌ DATABASE_URL is not set in .env file"
     exit 1
 fi
 
