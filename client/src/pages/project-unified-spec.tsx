@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useProjectState } from "@/hooks/useProjectState";
@@ -176,8 +176,37 @@ const PRESETS = {
 
 export default function ProjectUnifiedSpec() {
   const [, params] = useRoute("/project/:id");
+  const [location] = useLocation();
   const projectId = params?.id;
   const { toast } = useToast();
+  
+  // Определяем текущий шаг из URL
+  const getStepFromUrl = () => {
+    if (location.includes('/upload')) return 1;
+    if (location.includes('/seo')) return 2;
+    if (location.includes('/import')) return 3;
+    if (location.includes('/scope')) return 4;
+    if (location.includes('/generate')) return 5;
+    if (location.includes('/draft')) return 6;
+    if (location.includes('/publish')) return 7;
+    return 1; // по умолчанию
+  };
+  
+  // Функция для перехода к шагу с обновлением URL
+  const navigateToStep = (step: number) => {
+    const stepUrls = {
+      1: `/project/${projectId}/upload`,
+      2: `/project/${projectId}/seo`,
+      3: `/project/${projectId}/import`,
+      4: `/project/${projectId}/scope`,
+      5: `/project/${projectId}/generate`,
+      6: `/project/${projectId}/draft`,
+      7: `/project/${projectId}/publish`
+    };
+    
+    setLocation(stepUrls[step as keyof typeof stepUrls] || `/project/${projectId}`);
+    setCurrentStep(step);
+  };
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -192,7 +221,35 @@ export default function ProjectUnifiedSpec() {
   } = useProjectState(projectId);
 
   // Шаги согласно ТЗ - используем состояние из чекпоинтов
-  const currentStep = projectState?.currentStep || 1;
+  // Определяем максимальный доступный шаг на основе состояния
+  const determineMaxStep = () => {
+    if (!projectState) return 1;
+    
+    // Если есть importJobId и импорт завершен, показываем шаг 4
+    if (projectState.importJobId && importStatus?.status === 'completed') {
+      return 4;
+    }
+    
+    // Если есть importJobId и импорт в процессе, показываем шаг 3
+    if (projectState.importJobId && importStatus?.status === 'running') {
+      return 3;
+    }
+    
+    // Если есть SEO профиль, показываем шаг 2
+    if (projectState.seoProfile && Object.keys(projectState.seoProfile).length > 0) {
+      return 2;
+    }
+    
+    // Если есть CSV данные, показываем шаг 1
+    if (projectState.stepData?.csvPreview) {
+      return 1;
+    }
+    
+    return 1;
+  };
+  
+  // Приоритет: URL > сохраненное состояние > максимальный доступный шаг
+  const currentStep = getStepFromUrl() || projectState?.currentStep || determineMaxStep();
   
   // Шаг 1: CSV данные
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -395,7 +452,8 @@ export default function ProjectUnifiedSpec() {
     
     if (importStatus?.status === 'completed' && currentStep === 3) {
       toast({ title: "Импорт завершен успешно!" });
-      setTimeout(() => setCurrentStep(4), 1000);
+      // Убираем setTimeout и сразу сохраняем шаг 4
+      navigateToStep(4);
     } else if (importStatus && importStatus.status === 'failed' && currentStep === 3) {
       toast({ 
         title: "Ошибка импорта", 
@@ -403,7 +461,7 @@ export default function ProjectUnifiedSpec() {
         variant: "destructive" 
       });
     }
-  }, [importStatus, currentStep, importJobId]);
+  }, [importStatus, currentStep, importJobId, setCurrentStep]);
 
   // Мутация запуска генерации ссылок с полным SEO профилем
   const generateLinksMutation = useMutation({
@@ -500,6 +558,15 @@ export default function ProjectUnifiedSpec() {
       // Восстанавливаем importJobId если есть
       if (projectState.importJobId) {
         setImportJobId(projectState.importJobId);
+      }
+      
+      // Если URL не соответствует текущему шагу, обновляем URL
+      const urlStep = getStepFromUrl();
+      const maxStep = determineMaxStep();
+      const targetStep = Math.max(urlStep, projectState.currentStep || maxStep);
+      
+      if (urlStep !== targetStep) {
+        navigateToStep(targetStep);
       }
       
       console.log('✅ State restored successfully');
@@ -865,13 +932,13 @@ export default function ProjectUnifiedSpec() {
                   <div className="flex justify-between">
                     <Button
                       variant="outline"
-                      onClick={() => setCurrentStep(1)}
+                      onClick={() => navigateToStep(1)}
                     >
                       <ArrowLeft className="h-4 w-4 mr-2" />
                       Назад
                     </Button>
                     <Button
-                      onClick={() => setCurrentStep(2)}
+                      onClick={() => navigateToStep(2)}
                       disabled={!fieldMapping.url || !fieldMapping.title || !fieldMapping.content}
                     >
                       Продолжить к SEO профилю
@@ -1369,7 +1436,7 @@ export default function ProjectUnifiedSpec() {
                   <div className="flex justify-between">
                     <Button
                       variant="outline"
-                      onClick={() => setCurrentStep(1)}
+                      onClick={() => navigateToStep(1)}
                     >
                       <ArrowLeft className="h-4 w-4 mr-2" />
                       Назад к загрузке CSV
@@ -1523,7 +1590,7 @@ export default function ProjectUnifiedSpec() {
 
                   {/* Кнопки управления */}
                   <div className="flex justify-between">
-                    <Button variant="outline" onClick={() => setCurrentStep(1)}>
+                    <Button variant="outline" onClick={() => navigateToStep(1)}>
                       <ArrowLeft className="h-4 w-4 mr-2" />
                       Назад к маппингу
                     </Button>
@@ -1531,10 +1598,10 @@ export default function ProjectUnifiedSpec() {
                     {/* Показываем кнопку перехода только когда импорт завершен ИЛИ если jobId не установлен */}
                     {(importStatus?.status === 'completed' || !importJobId) && (
                       <Button 
-                        onClick={() => setCurrentStep(2)} // Переходим к SEO профилю после импорта
+                        onClick={() => navigateToStep(4)} // Переходим к настройке области после импорта
                         className="bg-blue-600 hover:bg-blue-700"
                       >
-                        {!importJobId ? 'Пропустить импорт' : 'Перейти к SEO профилю'}
+                        {!importJobId ? 'Пропустить импорт' : 'Перейти к настройке области'}
                         <ArrowRight className="h-4 w-4 ml-2" />
                       </Button>
                     )}
@@ -1571,7 +1638,7 @@ export default function ProjectUnifiedSpec() {
                   </div>
 
                   <div className="flex justify-center gap-4">
-                    <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                    <Button variant="outline" onClick={() => navigateToStep(2)}>
                       <ArrowLeft className="h-4 w-4 mr-2" />
                       Назад к SEO профилю
                     </Button>
