@@ -19,11 +19,11 @@ try {
   
   // 2. Генерируем миграции
   console.log('📝 Generating migrations...');
-  execSync('npx drizzle-kit generate', { stdio: 'inherit' });
+  execSync('npm run db:generate', { stdio: 'inherit' });
   
   // 3. Применяем миграции
   console.log('🔄 Applying migrations...');
-  execSync('npx drizzle-kit push', { stdio: 'inherit' });
+  execSync('npm run db:push', { stdio: 'inherit' });
   
   // 4. Создаем тестовые данные
   console.log('👤 Creating test data...');
