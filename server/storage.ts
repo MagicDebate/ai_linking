@@ -304,7 +304,14 @@ export class DatabaseStorage implements IStorage {
         const [dbJob] = await db.select().from(importJobs).where(eq(importJobs.jobId, jobId));
         console.log(`Database query result:`, dbJob ? 'Found' : 'Not found');
         if (dbJob) {
-          console.log(`Found job ${jobId} in database with status: ${dbJob.status}`);
+          console.log(`✅ Found job ${jobId} in database:`, {
+            status: dbJob.status,
+            phase: dbJob.phase,
+            percent: dbJob.percent,
+            pagesTotal: dbJob.pagesTotal,
+            pagesDone: dbJob.pagesDone,
+            blocksDone: dbJob.blocksDone
+          });
           return {
             jobId: dbJob.jobId,
             projectId: dbJob.projectId,
@@ -419,7 +426,16 @@ export class DatabaseStorage implements IStorage {
       
       // Update database
       try {
-        await db.update(importJobs)
+        console.log(`🔄 Updating database for job ${jobId} with:`, {
+          status: job.status,
+          phase: job.phase,
+          percent: job.percent,
+          pagesTotal: job.pagesTotal,
+          pagesDone: job.pagesDone,
+          blocksDone: job.blocksDone
+        });
+        
+        const result = await db.update(importJobs)
           .set({
             status: job.status,
             phase: job.phase,
@@ -435,9 +451,12 @@ export class DatabaseStorage implements IStorage {
             errorMessage: job.errorMessage,
             finishedAt: job.finishedAt
           })
-          .where(eq(importJobs.jobId, jobId));
+          .where(eq(importJobs.jobId, jobId))
+          .returning();
+          
+        console.log(`✅ Database update result for ${jobId}:`, result.length > 0 ? 'Success' : 'No rows updated');
       } catch (dbError) {
-        console.error(`Failed to update job ${jobId} in database:`, dbError);
+        console.error(`❌ Failed to update job ${jobId} in database:`, dbError);
       }
       
       console.log(`updateImportJob: updated ${jobId} - phase: ${job.phase}, percent: ${job.percent}`);
