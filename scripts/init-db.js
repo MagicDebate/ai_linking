@@ -49,7 +49,7 @@ try {
     ON CONFLICT (id) DO NOTHING;
   `;
   
-  const tempFile = path.join(process.cwd(), 'test-data.sql');
+  const tempFile = '/tmp/test-data.sql';
   fs.writeFileSync(tempFile, testDataSQL);
   execSync(`sudo -u postgres psql -d ai_linking -f ${tempFile}`, { stdio: 'inherit' });
   fs.unlinkSync(tempFile);
