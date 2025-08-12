@@ -2504,68 +2504,105 @@ class ContentProcessor {
     console.log(`🚀 Starting real content processing for job ${jobId}`);
     console.log(`📋 Input parameters: jobId=${jobId}, projectId=${projectId}, importId=${importId}`);
     
-    // Phase 1: Load CSV data
-    console.log(`📥 Phase 1: Loading CSV data...`);
-    await this.updateProgress(jobId, "loading", 0, "Читаем CSV");
-    const csvData = await this.loadCSVData(importId);
-    if (!csvData) {
-      throw new Error("Failed to load CSV data");
+    try {
+      // Phase 1: Load CSV data (0-15%)
+      console.log(`📥 Phase 1: Loading CSV data...`);
+      await this.updateProgress(jobId, "loading", 0, "Инициализация импорта...");
+      await this.updateProgress(jobId, "loading", 5, "Читаем CSV файл...");
+      
+      const csvData = await this.loadCSVData(importId);
+      if (!csvData) {
+        throw new Error("Failed to load CSV data");
+      }
+      console.log(`📥 CSV data loaded: ${csvData.length} records`);
+      
+      await this.updateProgress(jobId, "loading", 15, `CSV загружен: ${csvData.length} записей`, {
+        pagesTotal: csvData.length
+      });
+      
+      // Phase 2: Clean HTML and save to pages_clean (15-35%)
+      await this.updateProgress(jobId, "cleaning", 15, "Начинаем очистку HTML...");
+      const cleanPages = await this.cleanHTML(csvData, jobId);
+      await this.updateProgress(jobId, "cleaning", 35, `HTML очищен: ${cleanPages.length} страниц`, {
+        pagesDone: cleanPages.length
+      });
+      
+      // Phase 3: Split into blocks (35-55%)
+      await this.updateProgress(jobId, "chunking", 35, "Начинаем разбивку на блоки...");
+      const blocksData = await this.splitIntoBlocks(cleanPages, jobId);
+      await this.updateProgress(jobId, "chunking", 55, `Разбивка завершена: ${blocksData.length} блоков`, {
+        blocksDone: blocksData.length
+      });
+      
+      // Phase 4: Generate embeddings (55-75%)
+      await this.updateProgress(jobId, "vectorizing", 55, "Начинаем векторизацию...");
+      const embeddings = await this.generateEmbeddings(blocksData, jobId);
+      await this.updateProgress(jobId, "vectorizing", 75, `Векторизация завершена: ${embeddings.length} векторов`);
+      
+      // Phase 5: Build link graph (75-95%)
+      await this.updateProgress(jobId, "graphing", 75, "Начинаем построение графа ссылок...");
+      const graphData = await this.buildLinkGraph(cleanPages, jobId);
+      await this.updateProgress(jobId, "graphing", 95, `Граф построен: ${graphData.orphanCount} сирот`, {
+        orphanCount: graphData.orphanCount,
+        avgClickDepth: graphData.avgClickDepth
+      });
+      
+      // Final statistics
+      const stats = {
+        pagesTotal: cleanPages.length,
+        blocksTotal: blocksData.length,
+        orphanCount: graphData.orphanCount,
+        avgClickDepth: graphData.avgClickDepth
+      };
+      
+      await this.updateProgress(jobId, "finalizing", 100, `✅ Обработка завершена: ${stats.pagesTotal} страниц, ${stats.blocksTotal} блоков, ${stats.orphanCount} сирот`, stats);
+      
+      await this.storage.updateImportJob(jobId, {
+        status: "completed",
+        phase: "completed",
+        percent: 100,
+        pagesTotal: stats.pagesTotal,
+        pagesDone: stats.pagesTotal,
+        blocksDone: stats.blocksTotal,
+        orphanCount: stats.orphanCount,
+        avgClickDepth: stats.avgClickDepth,
+        finishedAt: sql`now()`
+      });
+      
+      console.log(`✅ Content processing completed:`, stats);
+      return stats;
+    } catch (error) {
+      console.error(`❌ Content processing failed:`, error);
+      await this.updateProgress(jobId, "error", 0, `❌ Ошибка: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
     }
-    console.log(`📥 CSV data loaded: ${csvData.length} records`);
-    
-    await this.updateProgress(jobId, "loading", 100, `CSV загружен: ${csvData.length} записей`);
-    
-    // Phase 2: Clean HTML and save to pages_clean
-    await this.updateProgress(jobId, "cleaning", 0, "Очищаем HTML");
-    const cleanPages = await this.cleanHTML(csvData, jobId);
-    await this.updateProgress(jobId, "cleaning", 100, `HTML очищен: ${cleanPages.length} страниц`);
-    
-    // Phase 3: Split into blocks
-    await this.updateProgress(jobId, "chunking", 0, "Режем на абзацы");
-    const blocksData = await this.splitIntoBlocks(cleanPages, jobId);
-    
-    // Phase 4: Generate embeddings
-    await this.updateProgress(jobId, "vectorizing", 0, "Векторизация");
-    const embeddings = await this.generateEmbeddings(blocksData, jobId);
-    
-    // Phase 5: Build link graph
-    await this.updateProgress(jobId, "graphing", 0, "Строим карту ссылок");
-    const graphData = await this.buildLinkGraph(cleanPages, jobId);
-    await this.updateProgress(jobId, "graphing", 100, `Граф построен: ${graphData.orphanCount} сирот`);
-    
-    // Final statistics
-    const stats = {
-      pagesTotal: cleanPages.length,
-      blocksTotal: blocksData.length,
-      orphanCount: graphData.orphanCount,
-      avgClickDepth: graphData.avgClickDepth
-    };
-    
-    await this.storage.updateImportJob(jobId, {
-      status: "completed",
-      phase: "completed",
-      percent: 100,
-      pagesTotal: stats.pagesTotal,
-      pagesDone: stats.pagesTotal,
-      blocksDone: stats.blocksTotal,
-      orphanCount: stats.orphanCount,
-      avgClickDepth: stats.avgClickDepth,
-      finishedAt: sql`now()`,
-      logs: [`✅ Обработка завершена: ${stats.pagesTotal} страниц, ${stats.blocksTotal} блоков, ${stats.orphanCount} сирот`]
-    });
-    
-    console.log(`✅ Content processing completed:`, stats);
-    return stats;
   }
 
-  private async updateProgress(jobId: string, phase: string, percent: number, message: string) {
-    console.log(`📈 ${phase}: ${percent}% - ${message}`);
-    await this.storage.updateImportJob(jobId, { 
+  private async updateProgress(jobId: string, phase: string, percent: number, message: string, stats?: any) {
+    const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+    const logMessage = `[${timestamp}] ${phase.toUpperCase()}: ${percent}% - ${message}`;
+    console.log(`📈 ${logMessage}`);
+    
+    const updateData: any = { 
       phase, 
       percent,
-      logs: [message] 
-    });
-    await new Promise(resolve => setTimeout(resolve, 500));
+      logs: sql`array_append(logs, ${logMessage})`
+    };
+    
+    // Добавляем статистику если есть
+    if (stats) {
+      if (stats.pagesTotal) updateData.pagesTotal = stats.pagesTotal;
+      if (stats.pagesDone) updateData.pagesDone = stats.pagesDone;
+      if (stats.blocksDone) updateData.blocksDone = stats.blocksDone;
+      if (stats.orphanCount) updateData.orphanCount = stats.orphanCount;
+      if (stats.avgWordCount) updateData.avgWordCount = stats.avgWordCount;
+      if (stats.avgClickDepth) updateData.avgClickDepth = stats.avgClickDepth;
+    }
+    
+    await this.storage.updateImportJob(jobId, updateData);
+    
+    // Небольшая задержка для обновления UI
+    await new Promise(resolve => setTimeout(resolve, 200));
   }
 
   private async loadCSVData(importId: string) {
@@ -2652,96 +2689,126 @@ class ContentProcessor {
 
   private async cleanHTML(csvData: any[], jobId: string) {
     const cleanPages = [];
+    const totalPages = csvData.length;
     
-    // First, ensure pages_raw data exists by saving it
-    console.log(`📥 Saving ${csvData.length} pages to pages_raw table first`);
+    console.log(`🧹 Starting HTML cleaning for ${totalPages} pages`);
+    
     for (let i = 0; i < csvData.length; i++) {
       const page = csvData[i];
       
-      // Save raw page data first
-      const pageRawResult = await db.insert(pagesRaw).values({
-        url: page.url,
-        jobId,
-        rawHtml: page.content,
-        meta: { title: page.title },
-        importBatchId: jobId
-      }).returning({ id: pagesRaw.id });
-      
-      // Now clean the HTML
-      let cleanHtml = page.content || '';
-      cleanHtml = cleanHtml.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-      cleanHtml = cleanHtml.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-      cleanHtml = cleanHtml.replace(/<!--[\s\S]*?-->/g, '');
-      
-      const cleanText = cleanHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-      const wordCount = cleanText.split(/\s+/).filter((word: string) => word.length > 0).length;
-      
-      // Save to pages_clean table with valid page_raw_id
-      const pageCleanResult = await db.insert(pagesClean).values({
-        pageRawId: pageRawResult[0].id,
-        cleanHtml,
-        wordCount
-      }).returning({ id: pagesClean.id });
-      
-      cleanPages.push({
-        id: pageCleanResult[0].id,
-        pageRawId: pageRawResult[0].id,
-        url: page.url,
-        title: page.title,
-        cleanHtml,
-        wordCount,
-        originalData: page
-      });
-      
-      if (i % 50 === 0) {
-        console.log(`🧹 Processed ${i + 1}/${csvData.length} pages`);
+      try {
+        // Save raw page data first
+        const pageRawResult = await db.insert(pagesRaw).values({
+          url: page.url,
+          jobId,
+          rawHtml: page.content,
+          meta: { title: page.title },
+          importBatchId: jobId
+        }).returning({ id: pagesRaw.id });
+        
+        // Now clean the HTML
+        let cleanHtml = page.content || '';
+        cleanHtml = cleanHtml.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+        cleanHtml = cleanHtml.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+        cleanHtml = cleanHtml.replace(/<!--[\s\S]*?-->/g, '');
+        
+        const cleanText = cleanHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        const wordCount = cleanText.split(/\s+/).filter((word: string) => word.length > 0).length;
+        
+        // Save to pages_clean table with valid page_raw_id
+        const pageCleanResult = await db.insert(pagesClean).values({
+          pageRawId: pageRawResult[0].id,
+          cleanHtml,
+          wordCount
+        }).returning({ id: pagesClean.id });
+        
+        cleanPages.push({
+          id: pageCleanResult[0].id,
+          pageRawId: pageRawResult[0].id,
+          url: page.url,
+          title: page.title,
+          cleanHtml,
+          wordCount,
+          originalData: page
+        });
+        
+        // Обновляем прогресс каждые 10 страниц или каждую страницу если их мало
+        const updateInterval = totalPages > 50 ? 10 : 1;
+        if ((i + 1) % updateInterval === 0 || i === totalPages - 1) {
+          const progress = 15 + Math.floor((i + 1) / totalPages * 20); // 15-35%
+          await this.updateProgress(jobId, "cleaning", progress, 
+            `Очищено ${i + 1}/${totalPages} страниц (${page.url})`, {
+            pagesDone: i + 1
+          });
+        }
+        
+      } catch (error) {
+        console.error(`❌ Error cleaning page ${page.url}:`, error);
+        await this.updateProgress(jobId, "cleaning", 15 + Math.floor((i + 1) / totalPages * 20), 
+          `❌ Ошибка при очистке ${page.url}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     
+    console.log(`🧹 HTML cleaning completed: ${cleanPages.length} pages processed`);
     return cleanPages;
   }
 
   private async splitIntoBlocks(cleanPages: any[], jobId: string) {
     const allBlocks = [];
+    const totalPages = cleanPages.length;
     
-    console.log(`📝 Starting to process ${cleanPages.length} pages into blocks...`);
+    console.log(`📝 Starting to process ${totalPages} pages into blocks...`);
     
     for (let pageIndex = 0; pageIndex < cleanPages.length; pageIndex++) {
       const page = cleanPages[pageIndex];
       const htmlContent = page.cleanHtml;
-      const blockList = this.extractBlocks(htmlContent);
       
-      // Update progress every 25 pages
-      if (pageIndex % 25 === 0) {
-        const percent = Math.round((pageIndex / cleanPages.length) * 100);
-        await this.updateProgress(jobId, "chunking", percent, 
-          `Разбивка на блоки: ${pageIndex + 1}/${cleanPages.length} страниц (${allBlocks.length} блоков)`);
-        console.log(`📝 Processing page ${pageIndex + 1}/${cleanPages.length} - found ${blockList.length} blocks total: ${allBlocks.length}`);
-      }
-      
-      for (let i = 0; i < blockList.length; i++) {
-        const block = blockList[i];
+      try {
+        const blockList = this.extractBlocks(htmlContent);
         
-        const blockResult = await db.insert(blocks).values({
-          pageId: page.id,
-          blockType: block.type,
-          text: block.text,
-          position: i
-        }).returning({ id: blocks.id });
+        // Обновляем прогресс каждые 5 страниц или каждую страницу если их мало
+        const updateInterval = totalPages > 20 ? 5 : 1;
+        if ((pageIndex + 1) % updateInterval === 0 || pageIndex === totalPages - 1) {
+          const progress = 35 + Math.floor((pageIndex + 1) / totalPages * 20); // 35-55%
+          await this.updateProgress(jobId, "chunking", progress, 
+            `Разбивка: ${pageIndex + 1}/${totalPages} страниц (${allBlocks.length} блоков) - ${page.url}`, {
+            blocksDone: allBlocks.length
+          });
+        }
         
-        allBlocks.push({
-          id: blockResult[0].id,
-          pageId: page.id,
-          type: block.type,
-          text: block.text,
-          position: i
-        });
+        for (let i = 0; i < blockList.length; i++) {
+          const block = blockList[i];
+          
+          const blockResult = await db.insert(blocks).values({
+            pageId: page.id,
+            blockType: block.type,
+            text: block.text,
+            position: i
+          }).returning({ id: blocks.id });
+          
+          allBlocks.push({
+            id: blockResult[0].id,
+            pageId: page.id,
+            type: block.type,
+            text: block.text,
+            position: i
+          });
+        }
+        
+        console.log(`📝 Page ${pageIndex + 1}/${totalPages}: ${blockList.length} blocks (total: ${allBlocks.length})`);
+        
+      } catch (error) {
+        console.error(`❌ Error processing blocks for page ${page.url}:`, error);
+        await this.updateProgress(jobId, "chunking", 35 + Math.floor((pageIndex + 1) / totalPages * 20), 
+          `❌ Ошибка при разбивке ${page.url}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     
-    await this.updateProgress(jobId, "chunking", 100, 
-      `Разбивка завершена: ${allBlocks.length} блоков из ${cleanPages.length} страниц`);
-    console.log(`📝 Created ${allBlocks.length} content blocks from ${cleanPages.length} pages`);
+    await this.updateProgress(jobId, "chunking", 55, 
+      `Разбивка завершена: ${allBlocks.length} блоков из ${totalPages} страниц`, {
+      blocksDone: allBlocks.length
+    });
+    console.log(`📝 Created ${allBlocks.length} content blocks from ${totalPages} pages`);
     return allBlocks;
   }
 

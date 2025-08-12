@@ -48,9 +48,21 @@ const phaseLabels: Record<string, string> = {
   cleaning: "Очистка от boilerplate",
   chunking: "Нарезка на блоки", 
   extracting: "Извлечение метаданных",
-  embedding: "Генерация эмбеддингов",
+  vectorizing: "Генерация эмбеддингов",
   graphing: "Обновление графа",
-  finalizing: "Финализация"
+  finalizing: "Финализация",
+  error: "Ошибка обработки"
+};
+
+const phaseDescriptions: Record<string, string> = {
+  loading: "Читаем CSV файл и подготавливаем данные",
+  cleaning: "Удаляем HTML теги, скрипты и стили",
+  chunking: "Разбиваем контент на смысловые блоки",
+  extracting: "Извлекаем метаданные и ключевые слова",
+  vectorizing: "Создаем векторные представления для поиска",
+  graphing: "Строим граф внутренних ссылок",
+  finalizing: "Завершаем обработку и сохраняем результаты",
+  error: "Произошла ошибка при обработке"
 };
 
 export function ImportPage() {
@@ -61,8 +73,8 @@ export function ImportPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const { toast } = useToast();
 
-  // Poll import status every 2 seconds
-  const { data: importStatus, refetch, isError } = useQuery<ImportStatus>({
+  // Poll import status every 1 second for better responsiveness
+  const { data: importStatus, refetch, isError, isFetching } = useQuery<ImportStatus>({
     queryKey: ["/api/import/status", projectId],
     queryFn: async () => {
       const url = new URL(`/api/import/status`, window.location.origin);
@@ -82,7 +94,8 @@ export function ImportPage() {
       return response.json();
     },
     enabled: !!projectId && autoRefresh,
-    refetchInterval: 2000,
+    refetchInterval: importStatus?.status === "running" ? 1000 : 5000, // Быстрее обновляем во время выполнения
+    refetchIntervalInBackground: true,
   });
 
   // Start import when coming from Step 3
@@ -253,10 +266,18 @@ export function ImportPage() {
               Обработка данных для создания внутренних ссылок
             </p>
           </div>
-          <Badge className={getStatusColor(importStatus.status)}>
-            {getStatusIcon(importStatus.status)}
-            <span className="ml-2 capitalize">{importStatus.status}</span>
-          </Badge>
+          <div className="flex items-center gap-3">
+            {isFetching && (
+              <div className="flex items-center gap-2 text-sm text-blue-600">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Обновление...
+              </div>
+            )}
+            <Badge className={getStatusColor(importStatus.status)}>
+              {getStatusIcon(importStatus.status)}
+              <span className="ml-2 capitalize">{importStatus.status}</span>
+            </Badge>
+          </div>
         </div>
 
         {/* Progress Card */}
@@ -280,14 +301,17 @@ export function ImportPage() {
             {/* Current Phase */}
             <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
               <Clock className="h-5 w-5 text-blue-600" />
-              <div>
+              <div className="flex-1">
                 <p className="font-medium text-blue-900">
                   Текущая фаза: {phaseLabels[importStatus.phase] || importStatus.phase}
                 </p>
+                <p className="text-sm text-blue-700">
+                  {phaseDescriptions[importStatus.phase] || "Обработка данных..."}
+                </p>
                 {importStatus.status === "running" && (
-                  <p className="text-sm text-blue-700">
-                    Обработка в процессе...
-                  </p>
+                  <div className="mt-2">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                  </div>
                 )}
               </div>
             </div>
@@ -382,6 +406,15 @@ export function ImportPage() {
             <Download className="h-4 w-4 mr-2" />
             Скачать логи
           </Button>
+          
+          <Button 
+            variant="outline" 
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+            Обновить
+          </Button>
         </div>
 
         {/* Error Message */}
@@ -406,7 +439,15 @@ export function ImportPage() {
               className="flex items-center justify-between cursor-pointer"
               onClick={() => setShowLogs(!showLogs)}
             >
-              <CardTitle className="text-lg">Логи консоли</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Технические логи
+                {importStatus.logs.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    {importStatus.logs.length}
+                  </Badge>
+                )}
+              </CardTitle>
               {showLogs ? (
                 <ChevronUp className="h-5 w-5" />
               ) : (
@@ -416,16 +457,35 @@ export function ImportPage() {
           </CardHeader>
           {showLogs && (
             <CardContent>
-              <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm max-h-60 overflow-y-auto">
+              <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm max-h-80 overflow-y-auto">
                 {importStatus.logs.length > 0 ? (
-                  importStatus.logs.slice(-20).map((log, index) => (
-                    <div key={index} className="mb-1">
-                      {log}
-                    </div>
-                  ))
+                  <div className="space-y-1">
+                    {importStatus.logs.slice(-50).map((log, index) => {
+                      const isError = log.includes('❌') || log.includes('ERROR');
+                      const isSuccess = log.includes('✅') || log.includes('SUCCESS');
+                      const isProgress = log.includes('📈') || log.includes('%');
+                      
+                      return (
+                        <div 
+                          key={index} 
+                          className={`${
+                            isError ? 'text-red-400' : 
+                            isSuccess ? 'text-green-400' : 
+                            isProgress ? 'text-yellow-400' : 
+                            'text-green-400'
+                          }`}
+                        >
+                          {log}
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <div className="text-gray-500">Логи пока отсутствуют...</div>
                 )}
+              </div>
+              <div className="mt-3 text-xs text-gray-500">
+                Показываются последние 50 записей. Полные логи можно скачать кнопкой выше.
               </div>
             </CardContent>
           )}

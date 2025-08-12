@@ -124,3 +124,4 @@ npm run test:phase1
 - `run-tests.js` - автоматизированные тесты
 
 
+
