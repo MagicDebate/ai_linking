@@ -746,6 +746,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/import/status/:jobId", authenticateToken, async (req: any, res) => {
     try {
       const { jobId } = req.params;
+      
+      console.log(`🔍 Direct status endpoint - jobId: ${jobId}`);
 
       // Get job record
       const job = await db
@@ -754,11 +756,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(importJobs.jobId, jobId))
         .limit(1);
 
+      console.log(`🔍 Direct DB query result:`, job.length > 0 ? 'Found' : 'Not found');
+
       if (!job.length) {
         return res.status(404).json({ error: "Import job not found" });
       }
 
       const jobData = job[0];
+      console.log(`🔍 Job data from DB:`, {
+        status: jobData.status,
+        phase: jobData.phase,
+        percent: jobData.percent,
+        pagesTotal: jobData.pagesTotal,
+        blocksDone: jobData.blocksDone
+      });
 
       // Verify project ownership
       const project = await storage.getProjectById(jobData.projectId);
