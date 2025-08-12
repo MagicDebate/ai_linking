@@ -25,22 +25,21 @@ import {
 } from "lucide-react";
 
 interface ImportStatus {
-  jobId: string;
   status: "pending" | "running" | "completed" | "failed" | "canceled";
   phase: string;
   percent: number;
-  pagesTotal: number;
-  pagesDone: number;
-  blocksDone: number;
-  orphanCount: number;
-  avgWordCount: number;
-  deepPages: number;
-  avgClickDepth: number;
-  importDuration?: number;
-  logs: string[];
-  errorMessage?: string;
-  startedAt: string;
-  finishedAt?: string;
+  currentItem: string | null;
+  error: string | null;
+  stats: {
+    totalPages: number;
+    totalBlocks: number;
+    totalWords: number;
+  };
+  errors: string[];
+  // Legacy fields for backward compatibility
+  orphanCount?: number;
+  deepPages?: number;
+  avgClickDepth?: number;
 }
 
 const phaseLabels: Record<string, string> = {
@@ -480,20 +479,20 @@ export function ImportPage() {
           </Button>
         </div>
 
-        {/* Error Message */}
-        {importStatus.errorMessage && (
-          <Card className="border-red-200">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-red-900 mb-1">Ошибка импорта</h4>
-                  <p className="text-red-700">{importStatus.errorMessage}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                 {/* Error Message */}
+         {importStatus.error && (
+           <Card className="border-red-200">
+             <CardContent className="p-4">
+               <div className="flex items-start gap-3">
+                 <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                 <div>
+                   <h4 className="font-medium text-red-900 mb-1">Ошибка импорта</h4>
+                   <p className="text-red-700">{importStatus.error}</p>
+                 </div>
+               </div>
+             </CardContent>
+           </Card>
+         )}
 
         {/* Logs Accordion */}
         <Card>
@@ -503,13 +502,13 @@ export function ImportPage() {
               onClick={() => setShowLogs(!showLogs)}
             >
               <CardTitle className="text-lg flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Технические логи
-                {importStatus.logs.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">
-                    {importStatus.logs.length}
-                  </Badge>
-                )}
+                                 <FileText className="h-5 w-5" />
+                 Технические логи
+                 {importStatus.errors.length > 0 && (
+                   <Badge variant="secondary" className="ml-2">
+                     {importStatus.errors.length}
+                   </Badge>
+                 )}
               </CardTitle>
               {showLogs ? (
                 <ChevronUp className="h-5 w-5" />
@@ -520,33 +519,33 @@ export function ImportPage() {
           </CardHeader>
           {showLogs && (
             <CardContent>
-              <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm max-h-80 overflow-y-auto">
-                {importStatus.logs.length > 0 ? (
-                  <div className="space-y-1">
-                    {importStatus.logs.slice(-50).map((log, index) => {
-                      const isError = log.includes('❌') || log.includes('ERROR');
-                      const isSuccess = log.includes('✅') || log.includes('SUCCESS');
-                      const isProgress = log.includes('📈') || log.includes('%');
-                      
-                      return (
-                        <div 
-                          key={index} 
-                          className={`${
-                            isError ? 'text-red-400' : 
-                            isSuccess ? 'text-green-400' : 
-                            isProgress ? 'text-yellow-400' : 
-                            'text-green-400'
-                          }`}
-                        >
-                      {log}
-                    </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-gray-500">Логи пока отсутствуют...</div>
-                )}
-              </div>
+                             <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm max-h-80 overflow-y-auto">
+                 {importStatus.errors.length > 0 ? (
+                   <div className="space-y-1">
+                     {importStatus.errors.slice(-50).map((log, index) => {
+                       const isError = log.includes('❌') || log.includes('ERROR');
+                       const isSuccess = log.includes('✅') || log.includes('SUCCESS');
+                       const isProgress = log.includes('📈') || log.includes('%');
+                       
+                       return (
+                         <div 
+                           key={index} 
+                           className={`${
+                             isError ? 'text-red-400' : 
+                             isSuccess ? 'text-green-400' : 
+                             isProgress ? 'text-yellow-400' : 
+                             'text-green-400'
+                           }`}
+                         >
+                       {log}
+                     </div>
+                       );
+                     })}
+                   </div>
+                 ) : (
+                   <div className="text-gray-500">Логи пока отсутствуют...</div>
+                 )}
+               </div>
               <div className="mt-3 text-xs text-gray-500">
                 Показываются последние 50 записей. Полные логи можно скачать кнопкой выше.
               </div>
