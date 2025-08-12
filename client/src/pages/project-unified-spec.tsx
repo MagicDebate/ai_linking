@@ -328,6 +328,9 @@ export default function ProjectUnifiedSpec() {
       console.log('🎯 Import started successfully:', data);
       toast({ title: "Импорт запущен!" });
       setImportJobId(data.jobId); // Сохраняем ID для отслеживания
+      
+      // Переходим на страницу импорта с jobId
+      window.location.href = `/project/${projectId}/import?jobId=${data.jobId}`;
     },
     onError: (error: any) => {
       console.error('❌ Import start error:', error);

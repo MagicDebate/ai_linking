@@ -107,7 +107,7 @@ export function ImportPage() {
       return data;
     },
     enabled: !!projectId && !!jobId && autoRefresh,
-    refetchInterval: importStatus?.status === "running" ? 1000 : 2000, // Быстрее обновляем во время выполнения
+    refetchInterval: (data) => data?.status === "running" ? 1000 : 2000, // Быстрее обновляем во время выполнения
     refetchIntervalInBackground: true,
     staleTime: 0, // Всегда считаем данные устаревшими для получения актуальной информации
     retry: 3,
@@ -132,6 +132,7 @@ export function ImportPage() {
     } else {
       // Если jobId не указан в URL, попробуем найти последний джоб для проекта
       console.log('⚠️ No jobId in URL, will try to find latest job for project');
+      // Можно добавить логику для поиска последнего джоба, но пока просто показываем ошибку
     }
   }, [projectId]);
 
@@ -189,24 +190,31 @@ export function ImportPage() {
     return <div>Project not found</div>;
   }
 
-  if (isError) {
+  if (isError || !jobId) {
     return (
       <div className="container mx-auto py-8">
         <Card>
           <CardContent className="p-8 text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Импорт не найден</h2>
+            <h2 className="text-xl font-semibold mb-2">
+              {!jobId ? 'ID импорта не указан' : 'Импорт не найден'}
+            </h2>
             <p className="text-gray-600 mb-4">
-              Импорт джоб не найден или истек. Возможно, сервер был перезапущен.
+              {!jobId 
+                ? 'Не удалось получить ID импорта. Возможно, вы перешли на эту страницу напрямую без запуска импорта.'
+                : 'Импорт джоб не найден или истек. Возможно, сервер был перезапущен.'
+              }
             </p>
             <div className="flex gap-3 justify-center">
               <Button variant="outline" onClick={() => window.location.href = `/project/${projectId}`}>
                 Вернуться к проекту
               </Button>
-              <Button onClick={() => refetch()}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Попробовать снова
-              </Button>
+              {jobId && (
+                <Button onClick={() => refetch()}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Попробовать снова
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
