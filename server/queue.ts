@@ -5,7 +5,9 @@ import { importJobs, generationRuns } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
 // Redis connection
-const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+  maxRetriesPerRequest: null
+});
 
 // Queue names
 export const QUEUE_NAMES = {
@@ -292,6 +294,7 @@ process.on('SIGTERM', async () => {
 });
 
 export { redis };
+
 
 
 
