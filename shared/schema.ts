@@ -65,7 +65,7 @@ export const imports = pgTable("imports", {
 
 // Import jobs for Step 4 processing
 export const importJobs = pgTable("import_jobs", {
-  id: varchar("id", { length: 50 }).primaryKey(),
+  id: uuid("id").primaryKey().defaultRandom(),
   jobId: varchar("job_id", { length: 50 }).unique().notNull(),
   projectId: varchar("project_id").references(() => projects.id).notNull(),
   importId: varchar("import_id").references(() => imports.id).notNull(),
