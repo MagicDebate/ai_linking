@@ -49,9 +49,10 @@ try {
     ON CONFLICT (id) DO NOTHING;
   `;
   
-  fs.writeFileSync('test-data.sql', testDataSQL);
-  execSync('sudo -u postgres psql -d ai_linking -f test-data.sql', { stdio: 'inherit' });
-  fs.unlinkSync('test-data.sql');
+  const tempFile = path.join(process.cwd(), 'test-data.sql');
+  fs.writeFileSync(tempFile, testDataSQL);
+  execSync(`sudo -u postgres psql -d ai_linking -f ${tempFile}`, { stdio: 'inherit' });
+  fs.unlinkSync(tempFile);
   
   console.log('✅ Database initialization completed successfully!');
   console.log('📊 Test user: test@example.com');
