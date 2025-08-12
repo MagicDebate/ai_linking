@@ -280,18 +280,30 @@ similaritySearchWorker.on('error', (error) => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
+const gracefulShutdown = async () => {
   console.log('🛑 Shutting down queue workers...');
   
-  await importWorker.close();
-  await embeddingWorker.close();
-  await linkGenerationWorker.close();
-  await similaritySearchWorker.close();
+  try {
+    await importWorker.close();
+    await embeddingWorker.close();
+    await linkGenerationWorker.close();
+    await similaritySearchWorker.close();
+    
+    // Close Redis connection gracefully
+    if (redis.status === 'ready') {
+      await redis.quit();
+    }
+    
+    console.log('✅ Queue workers shut down successfully');
+  } catch (error) {
+    console.error('❌ Error during graceful shutdown:', error);
+  }
   
-  await redis.quit();
-  
-  console.log('✅ Queue workers shut down successfully');
-});
+  process.exit(0);
+};
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
 
 export { redis };
 

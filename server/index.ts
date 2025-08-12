@@ -64,11 +64,35 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
+  const httpServer = server.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
   });
+
+  // Graceful shutdown
+  const gracefulShutdown = async () => {
+    log('🛑 Shutting down server...');
+    
+    try {
+      httpServer.close(() => {
+        log('✅ HTTP server closed');
+        process.exit(0);
+      });
+      
+      // Force close after 10 seconds
+      setTimeout(() => {
+        log('⚠️ Forcing shutdown after timeout');
+        process.exit(1);
+      }, 10000);
+    } catch (error) {
+      log(`❌ Error during server shutdown: ${error}`);
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGTERM', gracefulShutdown);
+  process.on('SIGINT', gracefulShutdown);
 })();
