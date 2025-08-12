@@ -2,7 +2,7 @@
 
 set -e
 
-echo "🚀 Starting deployment..."
+echo "🚀 Starting safe deployment..."
 
 # Проверяем переменные окружения
 if [ -z "$DATABASE_URL" ]; then
@@ -14,32 +14,43 @@ fi
 echo "📥 Pulling latest changes..."
 git pull origin feature/phase1
 
-# 2. Устанавливаем зависимости
-echo "📦 Installing dependencies..."
+# 2. Очищаем кэш и node_modules
+echo "🧹 Cleaning cache and node_modules..."
+rm -rf node_modules package-lock.json
 npm cache clean --force
-npm install --legacy-peer-deps
 
-# 3. Инициализируем базу данных
+# 3. Устанавливаем зависимости с несколькими стратегиями
+echo "📦 Installing dependencies..."
+if npm install --legacy-peer-deps; then
+    echo "✅ Dependencies installed successfully with --legacy-peer-deps"
+elif npm install --force; then
+    echo "✅ Dependencies installed successfully with --force"
+else
+    echo "❌ Failed to install dependencies"
+    exit 1
+fi
+
+# 4. Инициализируем базу данных
 echo "🗄️ Initializing database..."
 node scripts/init-db.js
 
-# 4. Собираем проект
+# 5. Собираем проект
 echo "🔨 Building project..."
 npm run build
 
-# 5. Останавливаем старый процесс (если есть)
+# 6. Останавливаем старый процесс (если есть)
 echo "🛑 Stopping old process..."
 pkill -f "node.*dist/index.js" || true
 
-# 6. Запускаем новый процесс
+# 7. Запускаем новый процесс
 echo "▶️ Starting new process..."
 nohup NODE_ENV=production node -r dotenv/config dist/index.js > app.log 2>&1 &
 
-# 7. Ждем запуска
+# 8. Ждем запуска
 echo "⏳ Waiting for server to start..."
-sleep 5
+sleep 10
 
-# 8. Проверяем статус
+# 9. Проверяем статус
 if curl -f http://localhost:3000/health > /dev/null 2>&1; then
     echo "✅ Deployment completed successfully!"
     echo "🌐 Server is running on http://localhost:3000"
