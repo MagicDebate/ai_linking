@@ -20,7 +20,9 @@ if [ ! -f ".env" ]; then
 fi
 
 # Загружаем переменные из .env
-export $(cat .env | grep -v '^#' | xargs)
+set -a
+source .env
+set +a
 
 # Проверяем переменные окружения
 if [ -z "$DATABASE_URL" ]; then
