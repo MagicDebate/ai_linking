@@ -34,7 +34,10 @@ export function useLogin() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
+      // Небольшая задержка для установки cookies
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
+      }, 100);
       toast({
         title: "Success",
         description: "Login successful!",
@@ -60,7 +63,10 @@ export function useRegister() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
+      // Небольшая задержка для установки cookies
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
+      }, 100);
       toast({
         title: "Success",
         description: "Registration successful!",
