@@ -372,6 +372,7 @@ export class DatabaseStorage implements IStorage {
   async saveProcessedPages(projectId: string, pagesData: any[], jobId?: string): Promise<void> {
     // Use provided jobId or generate new one
     const batchId = jobId || crypto.randomUUID();
+    const importBatchId = crypto.randomUUID(); // Always generate a new UUID for importBatchId
     
     // Save new pages data with a consistent jobId
     if (pagesData.length > 0) {
@@ -387,7 +388,7 @@ export class DatabaseStorage implements IStorage {
           isOrphan: page.isOrphan || false,
           contentPreview: page.contentPreview || ''
         })}`,
-        importBatchId: batchId
+        importBatchId: importBatchId
       }));
       
       // Delete existing pages for this project first
