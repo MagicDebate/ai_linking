@@ -291,7 +291,12 @@ const gracefulShutdown = async () => {
     
     // Close Redis connection gracefully
     if (redis.status === 'ready') {
-      await redis.quit();
+      try {
+        await redis.quit();
+      } catch (error) {
+        // Ignore errors when connection is already closed
+        console.log('Redis connection already closed');
+      }
     }
     
     console.log('✅ Queue workers shut down successfully');
