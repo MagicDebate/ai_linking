@@ -2649,6 +2649,8 @@ class ContentProcessor {
     const headers = csvRows[0];
     const dataRows = csvRows.slice(1);
     
+    console.log(`🔍 CSV parsing debug: headers=${JSON.stringify(headers)}, dataRows=${dataRows.length}, fieldMapping=${JSON.stringify(fieldMapping)}`);
+    
     const validData = [];
     for (const row of dataRows) {
       const rowObject: any = {};
@@ -2657,7 +2659,9 @@ class ContentProcessor {
       });
       
       const url = rowObject[fieldMapping.url] || '';
-      if (url && url.includes('http')) {
+      console.log(`🔍 Row processing: url="${url}", fieldMapping.url="${fieldMapping.url}", rowObject=${JSON.stringify(rowObject)}`);
+      
+      if (url && url.trim().length > 0) {
         validData.push({
           url,
           title: rowObject[fieldMapping.title] || '',
@@ -2665,6 +2669,9 @@ class ContentProcessor {
           description: rowObject[fieldMapping.description] || '',
           rawData: rowObject
         });
+        console.log(`✅ Added valid page: ${url}`);
+      } else {
+        console.log(`❌ Skipped invalid page: url="${url}"`);
       }
     }
     
