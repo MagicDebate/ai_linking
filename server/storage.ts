@@ -2,6 +2,7 @@ import {
   users, 
   projects, 
   userProgress, 
+  projectStates,
   notifications,
   projectApiKeys,
   imports,
@@ -18,6 +19,8 @@ import {
   type InsertProject,
   type UserProgress,
   type InsertProgress,
+  type ProjectState,
+  type InsertProjectState,
   type Notification,
   type InsertNotification,
   type ProjectApiKey,
@@ -50,6 +53,11 @@ export interface IStorage {
   // User Progress
   getUserProgress(userId: string): Promise<UserProgress | undefined>;
   updateUserProgress(userId: string, progress: Partial<InsertProgress>): Promise<UserProgress>;
+  
+  // Project State (Checkpoints)
+  getProjectState(projectId: string, userId: string): Promise<ProjectState | undefined>;
+  saveProjectState(projectId: string, userId: string, state: Partial<InsertProjectState>): Promise<ProjectState>;
+  updateProjectState(projectId: string, userId: string, updates: Partial<InsertProjectState>): Promise<ProjectState>;
   
   // Notifications
   getNotifications(userId: string): Promise<Notification[]>;
@@ -537,6 +545,48 @@ export class DatabaseStorage implements IStorage {
         contentPreview: meta?.contentPreview || (page.raw_html || '').substring(0, 150)
       };
     });
+  }
+
+  // Project State (Checkpoints) methods
+  async getProjectState(projectId: string, userId: string): Promise<ProjectState | undefined> {
+    const [state] = await db
+      .select()
+      .from(projectStates)
+      .where(eq(projectStates.projectId, projectId) && eq(projectStates.userId, userId));
+    
+    return state || undefined;
+  }
+
+  async saveProjectState(projectId: string, userId: string, state: Partial<InsertProjectState>): Promise<ProjectState> {
+    // First try to update existing state
+    const [existing] = await db
+      .update(projectStates)
+      .set({ 
+        ...state, 
+        updatedAt: new Date() 
+      })
+      .where(eq(projectStates.projectId, projectId) && eq(projectStates.userId, userId))
+      .returning();
+
+    if (existing) {
+      return existing;
+    }
+
+    // If no existing state, create new one
+    const [newState] = await db
+      .insert(projectStates)
+      .values({ 
+        projectId, 
+        userId, 
+        ...state 
+      } as InsertProjectState)
+      .returning();
+    
+    return newState;
+  }
+
+  async updateProjectState(projectId: string, userId: string, updates: Partial<InsertProjectState>): Promise<ProjectState> {
+    return this.saveProjectState(projectId, userId, updates);
   }
 }
 

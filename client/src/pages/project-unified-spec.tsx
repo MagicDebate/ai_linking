@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRoute } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useProjectState } from "@/hooks/useProjectState";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -180,8 +181,18 @@ export default function ProjectUnifiedSpec() {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Шаги согласно ТЗ
-  const [currentStep, setCurrentStep] = useState(1);
+  // Project state management (checkpoints)
+  const { 
+    projectState, 
+    isLoading: stateLoading, 
+    setCurrentStep, 
+    setImportJobId, 
+    setSeoProfile, 
+    setStepData 
+  } = useProjectState(projectId);
+
+  // Шаги согласно ТЗ - используем состояние из чекпоинтов
+  const currentStep = projectState?.currentStep || 1;
   
   // Шаг 1: CSV данные
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -215,9 +226,17 @@ export default function ProjectUnifiedSpec() {
       if (!response.ok) throw new Error('Upload failed');
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       console.log('Upload success:', data);
-      setCsvPreview({ ...data.preview, uploadId: data.uploadId });
+      const newCsvPreview = { ...data.preview, uploadId: data.uploadId };
+      setCsvPreview(newCsvPreview);
+      
+      // Сохраняем состояние в чекпоинты
+      await setStepData({
+        csvPreview: newCsvPreview,
+        uploadedFile: uploadedFile ? { name: uploadedFile.name, size: uploadedFile.size } : null
+      });
+      
       // НЕ переходим сразу на шаг 2, остаемся на шаге 1 для маппинга
       toast({ title: "Файл загружен! Теперь настройте маппинг полей." });
     },
@@ -244,7 +263,10 @@ export default function ProjectUnifiedSpec() {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Сохраняем маппинг в чекпоинты
+      await setStepData({ fieldMapping });
+      
       setCurrentStep(3); // Переходим к импорту после маппинга
       toast({ title: "Маппинг сохранен! Переходим к импорту данных." });
       // Автоматически запускаем импорт
@@ -274,6 +296,9 @@ export default function ProjectUnifiedSpec() {
       return response.json();
     },
     onSuccess: async () => {
+      // Сохраняем SEO профиль в чекпоинты
+      await setSeoProfile(seoProfile);
+      
       toast({ title: "Настройки сохранены!" });
       setCurrentStep(3); // Переходим на шаг импорта
       // Запускаем импорт автоматически
@@ -324,10 +349,12 @@ export default function ProjectUnifiedSpec() {
       console.log('✅ Import start response:', result);
       return result;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       console.log('🎯 Import started successfully:', data);
       toast({ title: "Импорт запущен!" });
-      setImportJobId(data.jobId); // Сохраняем ID для отслеживания
+      
+      // Сохраняем importJobId в чекпоинты
+      await setImportJobId(data.jobId);
       
       // Переходим на страницу импорта с jobId
       window.location.href = `/project/${projectId}/import?jobId=${data.jobId}`;
@@ -399,7 +426,7 @@ export default function ProjectUnifiedSpec() {
       
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({ title: "Генерация ссылок запущена!" });
       setCurrentStep(6); // Переходим к следующему шагу
     },
@@ -427,38 +454,57 @@ export default function ProjectUnifiedSpec() {
     uploadMutation.mutate(file);
   };
 
-  const updateFieldMapping = (originalField: string, mappedField: string) => {
-    setFieldMapping(prev => ({
-      ...prev,
+  const updateFieldMapping = async (originalField: string, mappedField: string) => {
+    const newMapping = {
+      ...fieldMapping,
       [originalField]: mappedField
-    }));
+    };
+    setFieldMapping(newMapping);
+    
+    // Сохраняем изменения в чекпоинты
+    await setStepData({ fieldMapping: newMapping });
   };
 
-  const applyPreset = (preset: keyof typeof PRESETS) => {
-    setSeoProfile(PRESETS[preset]);
+  const applyPreset = async (preset: keyof typeof PRESETS) => {
+    const newProfile = PRESETS[preset];
+    setSeoProfile(newProfile);
+    
+    // Сохраняем изменения в чекпоинты
+    await setSeoProfile(newProfile);
   };
 
-  // Восстанавливаем состояние при загрузке
+  // Восстанавливаем состояние из чекпоинтов при загрузке
   useEffect(() => {
-    if (projectId && !projectLoading) {
-      // Проверяем есть ли импорты для этого проекта - если да, то переходим к соответствующему шагу
-      const checkProjectState = async () => {
-        try {
-          const response = await fetch(`/api/projects/${projectId}/state`);
-          if (response.ok) {
-            const state = await response.json();
-            // Не переходим автоматически, всегда начинаем с шага 1
-            // if (state.hasImports) {
-            //   setCurrentStep(state.lastCompletedStep + 1);
-            // }
-          }
-        } catch (error) {
-          console.log('No saved state found, starting from step 1');
+    if (projectState && !stateLoading) {
+      console.log('🔄 Restoring state from checkpoints:', projectState);
+      
+      // Восстанавливаем SEO профиль
+      if (projectState.seoProfile && Object.keys(projectState.seoProfile).length > 0) {
+        setSeoProfile(projectState.seoProfile);
+      }
+      
+      // Восстанавливаем данные шагов
+      if (projectState.stepData) {
+        if (projectState.stepData.csvPreview) {
+          setCsvPreview(projectState.stepData.csvPreview);
         }
-      };
-      checkProjectState();
+        if (projectState.stepData.fieldMapping) {
+          setFieldMapping(projectState.stepData.fieldMapping);
+        }
+        if (projectState.stepData.uploadedFile) {
+          // Для файла мы можем только восстановить имя, сам файл нужно загрузить заново
+          console.log('📁 File was uploaded:', projectState.stepData.uploadedFile.name);
+        }
+      }
+      
+      // Восстанавливаем importJobId если есть
+      if (projectState.importJobId) {
+        setImportJobId(projectState.importJobId);
+      }
+      
+      console.log('✅ State restored successfully');
     }
-  }, [projectId, projectLoading]);
+  }, [projectState, stateLoading, setSeoProfile, setImportJobId]);
 
   if (projectLoading) {
     return (

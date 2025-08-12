@@ -804,7 +804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get project state endpoint
+  // Get project state endpoint (checkpoint system)
   app.get("/api/projects/:id/state", authenticateToken, async (req: any, res) => {
     try {
       const projectId = req.params.id;
@@ -815,31 +815,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Project not found" });
       }
 
-      // Check if project has imports
-      const imports = await storage.getImportsByProjectId(projectId);
+      // Get saved project state
+      const savedState = await storage.getProjectState(projectId, req.user.id);
       
-      let lastCompletedStep = 0;
-      let hasImports = false;
-      
-      if (imports.length > 0) {
-        hasImports = true;
-        const latestImport = imports[0];
+      if (savedState) {
+        res.json({
+          currentStep: savedState.currentStep,
+          lastCompletedStep: savedState.lastCompletedStep,
+          stepData: savedState.stepData,
+          importJobId: savedState.importJobId,
+          seoProfile: savedState.seoProfile,
+          hasImports: true, // If we have state, we have imports
+          projectId
+        });
+      } else {
+        // Check if project has imports (legacy check)
+        const imports = await storage.getImportsByProjectId(projectId);
         
-        if (latestImport.status === "MAPPED" || latestImport.fieldMapping) {
-          lastCompletedStep = 2; // Field mapping completed
+        let lastCompletedStep = 0;
+        let hasImports = false;
+        
+        if (imports.length > 0) {
+          hasImports = true;
+          const latestImport = imports[0];
+          
+          if (latestImport.status === "MAPPED" || latestImport.fieldMapping) {
+            lastCompletedStep = 2; // Field mapping completed
+          }
+          if (latestImport.status === "PROCESSED") {
+            lastCompletedStep = 3; // Import completed
+          }
         }
-        if (latestImport.status === "PROCESSED") {
-          lastCompletedStep = 3; // Import completed
-        }
+        
+        res.json({ 
+          currentStep: 1,
+          hasImports, 
+          lastCompletedStep,
+          stepData: {},
+          seoProfile: {},
+          projectId 
+        });
       }
-      
-      res.json({ 
-        hasImports, 
-        lastCompletedStep,
-        projectId 
-      });
     } catch (error) {
       console.error("Get project state error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Save project state endpoint (checkpoint system)
+  app.post("/api/projects/:id/state", authenticateToken, async (req: any, res) => {
+    try {
+      const projectId = req.params.id;
+      const { currentStep, stepData, importJobId, seoProfile } = req.body;
+      
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Calculate last completed step
+      let lastCompletedStep = 0;
+      if (currentStep > 1) {
+        lastCompletedStep = currentStep - 1;
+      }
+
+      // Save project state
+      const savedState = await storage.saveProjectState(projectId, req.user.id, {
+        currentStep,
+        stepData: stepData || {},
+        lastCompletedStep,
+        importJobId,
+        seoProfile: seoProfile || {}
+      });
+
+      res.json({ 
+        success: true, 
+        state: savedState 
+      });
+    } catch (error) {
+      console.error("Save project state error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });

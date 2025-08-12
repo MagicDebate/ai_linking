@@ -35,6 +35,20 @@ export const userProgress = pgTable("user_progress", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Project state for checkpoint system
+export const projectStates = pgTable("project_states", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  currentStep: integer("current_step").notNull().default(1),
+  stepData: jsonb("step_data").notNull().default(sql`'{}'::jsonb`), // Store step-specific data
+  lastCompletedStep: integer("last_completed_step").notNull().default(0),
+  importJobId: varchar("import_job_id"), // Store active import job ID
+  seoProfile: jsonb("seo_profile").notNull().default(sql`'{}'::jsonb`), // Store SEO profile
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
