@@ -4,6 +4,13 @@ import { eq, and, inArray, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import { embeddingQueue } from './queue';
 
+// Конфигурация TensorFlow.js для избежания WebSocket ошибок
+if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') {
+  // Отключаем автоматическую загрузку моделей в production
+  process.env.TFJS_BACKEND = 'cpu';
+  process.env.TFJS_DISABLE_WEBSOCKET = 'true';
+}
+
 // Интерфейсы для работы с эмбеддингами
 interface BlockData {
   id: string;
