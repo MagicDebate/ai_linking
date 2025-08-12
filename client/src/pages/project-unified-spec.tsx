@@ -199,8 +199,8 @@ export default function ProjectUnifiedSpec() {
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
   
-  // Шаг 2: SEO профиль
-  const [seoProfile, setSeoProfile] = useState<SEOProfile>(DEFAULT_PROFILE);
+  // Шаг 2: SEO профиль - используем из projectState
+  const seoProfile = projectState?.seoProfile || DEFAULT_PROFILE;
   
   // Загрузка проекта
   const { data: project, isLoading: projectLoading } = useQuery({
@@ -365,8 +365,8 @@ export default function ProjectUnifiedSpec() {
     }
   });
 
-  // Состояние импорта
-  const [importJobId, setImportJobId] = useState<string | null>(null);
+  // Состояние импорта - используем из projectState
+  const importJobId = projectState?.importJobId || null;
   
   // Запрос статуса импорта с автообновлением
   const { data: importStatus, isLoading: importStatusLoading } = useQuery({
