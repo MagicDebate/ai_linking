@@ -122,3 +122,5 @@ npm run test:phase1
 - `TESTING_PHASE1.md` - подробное руководство
 - `PHASE1_README.md` - документация Phase 1
 - `run-tests.js` - автоматизированные тесты
+
+
