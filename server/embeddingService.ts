@@ -89,7 +89,8 @@ export class EmbeddingService {
     }));
 
     try {
-      await this.processBatch(testBlocks, 'test-project');
+      // Используем null вместо несуществующего projectId для тестирования
+      await this.processBatch(testBlocks, null);
       const endTime = Date.now();
       return (endTime - startTime) / 1000; // Возвращаем в секундах
     } catch (error) {
@@ -219,24 +220,31 @@ export class EmbeddingService {
   /**
    * Обработка батча блоков
    */
-  private async processBatch(blocks: BlockData[], projectId: string): Promise<EmbeddingResult[]> {
+  private async processBatch(blocks: BlockData[], projectId: string | null): Promise<EmbeddingResult[]> {
     const results: EmbeddingResult[] = [];
     
     for (const block of blocks) {
       const textHash = this.generateTextHash(block.text);
       
-      // Проверяем кэш
-      let vector = await this.getCachedEmbedding(textHash, projectId);
-      let cached = true;
+      // Проверяем кэш только если projectId не null
+      let vector: number[] | null = null;
+      let cached = false;
+      
+      if (projectId) {
+        vector = await this.getCachedEmbedding(textHash, projectId);
+        cached = !!vector;
+      }
       
       if (!vector) {
         // Генерируем новый эмбеддинг
         vector = await this.generateEmbedding(block.text);
         cached = false;
         
-        // Сохраняем в кэш
-        await this.saveToCache(textHash, vector, projectId);
-        this.addToMemoryCache(textHash, vector);
+        // Сохраняем в кэш только если projectId не null
+        if (projectId) {
+          await this.saveToCache(textHash, vector, projectId);
+          this.addToMemoryCache(textHash, vector);
+        }
       }
       
       results.push({
