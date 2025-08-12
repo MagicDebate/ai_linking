@@ -77,11 +77,11 @@ export function ImportPage() {
   const { data: importStatus, refetch, isError, isFetching } = useQuery<ImportStatus>({
     queryKey: ["/api/import/status", projectId, jobId],
     queryFn: async () => {
-      const url = new URL(`/api/import/status`, window.location.origin);
-      url.searchParams.set('projectId', projectId!);
-      if (jobId) {
-        url.searchParams.set('jobId', jobId);
+      if (!jobId) {
+        throw new Error('JobId is required');
       }
+      
+      const url = new URL(`/api/import/status/${jobId}`, window.location.origin);
       
       console.log('🔍 Fetching import status:', { projectId, jobId, url: url.toString() });
       
@@ -97,7 +97,7 @@ export function ImportPage() {
       console.log('📊 Import status response:', data);
       return data;
     },
-    enabled: !!projectId && autoRefresh,
+    enabled: !!projectId && !!jobId && autoRefresh,
     refetchInterval: importStatus?.status === "running" ? 1000 : 2000, // Быстрее обновляем во время выполнения
     refetchIntervalInBackground: true,
     staleTime: 0, // Всегда считаем данные устаревшими для получения актуальной информации
@@ -334,17 +334,17 @@ export function ImportPage() {
               <div className="text-center p-3 bg-gray-50 rounded-lg">
                 <FileText className="h-6 w-6 text-gray-600 mx-auto mb-2" />
                 <div className="text-2xl font-bold text-gray-900">
-                  {importStatus.pagesDone}
+                  {importStatus.stats?.totalPages || 0}
                 </div>
                 <div className="text-sm text-gray-600">
-                  из {importStatus.pagesTotal || "?"} страниц
+                  страниц обработано
                 </div>
               </div>
 
               <div className="text-center p-3 bg-gray-50 rounded-lg">
                 <Database className="h-6 w-6 text-gray-600 mx-auto mb-2" />
                 <div className="text-2xl font-bold text-gray-900">
-                  {importStatus.blocksDone}
+                  {importStatus.stats?.totalBlocks || 0}
                 </div>
                 <div className="text-sm text-gray-600">блоков</div>
               </div>
@@ -352,7 +352,7 @@ export function ImportPage() {
               <div className="text-center p-3 bg-gray-50 rounded-lg">
                 <LinkIcon className="h-6 w-6 text-gray-600 mx-auto mb-2" />
                 <div className="text-2xl font-bold text-gray-900">
-                  {importStatus.orphanCount}
+                  {importStatus.orphanCount || 0}
                 </div>
                 <div className="text-sm text-gray-600">сирот</div>
               </div>
@@ -360,7 +360,7 @@ export function ImportPage() {
               <div className="text-center p-3 bg-gray-50 rounded-lg">
                 <TrendingUp className="h-6 w-6 text-gray-600 mx-auto mb-2" />
                 <div className="text-2xl font-bold text-gray-900">
-                  {importStatus.avgClickDepth.toFixed(1)}
+                  {(importStatus.avgClickDepth || 0).toFixed(1)}
                 </div>
                 <div className="text-sm text-gray-600">глубина</div>
               </div>
@@ -370,11 +370,11 @@ export function ImportPage() {
             {importStatus.status === "completed" && (
               <div className="grid grid-cols-2 gap-4 pt-4 border-t">
                 <div className="text-center">
-                  <div className="text-lg font-semibold">{importStatus.avgWordCount}</div>
-                  <div className="text-sm text-gray-600">слов на страницу</div>
+                  <div className="text-lg font-semibold">{importStatus.stats?.totalWords || 0}</div>
+                  <div className="text-sm text-gray-600">слов проанализировано</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-lg font-semibold">{importStatus.deepPages}</div>
+                  <div className="text-lg font-semibold">{importStatus.deepPages || 0}</div>
                   <div className="text-sm text-gray-600">глубоких страниц</div>
                 </div>
               </div>
@@ -395,25 +395,25 @@ export function ImportPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="text-center p-3 bg-white rounded-lg border">
                   <div className="text-2xl font-bold text-green-600">
-                    {importStatus.pagesTotal}
+                    {importStatus.stats?.totalPages || 0}
                   </div>
                   <div className="text-sm text-green-700">страниц обработано</div>
                 </div>
                 <div className="text-center p-3 bg-white rounded-lg border">
                   <div className="text-2xl font-bold text-green-600">
-                    {importStatus.blocksDone}
+                    {importStatus.stats?.totalBlocks || 0}
                   </div>
                   <div className="text-sm text-green-700">блоков создано</div>
                 </div>
                 <div className="text-center p-3 bg-white rounded-lg border">
                   <div className="text-2xl font-bold text-green-600">
-                    {importStatus.orphanCount}
+                    {importStatus.orphanCount || 0}
                   </div>
                   <div className="text-sm text-green-700">сирот найдено</div>
                 </div>
                 <div className="text-center p-3 bg-white rounded-lg border">
                   <div className="text-2xl font-bold text-green-600">
-                    {importStatus.avgClickDepth.toFixed(1)}
+                    {(importStatus.avgClickDepth || 0).toFixed(1)}
                   </div>
                   <div className="text-sm text-green-700">средняя глубина</div>
                 </div>
