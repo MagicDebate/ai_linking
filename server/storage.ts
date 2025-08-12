@@ -305,9 +305,6 @@ export class DatabaseStorage implements IStorage {
         console.log(`Database query result:`, dbJob ? 'Found' : 'Not found');
         if (dbJob) {
           console.log(`Found job ${jobId} in database with status: ${dbJob.status}`);
-        } else {
-          console.log(`❌ Job ${jobId} not found in database`);
-        }
           return {
             jobId: dbJob.jobId,
             projectId: dbJob.projectId,
@@ -327,6 +324,8 @@ export class DatabaseStorage implements IStorage {
             startedAt: dbJob.startedAt,
             finishedAt: dbJob.finishedAt
           };
+        } else {
+          console.log(`❌ Job ${jobId} not found in database`);
         }
       } else {
         // Get latest job for project from database
