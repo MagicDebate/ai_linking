@@ -2115,12 +2115,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Debug: Log the job data being returned
-      console.log(`Job data:`, {
+      console.log(`Job data being returned:`, {
+        jobId: job.jobId,
+        status: job.status,
+        phase: job.phase,
+        percent: job.percent,
         pagesTotal: job.pagesTotal,
         pagesDone: job.pagesDone, 
         blocksDone: job.blocksDone,
         orphanCount: job.orphanCount,
-        avgWordCount: job.avgWordCount
+        avgWordCount: job.avgWordCount,
+        logs: job.logs?.length || 0
       });
 
       res.json(job);
@@ -2551,14 +2556,14 @@ class ContentProcessor {
     
     await this.storage.updateImportJob(jobId, {
       status: "completed",
-      phase: "completed",
+      phase: "finalizing",
       percent: 100,
       pagesTotal: stats.pagesTotal,
       pagesDone: stats.pagesTotal,
       blocksDone: stats.blocksTotal,
       orphanCount: stats.orphanCount,
       avgClickDepth: stats.avgClickDepth,
-        finishedAt: sql`now()`
+      finishedAt: new Date()
     });
     
     console.log(`✅ Content processing completed:`, stats);
@@ -2592,6 +2597,11 @@ class ContentProcessor {
     }
     
     await this.storage.updateImportJob(jobId, updateData);
+    
+    // Дополнительное логирование для завершения
+    if (percent === 100) {
+      console.log(`🎉 Job ${jobId} completed successfully!`);
+    }
     
     // Небольшая задержка для обновления UI
     await new Promise(resolve => setTimeout(resolve, 200));
