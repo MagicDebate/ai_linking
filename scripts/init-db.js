@@ -30,7 +30,7 @@ try {
   const testDataSQL = `
     -- Создание тестового пользователя
     INSERT INTO users (id, email, password_hash, provider) 
-    VALUES ('test-user-1', 'test@example.com', '$2b$10$test.hash.for.development', 'LOCAL')
+    VALUES ('test-user-1', 'test@example.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'LOCAL')
     ON CONFLICT (email) DO NOTHING;
     
     -- Создание тестового проекта
@@ -56,6 +56,7 @@ try {
   
   console.log('✅ Database initialization completed successfully!');
   console.log('📊 Test user: test@example.com');
+  console.log('🔑 Test password: test123');
   console.log('🔑 Test project: Test Project');
   
 } catch (error) {
