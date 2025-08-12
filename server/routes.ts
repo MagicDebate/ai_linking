@@ -746,7 +746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/import/status/:jobId", authenticateToken, async (req: any, res) => {
     try {
       const { jobId } = req.params;
-      
+
       console.log(`🔍 Direct status endpoint - jobId: ${jobId}`);
 
       // Force refresh from database with explicit query
@@ -784,7 +784,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalBlocks: dbJob.blocksDone || 0,  
           totalWords: dbJob.avgWordCount || 0
         },
-        errors: dbJob.logs || []
+        errors: dbJob.logs || [],
+        // Legacy fields for backward compatibility
+        pagesTotal: dbJob.pagesTotal || 0,
+        pagesDone: dbJob.pagesDone || 0,
+        blocksDone: dbJob.blocksDone || 0,
+        orphanCount: dbJob.orphanCount || 0,
+        avgWordCount: dbJob.avgWordCount || 0,
+        deepPages: dbJob.deepPages || 0,
+        avgClickDepth: dbJob.avgClickDepth || 0,
+        logs: dbJob.logs || [],
+        errorMessage: dbJob.errorMessage,
+        startedAt: dbJob.startedAt,
+        finishedAt: dbJob.finishedAt
       });
     } catch (error) {
       console.error("Import status error:", error);
@@ -2110,22 +2122,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           percent: job.percent
         });
       }
-      
-      // If job exists in DB but not in memory and is still running, mark as failed
-      if (job && job.status === 'running') {
-        // Check if job is actually running in memory
-        const memoryJob = (global as any).importJobs?.get(jobId as string);
-        if (!memoryJob) {
-          console.log(`⚠️ Job ${jobId} found in DB but not in memory, marking as failed (server restart)...`);
-          await storage.updateImportJob(jobId as string, {
-            status: "failed",
-            errorMessage: "Server restarted during processing",
-            finishedAt: new Date()
-          });
-          // Update the job object to reflect the new status
-          job = { ...job, status: 'failed', errorMessage: "Server restarted during processing" };
+        
+        // If job exists in DB but not in memory and is still running, mark as failed
+        if (job && job.status === 'running') {
+          // Check if job is actually running in memory
+          const memoryJob = (global as any).importJobs?.get(jobId as string);
+          if (!memoryJob) {
+            console.log(`⚠️ Job ${jobId} found in DB but not in memory, marking as failed (server restart)...`);
+            await storage.updateImportJob(jobId as string, {
+              status: "failed",
+              errorMessage: "Server restarted during processing",
+              finishedAt: new Date()
+            });
+            // Update the job object to reflect the new status
+            job = { ...job, status: 'failed', errorMessage: "Server restarted during processing" };
+          }
         }
-      }
       
       if (!job) {
         return res.status(404).json({ error: "Import job not found" });
