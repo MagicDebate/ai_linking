@@ -130,7 +130,15 @@ export function ImportPage() {
       }
       
       const data = await response.json();
-      console.log('📊 Import status response:', data);
+      console.log('📊 Import status response:', {
+        status: data.status,
+        phase: data.phase,
+        percent: data.percent,
+        currentItem: data.currentItem,
+        pagesTotal: data.pagesTotal,
+        pagesDone: data.pagesDone,
+        blocksDone: data.blocksDone
+      });
       return data;
     },
     enabled: !!projectId && !!jobId,

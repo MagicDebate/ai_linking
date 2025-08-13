@@ -823,12 +823,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log(`🔍 Fresh job data from DB:`, {
+        jobId: dbJob.jobId,
         status: dbJob.status,
         phase: dbJob.phase,
         percent: dbJob.percent,
         pagesTotal: dbJob.pagesTotal,
         pagesDone: dbJob.pagesDone,
-        blocksDone: dbJob.blocksDone
+        blocksDone: dbJob.blocksDone,
+        startedAt: dbJob.startedAt,
+        finishedAt: dbJob.finishedAt,
+        logs: dbJob.logs?.length || 0
       });
 
       // Verify project ownership
@@ -837,7 +841,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Project not found" });
       }
 
-      res.json({
+      const response = {
         status: dbJob.status,
         phase: dbJob.phase,
         percent: dbJob.percent,
@@ -861,7 +865,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         errorMessage: dbJob.errorMessage,
         startedAt: dbJob.startedAt,
         finishedAt: dbJob.finishedAt
+      };
+      
+      console.log(`📤 Sending response:`, {
+        status: response.status,
+        phase: response.phase,
+        percent: response.percent,
+        currentItem: response.currentItem
       });
+      
+      res.json(response);
     } catch (error) {
       console.error("Import status error:", error);
       res.status(500).json({ error: "Failed to get import status" });
