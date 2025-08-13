@@ -34,7 +34,7 @@ interface StatsData {
 export default function DebugPages() {
   const { user } = useAuth();
   const params = useParams();
-  const projectId = params.projectId;
+  const projectId = params.id;
   
   // Filter states and pagination
   const [currentPage, setCurrentPage] = useState(1);

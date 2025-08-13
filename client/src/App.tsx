@@ -46,8 +46,8 @@ function Router() {
           <Route path="/project/:id/generate" component={ProjectPage} />
           <Route path="/project/:id/draft" component={ProjectPage} />
           <Route path="/project/:id/publish" component={ProjectPage} />
-          <Route path="/project/:projectId/draft/:runId" component={DraftReview} />
-          <Route path="/project/:projectId/debug" component={DebugPages} />
+          <Route path="/project/:id/draft/:runId" component={DraftReview} />
+          <Route path="/project/:id/debug" component={DebugPages} />
         </>
       ) : (
         <>

@@ -549,10 +549,14 @@ export default function ProjectUnifiedSpec() {
   // Принудительно обновляем данные проекта при загрузке
   useEffect(() => {
     if (projectId) {
-      console.log('🔄 Force refetching project data...');
+      console.log('🔄 Force refetching project data for projectId:', projectId);
       queryClient.invalidateQueries(['/api/projects', projectId]);
     }
   }, [projectId, queryClient]);
+
+  // Отладочная информация о projectId
+  console.log('🔍 Component projectId:', projectId);
+  console.log('🔍 URL projectId:', window.location.pathname.split('/')[2]);
 
   // Восстанавливаем состояние из чекпоинтов при загрузке
   useEffect(() => {

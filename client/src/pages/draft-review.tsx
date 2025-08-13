@@ -55,8 +55,8 @@ const SCENARIO_COLORS: Record<string, string> = {
 };
 
 export default function DraftReview() {
-  const [, params] = useRoute('/project/:projectId/draft/:runId');
-  const { projectId, runId } = params || {};
+  const [, params] = useRoute('/project/:id/draft/:runId');
+  const { id: projectId, runId } = params || {};
   
   const [selectedScenario, setSelectedScenario] = useState<string>('all');
   const [selectedPage, setSelectedPage] = useState<string>('all');
