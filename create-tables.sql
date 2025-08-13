@@ -34,6 +34,20 @@ CREATE TABLE user_progress (
   updated_at TIMESTAMP DEFAULT NOW() NOT NULL
 );
 
+-- Таблица состояний проектов для системы чекпоинтов
+CREATE TABLE project_states (
+  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id VARCHAR NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  current_step INTEGER NOT NULL DEFAULT 1,
+  step_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_completed_step INTEGER NOT NULL DEFAULT 0,
+  import_job_id VARCHAR(50),
+  seo_profile JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+);
+
 -- Таблица уведомлений
 CREATE TABLE notifications (
   id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -186,6 +200,8 @@ CREATE TABLE generation_runs (
 -- Создание индексов для производительности
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_projects_user_id ON projects(user_id);
+CREATE INDEX idx_project_states_project_id ON project_states(project_id);
+CREATE INDEX idx_project_states_user_id ON project_states(user_id);
 CREATE INDEX idx_pages_raw_job_id ON pages_raw(job_id);
 CREATE INDEX idx_pages_clean_page_raw_id ON pages_clean(page_raw_id);
 CREATE INDEX idx_blocks_page_id ON blocks(page_id);

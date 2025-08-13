@@ -44,6 +44,11 @@ export default function GenerateLinks() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  // Кнопка возврата к проекту
+  const handleBackToProject = () => {
+    window.location.href = `/project/${projectId}`;
+  };
+  
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [generationProgress, setGenerationProgress] = useState<GenerationProgress | null>(null);
   const [eventSource, setEventSource] = useState<EventSource | null>(null);

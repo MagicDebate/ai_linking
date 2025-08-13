@@ -204,6 +204,12 @@ export default function ProjectUnifiedSpec() {
       7: `/project/${projectId}/publish`
     };
     
+    // Для шага 5 (генерация) используем window.location для полного перехода
+    if (step === 5) {
+      window.location.href = `/project/${projectId}/generate`;
+      return;
+    }
+    
     setLocation(stepUrls[step as keyof typeof stepUrls] || `/project/${projectId}`);
     setCurrentStep(step);
   };
@@ -484,9 +490,10 @@ export default function ProjectUnifiedSpec() {
       
       return response.json();
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       toast({ title: "Генерация ссылок запущена!" });
-      setCurrentStep(6); // Переходим к следующему шагу
+      // Переходим на страницу генерации ссылок для отслеживания прогресса
+      window.location.href = `/project/${projectId}/generate`;
     },
     onError: (error: any) => {
       toast({ title: "Ошибка генерации", description: error.message, variant: "destructive" });
