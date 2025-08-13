@@ -1098,7 +1098,7 @@ export default function ProjectUnifiedSpec() {
                     </div>
 
                     {/* Priority Pages - видно только если Commercial Routing включен */}
-                    {seoProfile.scenarios.commercialRouting && (
+                    {seoProfile?.scenarios?.commercialRouting && (
                       <div className="space-y-4">
                         <div>
                           <Label htmlFor="priorityPages">Priority (Money) Pages</Label>
@@ -1118,7 +1118,7 @@ export default function ProjectUnifiedSpec() {
                     )}
 
                     {/* Hub Pages - видно только если Head Consolidation включен */}
-                    {seoProfile.scenarios.headConsolidation && (
+                    {seoProfile?.scenarios?.headConsolidation && (
                       <div className="space-y-4">
                         <div>
                           <Label htmlFor="hubPages">Hub Pages</Label>
@@ -1172,17 +1172,17 @@ export default function ProjectUnifiedSpec() {
                             <p className="text-sm text-gray-600">Поднятие глубоких страниц</p>
                           </div>
                           <Switch
-                            checked={seoProfile.scenarios.depthLift.enabled}
+                            checked={seoProfile?.scenarios?.depthLift?.enabled ?? false}
                             onCheckedChange={(checked) => setSeoProfile(prev => ({
                               ...prev,
                               scenarios: { 
                                 ...prev.scenarios, 
-                                depthLift: { ...prev.scenarios.depthLift, enabled: checked }
+                                depthLift: { ...prev.scenarios?.depthLift, enabled: checked }
                               }
                             }))}
                           />
                         </div>
-                        {seoProfile.scenarios.depthLift.enabled && (
+                        {seoProfile?.scenarios?.depthLift?.enabled && (
                           <div className="ml-6">
                             <Label htmlFor="minDepth">Минимальная глубина</Label>
                             <Select 
@@ -1218,27 +1218,27 @@ export default function ProjectUnifiedSpec() {
                             <p className="text-sm text-gray-600">Продвижение свежего контента</p>
                           </div>
                           <Switch
-                            checked={seoProfile.scenarios.freshnessPush.enabled}
+                            checked={seoProfile?.scenarios?.freshnessPush?.enabled ?? false}
                             onCheckedChange={(checked) => setSeoProfile(prev => ({
                               ...prev,
                               scenarios: { 
                                 ...prev.scenarios, 
-                                freshnessPush: { ...prev.scenarios.freshnessPush, enabled: checked }
+                                freshnessPush: { ...prev.scenarios?.freshnessPush, enabled: checked }
                               }
                             }))}
                           />
                         </div>
-                        {seoProfile.scenarios.freshnessPush.enabled && (
+                        {seoProfile?.scenarios?.freshnessPush?.enabled && (
                           <div className="space-y-4">
                             <div>
-                              <Label>Свежесть: {seoProfile.scenarios.freshnessPush.daysFresh} дней</Label>
+                              <Label>Свежесть: {seoProfile?.scenarios?.freshnessPush?.daysFresh || 30} дней</Label>
                               <Slider
-                                value={[seoProfile.scenarios.freshnessPush.daysFresh]}
+                                value={[seoProfile?.scenarios?.freshnessPush?.daysFresh || 30]}
                                 onValueChange={([value]) => setSeoProfile(prev => ({
                                   ...prev,
                                   scenarios: { 
                                     ...prev.scenarios, 
-                                    freshnessPush: { ...prev.scenarios.freshnessPush, daysFresh: value }
+                                    freshnessPush: { ...prev.scenarios?.freshnessPush, daysFresh: value }
                                   }
                                 }))}
                                 min={7}
@@ -1248,14 +1248,14 @@ export default function ProjectUnifiedSpec() {
                               />
                             </div>
                             <div>
-                              <Label>Ссылок на донора: {seoProfile.scenarios.freshnessPush.linksPerDonor}</Label>
+                              <Label>Ссылок на донора: {seoProfile?.scenarios?.freshnessPush?.linksPerDonor || 1}</Label>
                               <Slider
-                                value={[seoProfile.scenarios.freshnessPush.linksPerDonor]}
+                                value={[seoProfile?.scenarios?.freshnessPush?.linksPerDonor || 1]}
                                 onValueChange={([value]) => setSeoProfile(prev => ({
                                   ...prev,
                                   scenarios: { 
                                     ...prev.scenarios, 
-                                    freshnessPush: { ...prev.scenarios.freshnessPush, linksPerDonor: value }
+                                    freshnessPush: { ...prev.scenarios?.freshnessPush, linksPerDonor: value }
                                   }
                                 }))}
                                 min={0}
@@ -1864,20 +1864,18 @@ export default function ProjectUnifiedSpec() {
                           <div className="flex items-center space-x-2 mb-2">
                             <Switch
                               id="depthLift"
-                              checked={seoProfile?.scenarios?.depthLift?.enabled ?? true}
-                              onCheckedChange={(checked) =>
-                                setSeoProfile(prev => ({
-                                  ...prev,
-                                  scenarios: { 
-                                    ...prev.scenarios, 
-                                    depthLift: { ...prev.scenarios.depthLift, enabled: checked }
-                                  }
-                                }))
-                              }
+                              checked={seoProfile?.scenarios?.depthLift?.enabled ?? false}
+                              onCheckedChange={(checked) => setSeoProfile(prev => ({
+                                ...prev,
+                                scenarios: { 
+                                  ...prev.scenarios, 
+                                  depthLift: { ...prev.scenarios?.depthLift, enabled: checked }
+                                }
+                              }))}
                             />
                             <Label htmlFor="depthLift">Поднятие глубоких страниц</Label>
                           </div>
-                          {(seoProfile?.scenarios?.depthLift?.enabled ?? true) && (
+                          {seoProfile?.scenarios?.depthLift?.enabled && (
                             <div className="ml-6">
                               <Label htmlFor="minDepth">Минимальная глубина</Label>
                               <Select 
@@ -1909,68 +1907,52 @@ export default function ProjectUnifiedSpec() {
                           <div className="flex items-center space-x-2 mb-2">
                             <Switch
                               id="freshnessPush"
-                              checked={seoProfile?.scenarios?.freshnessPush?.enabled ?? true}
-                              onCheckedChange={(checked) =>
-                                setSeoProfile(prev => ({
-                                  ...prev,
-                                  scenarios: { 
-                                    ...prev.scenarios, 
-                                    freshnessPush: { ...prev.scenarios.freshnessPush, enabled: checked }
-                                  }
-                                }))
-                              }
+                              checked={seoProfile?.scenarios?.freshnessPush?.enabled ?? false}
+                              onCheckedChange={(checked) => setSeoProfile(prev => ({
+                                ...prev,
+                                scenarios: { 
+                                  ...prev.scenarios, 
+                                  freshnessPush: { ...prev.scenarios?.freshnessPush, enabled: checked }
+                                }
+                              }))}
                             />
                             <Label htmlFor="freshnessPush">Продвижение свежих</Label>
                           </div>
-                          {(seoProfile?.scenarios?.freshnessPush?.enabled ?? true) && (
-                            <div className="ml-6 space-y-2">
+                          {seoProfile?.scenarios?.freshnessPush?.enabled && (
+                            <div className="space-y-4">
                               <div>
-                                <Label htmlFor="daysFresh">Дней свежести</Label>
-                                <Select 
-                                  value={(seoProfile?.scenarios?.freshnessPush?.daysFresh || 30).toString()} 
-                                  onValueChange={(value) =>
-                                    setSeoProfile(prev => ({
-                                      ...prev,
-                                      scenarios: { 
-                                        ...prev.scenarios, 
-                                        freshnessPush: { ...prev.scenarios.freshnessPush, daysFresh: parseInt(value) }
-                                      }
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[7,14,21,30,45,60].map(num => (
-                                      <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                <Label>Свежесть: {seoProfile?.scenarios?.freshnessPush?.daysFresh || 30} дней</Label>
+                                <Slider
+                                  value={[seoProfile?.scenarios?.freshnessPush?.daysFresh || 30]}
+                                  onValueChange={([value]) => setSeoProfile(prev => ({
+                                    ...prev,
+                                    scenarios: { 
+                                      ...prev.scenarios, 
+                                      freshnessPush: { ...prev.scenarios?.freshnessPush, daysFresh: value }
+                                    }
+                                  }))}
+                                  min={7}
+                                  max={60}
+                                  step={1}
+                                  className="mt-2"
+                                />
                               </div>
                               <div>
-                                <Label htmlFor="linksPerDonor">Ссылок с донора</Label>
-                                <Select 
-                                  value={(seoProfile?.scenarios?.freshnessPush?.linksPerDonor || 1).toString()} 
-                                  onValueChange={(value) =>
-                                    setSeoProfile(prev => ({
-                                      ...prev,
-                                      scenarios: { 
-                                        ...prev.scenarios, 
-                                        freshnessPush: { ...prev.scenarios.freshnessPush, linksPerDonor: parseInt(value) }
-                                      }
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[0,1,2,3].map(num => (
-                                      <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                <Label>Ссылок на донора: {seoProfile?.scenarios?.freshnessPush?.linksPerDonor || 1}</Label>
+                                <Slider
+                                  value={[seoProfile?.scenarios?.freshnessPush?.linksPerDonor || 1]}
+                                  onValueChange={([value]) => setSeoProfile(prev => ({
+                                    ...prev,
+                                    scenarios: { 
+                                      ...prev.scenarios, 
+                                      freshnessPush: { ...prev.scenarios?.freshnessPush, linksPerDonor: value }
+                                    }
+                                  }))}
+                                  min={0}
+                                  max={3}
+                                  step={1}
+                                  className="mt-2"
+                                />
                               </div>
                             </div>
                           )}
