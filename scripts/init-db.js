@@ -17,13 +17,19 @@ try {
   console.log('📦 Installing pgvector extension...');
   execSync('sudo -u postgres psql -d ai_linking -c "CREATE EXTENSION IF NOT EXISTS vector;"', { stdio: 'inherit' });
   
-  // 2. Генерируем миграции
+  // 2. Генерируем миграции (неинтерактивно)
   console.log('📝 Generating migrations...');
-  execSync('npm run db:generate', { stdio: 'inherit' });
+  execSync('npx drizzle-kit generate --force', { stdio: 'inherit' });
   
-  // 3. Применяем миграции
+  // 3. Применяем миграции (неинтерактивно)
   console.log('🔄 Applying migrations...');
-  execSync('npm run db:push', { stdio: 'inherit' });
+  try {
+    execSync('npx drizzle-kit push --force', { stdio: 'inherit' });
+  } catch (error) {
+    console.log('⚠️ Drizzle push failed, trying direct SQL application...');
+    // Альтернативный подход - прямое применение SQL
+    execSync('sudo -u postgres psql -d ai_linking -f create-tables.sql', { stdio: 'inherit' });
+  }
   
   // 4. Создаем тестовые данные
   console.log('👤 Creating test data...');

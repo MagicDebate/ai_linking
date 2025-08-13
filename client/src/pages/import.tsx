@@ -80,6 +80,33 @@ export function ImportPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const { toast } = useToast();
 
+  // Функция для поиска последнего job для проекта
+  const findLatestJobForProject = async () => {
+    if (!projectId) return;
+    
+    try {
+      console.log('🔍 Searching for latest job for project:', projectId);
+      const response = await fetch(`/api/import/jobs/${projectId}`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const jobs = await response.json();
+        if (jobs && jobs.length > 0) {
+          const latestJob = jobs[0]; // Предполагаем, что jobs отсортированы по дате
+          console.log('✅ Found latest job:', latestJob.jobId);
+          setJobId(latestJob.jobId);
+        } else {
+          console.log('⚠️ No jobs found for project');
+        }
+      } else {
+        console.log('❌ Failed to fetch jobs for project');
+      }
+    } catch (error) {
+      console.error('❌ Error finding latest job:', error);
+    }
+  };
+
   // Poll import status every 1 second for better responsiveness
   const { data: importStatus, refetch, isError, isFetching } = useQuery<ImportStatus>({
     queryKey: ["/api/import/status", projectId, jobId],
@@ -132,7 +159,7 @@ export function ImportPage() {
     } else {
       // Если jobId не указан в URL, попробуем найти последний джоб для проекта
       console.log('⚠️ No jobId in URL, will try to find latest job for project');
-      // Можно добавить логику для поиска последнего джоба, но пока просто показываем ошибку
+      findLatestJobForProject();
     }
   }, [projectId]);
 

@@ -804,6 +804,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get import jobs for project
+  app.get("/api/import/jobs/:projectId", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get all import jobs for the project
+      const jobs = await db
+        .select({
+          jobId: importJobs.jobId,
+          status: importJobs.status,
+          phase: importJobs.phase,
+          percent: importJobs.percent,
+          startedAt: importJobs.startedAt,
+          finishedAt: importJobs.finishedAt,
+          pagesTotal: importJobs.pagesTotal,
+          pagesDone: importJobs.pagesDone,
+          blocksDone: importJobs.blocksDone
+        })
+        .from(importJobs)
+        .where(eq(importJobs.projectId, projectId))
+        .orderBy(desc(importJobs.startedAt));
+
+      res.json(jobs);
+    } catch (error) {
+      console.error("Import jobs error:", error);
+      res.status(500).json({ error: "Failed to get import jobs" });
+    }
+  });
+
   // Get project state endpoint (checkpoint system)
   app.get("/api/projects/:id/state", authenticateToken, async (req: any, res) => {
     try {
