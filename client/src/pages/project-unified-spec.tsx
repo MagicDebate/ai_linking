@@ -265,7 +265,8 @@ export default function ProjectUnifiedSpec() {
     queryFn: async () => {
       console.log('🔍 Fetching project:', projectId);
       const response = await fetch(`/api/projects/${projectId}`, {
-        credentials: 'include'
+        credentials: 'include',
+        cache: 'no-store' // Принудительно не кэшируем
       });
       console.log('📡 Response status:', response.status);
       if (!response.ok) {
@@ -277,7 +278,10 @@ export default function ProjectUnifiedSpec() {
       console.log('✅ Project loaded:', data);
       return data as Promise<Project>;
     },
-    enabled: !!projectId
+    enabled: !!projectId,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    staleTime: 0 // Данные всегда считаются устаревшими
   });
 
   // Мутация загрузки файла
@@ -542,6 +546,14 @@ export default function ProjectUnifiedSpec() {
     await setSeoProfile(newProfile);
   };
 
+  // Принудительно обновляем данные проекта при загрузке
+  useEffect(() => {
+    if (projectId) {
+      console.log('🔄 Force refetching project data...');
+      queryClient.invalidateQueries(['/api/projects', projectId]);
+    }
+  }, [projectId, queryClient]);
+
   // Восстанавливаем состояние из чекпоинтов при загрузке
   useEffect(() => {
     if (projectState && !stateLoading) {
@@ -624,6 +636,15 @@ export default function ProjectUnifiedSpec() {
       </Layout>
     );
   }
+
+  // Отладочная информация
+  console.log('🔍 Debug info:', {
+    projectId,
+    projectLoading,
+    projectError,
+    project: project ? 'EXISTS' : 'NULL',
+    projectData: project
+  });
 
   if (!project) {
     return (
