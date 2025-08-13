@@ -310,8 +310,10 @@ export default function ProjectUnifiedSpec() {
         uploadedFile: uploadedFile ? { name: uploadedFile.name, size: uploadedFile.size } : null
       });
       
-      // НЕ переходим сразу на шаг 2, остаемся на шаге 1 для маппинга
-      toast({ title: "Файл загружен! Теперь настройте маппинг полей." });
+      // Переходим на шаг 2 (SEO настройки) после загрузки
+      setCurrentStep(2);
+      navigateToStep(2);
+      toast({ title: "Файл загружен! Переходим к настройкам SEO." });
     },
     onError: (error: any) => {
       toast({ title: "Ошибка загрузки", description: error.message, variant: "destructive" });
@@ -1084,12 +1086,12 @@ export default function ProjectUnifiedSpec() {
                         <Label htmlFor="stopAnchors">Стоп-лист анкоров</Label>
                         <Textarea
                           id="stopAnchors"
-                          placeholder="Введите фразы через запятую"
-                          value={seoProfile.stopAnchors.join(', ')}
+                          value={(seoProfile?.stopAnchors || []).join(', ')}
                           onChange={(e) => {
-                            const anchors = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                            const anchors = e.target.value.split(',').map(s => s.trim()).filter(s => s);
                             setSeoProfile(prev => ({ ...prev, stopAnchors: anchors }));
                           }}
+                          placeholder="Введите якоря через запятую"
                           className="mt-1"
                         />
                       </div>
@@ -1102,12 +1104,12 @@ export default function ProjectUnifiedSpec() {
                           <Label htmlFor="priorityPages">Priority (Money) Pages</Label>
                           <Textarea
                             id="priorityPages"
-                            placeholder="Введите URL через запятую или загрузите CSV"
-                            value={seoProfile.priorityPages.join(', ')}
+                            value={(seoProfile?.priorityPages || []).join(', ')}
                             onChange={(e) => {
-                              const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                              const urls = e.target.value.split(',').map(s => s.trim()).filter(s => s);
                               setSeoProfile(prev => ({ ...prev, priorityPages: urls }));
                             }}
+                            placeholder="Введите URL через запятую"
                             className="mt-1"
                           />
                           <p className="text-xs text-gray-500 mt-1">URL с повышенным приоритетом при Commercial Routing. Можно загрузить CSV или ввести вручную.</p>
@@ -1122,12 +1124,12 @@ export default function ProjectUnifiedSpec() {
                           <Label htmlFor="hubPages">Hub Pages</Label>
                           <Textarea
                             id="hubPages"
-                            placeholder="Введите URL хаб-страниц через запятую или загрузите CSV"
-                            value={seoProfile.hubPages.join(', ')}
+                            value={(seoProfile?.hubPages || []).join(', ')}
                             onChange={(e) => {
-                              const urls = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                              const urls = e.target.value.split(',').map(s => s.trim()).filter(s => s);
                               setSeoProfile(prev => ({ ...prev, hubPages: urls }));
                             }}
+                            placeholder="Введите URL через запятую"
                             className="mt-1"
                           />
                           <p className="text-xs text-gray-500 mt-1">Канонические/хаб-страницы для Head Consolidation. Можно импортировать CSV (clusterId, url) или выбрать вручную.</p>

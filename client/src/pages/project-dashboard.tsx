@@ -17,7 +17,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  XCircle
+  XCircle,
+  Play
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Link } from 'wouter';
@@ -209,18 +210,11 @@ export default function ProjectDashboard() {
           
           <div className="flex gap-3">
             <Button 
-              variant="outline"
               onClick={() => setLocation(`/project/${projectId}/upload`)}
+              className="bg-green-600 hover:bg-green-700"
             >
-              <FileText className="h-4 w-4 mr-2" />
-              Загрузить CSV
-            </Button>
-            <Button 
-              onClick={() => setLocation(`/project/${projectId}/generate`)}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Настройки генерации
+              <Play className="h-4 w-4 mr-2" />
+              Начать перелинковку
             </Button>
           </div>
         </div>
@@ -272,74 +266,6 @@ export default function ProjectDashboard() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Last Run */}
-        {lastRun ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Последний запуск
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {getStatusIcon(lastRun.status)}
-                  <Badge className={getStatusColor(lastRun.status)}>
-                    {lastRun.status === 'completed' ? 'Завершено' :
-                     lastRun.status === 'running' ? 'В процессе' : 'Ошибка'}
-                  </Badge>
-                  <span className="text-sm text-gray-500">
-                    {new Date(lastRun.startedAt).toLocaleString('ru-RU')}
-                  </span>
-                </div>
-                {lastRun.status === 'completed' && (
-                  <Button 
-                    size="sm"
-                    onClick={() => handleDownload(lastRun.runId)}
-                    disabled={downloadMutation.isPending}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Скачать CSV
-                  </Button>
-                )}
-              </div>
-
-              {lastRun.status === 'running' && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Прогресс</span>
-                    <span>{lastRun.percent}%</span>
-                  </div>
-                  <Progress value={lastRun.percent} className="h-2" />
-                </div>
-              )}
-
-              {lastRun.status === 'completed' && (
-                <div className="text-sm text-gray-600">
-                  Обработано URL: {lastRun.totalUrls}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Последний запуск
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-gray-500">
-                <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>Запусков еще не было</p>
-                <p className="text-sm">Нажмите "Настройки генерации" для запуска первой генерации</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Runs History */}
         <Card>
