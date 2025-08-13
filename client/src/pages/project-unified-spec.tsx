@@ -260,14 +260,22 @@ export default function ProjectUnifiedSpec() {
   const seoProfile = projectState?.seoProfile || DEFAULT_PROFILE;
   
   // Загрузка проекта
-  const { data: project, isLoading: projectLoading } = useQuery({
+  const { data: project, isLoading: projectLoading, error: projectError } = useQuery({
     queryKey: ['/api/projects', projectId],
     queryFn: async () => {
+      console.log('🔍 Fetching project:', projectId);
       const response = await fetch(`/api/projects/${projectId}`, {
         credentials: 'include'
       });
-      if (!response.ok) throw new Error('Failed to fetch project');
-      return response.json() as Promise<Project>;
+      console.log('📡 Response status:', response.status);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Project fetch failed:', response.status, errorText);
+        throw new Error(`Failed to fetch project: ${response.status} ${errorText}`);
+      }
+      const data = await response.json();
+      console.log('✅ Project loaded:', data);
+      return data as Promise<Project>;
     },
     enabled: !!projectId
   });
@@ -585,6 +593,32 @@ export default function ProjectUnifiedSpec() {
               <div className="h-8 bg-gray-200 rounded w-64 mb-6"></div>
               <div className="h-64 bg-gray-200 rounded"></div>
             </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (projectError) {
+    return (
+      <Layout>
+        <div className="min-h-screen bg-gray-50 p-6">
+          <div className="max-w-4xl mx-auto text-center py-16">
+            <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Ошибка загрузки проекта</h1>
+            <p className="text-gray-600 mb-4">Не удалось загрузить проект. Возможно, проект был удален или у вас нет доступа к нему.</p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left">
+              <p className="text-sm text-red-700 font-mono break-all">
+                {projectError.message}
+              </p>
+            </div>
+            <Button 
+              variant="outline" 
+              className="mt-4"
+              onClick={() => window.location.reload()}
+            >
+              Обновить страницу
+            </Button>
           </div>
         </div>
       </Layout>
