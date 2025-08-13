@@ -19,12 +19,12 @@ try {
   
   // 2. Генерируем миграции (неинтерактивно)
   console.log('📝 Generating migrations...');
-  execSync('npx drizzle-kit generate --force', { stdio: 'inherit' });
+  execSync('npx drizzle-kit generate', { stdio: 'inherit' });
   
   // 3. Применяем миграции (неинтерактивно)
   console.log('🔄 Applying migrations...');
   try {
-    execSync('npx drizzle-kit push --force', { stdio: 'inherit' });
+    execSync('npx drizzle-kit push', { stdio: 'inherit' });
   } catch (error) {
     console.log('⚠️ Drizzle push failed, trying direct SQL application...');
     // Альтернативный подход - прямое применение SQL
