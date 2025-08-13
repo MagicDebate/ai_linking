@@ -311,10 +311,8 @@ export default function ProjectUnifiedSpec() {
         uploadedFile: uploadedFile ? { name: uploadedFile.name, size: uploadedFile.size } : null
       });
       
-      // Переходим на шаг 2 (импорт данных) после загрузки
-      setCurrentStep(2);
-      navigateToStep(2);
-      toast({ title: "Файл загружен! Переходим к импорту данных." });
+      // Остаемся на шаге 1 для настройки маппинга полей
+      toast({ title: "Файл загружен! Настройте маппинг полей." });
     },
     onError: (error: any) => {
       toast({ title: "Ошибка загрузки", description: error.message, variant: "destructive" });
@@ -343,9 +341,9 @@ export default function ProjectUnifiedSpec() {
       // Сохраняем маппинг в чекпоинты
       await setStepData({ fieldMapping });
       
-      setCurrentStep(3); // Переходим к SEO настройкам после маппинга
-      navigateToStep(3);
-      toast({ title: "Маппинг сохранен! Переходим к SEO настройкам." });
+      setCurrentStep(2); // Переходим к импорту данных после маппинга
+      navigateToStep(2);
+      toast({ title: "Маппинг сохранен! Переходим к импорту данных." });
     },
     onError: (error: any) => {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
