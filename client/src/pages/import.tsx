@@ -171,7 +171,11 @@ export function ImportPage() {
   // Stop auto-refresh when job is completed/failed/canceled
   useEffect(() => {
     if (importStatus && ["completed", "failed", "canceled"].includes(importStatus.status)) {
+      console.log('🔄 Stopping auto-refresh, status:', importStatus.status);
       setAutoRefresh(false);
+    } else if (importStatus && importStatus.status === "running") {
+      console.log('🔄 Keeping auto-refresh active, status:', importStatus.status);
+      setAutoRefresh(true);
     }
   }, [importStatus]);
 
@@ -390,10 +394,19 @@ export function ImportPage() {
                 Обновление...
               </div>
             )}
-          <Badge className={getStatusColor(importStatus.status)}>
-            {getStatusIcon(importStatus.status)}
-            <span className="ml-2 capitalize">{importStatus.status}</span>
-          </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              Обновить
+            </Button>
+            <Badge className={getStatusColor(importStatus.status)}>
+              {getStatusIcon(importStatus.status)}
+              <span className="ml-2 capitalize">{importStatus.status}</span>
+            </Badge>
           </div>
         </div>
 
