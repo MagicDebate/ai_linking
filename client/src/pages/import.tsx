@@ -77,7 +77,7 @@ export function ImportPage() {
   const projectId = params?.id;
   const [jobId, setJobId] = useState<string | null>(null);
   const [showLogs, setShowLogs] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(true); // Всегда включено
   const { toast } = useToast();
 
   // Функция для поиска последнего job для проекта
@@ -96,7 +96,6 @@ export function ImportPage() {
           const latestJob = jobs[0]; // Предполагаем, что jobs отсортированы по дате
           console.log('✅ Found latest job:', latestJob.jobId);
           setJobId(latestJob.jobId);
-          setAutoRefresh(true); // Включаем автообновление
         } else {
           console.log('⚠️ No jobs found for project');
         }
@@ -134,7 +133,7 @@ export function ImportPage() {
       console.log('📊 Import status response:', data);
       return data;
     },
-    enabled: !!projectId && !!jobId && autoRefresh,
+    enabled: !!projectId && !!jobId,
     refetchInterval: (data) => data?.status === "running" ? 1000 : 2000, // Быстрее обновляем во время выполнения
     refetchIntervalInBackground: true,
     staleTime: 0, // Всегда считаем данные устаревшими для получения актуальной информации
@@ -156,8 +155,7 @@ export function ImportPage() {
     
     if (startJobId) {
       setJobId(startJobId);
-      setAutoRefresh(true); // Принудительно включаем автообновление
-      console.log('✅ Set jobId to:', startJobId, 'and enabled auto-refresh');
+      console.log('✅ Set jobId to:', startJobId);
     } else {
       // Если jobId не указан в URL, попробуем найти последний джоб для проекта
       console.log('⚠️ No jobId in URL, will try to find latest job for project');
@@ -168,24 +166,12 @@ export function ImportPage() {
   // Log when jobId changes
   useEffect(() => {
     console.log('🔄 jobId changed:', jobId);
-    if (jobId) {
-      setAutoRefresh(true); // Включаем автообновление при получении jobId
-      console.log('✅ Enabled auto-refresh for jobId:', jobId);
-    }
   }, [jobId]);
 
-  // Stop auto-refresh when job is completed/failed/canceled
+  // Log import status changes
   useEffect(() => {
     if (importStatus) {
       console.log('🔄 Import status changed:', importStatus.status, importStatus.phase, importStatus.percent);
-      
-      if (["completed", "failed", "canceled"].includes(importStatus.status)) {
-        console.log('🔄 Stopping auto-refresh, status:', importStatus.status);
-        setAutoRefresh(false);
-      } else if (importStatus.status === "running") {
-        console.log('🔄 Keeping auto-refresh active, status:', importStatus.status);
-        setAutoRefresh(true);
-      }
     }
   }, [importStatus]);
 
@@ -205,7 +191,6 @@ export function ImportPage() {
           title: "Импорт отменен",
           description: "Процесс импорта был остановлен",
         });
-        setAutoRefresh(false);
         refetch();
       }
     } catch (error) {
