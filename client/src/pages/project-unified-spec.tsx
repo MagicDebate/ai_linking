@@ -176,7 +176,7 @@ const PRESETS = {
 
 export default function ProjectUnifiedSpec() {
   const [, params] = useRoute("/project/:id");
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const projectId = params?.id;
   const { toast } = useToast();
   
