@@ -1740,12 +1740,270 @@ export default function ProjectUnifiedSpec() {
                     </p>
                   </div>
 
-                  {/* Настройки генерации */}
+                  {/* Основные настройки */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Settings className="h-5 w-5" />
-                        Настройки генерации
+                        Основные настройки
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <Label htmlFor="maxLinks">Максимум ссылок на страницу</Label>
+                          <Select 
+                            value={seoProfile.maxLinks.toString()} 
+                            onValueChange={(value) =>
+                              setSeoProfile(prev => ({ ...prev, maxLinks: parseInt(value) }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[1,2,3,4,5,6,7,8,9,10].map(num => (
+                                <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="minGap">Минимальный промежуток (слов)</Label>
+                          <Select 
+                            value={seoProfile.minGap.toString()} 
+                            onValueChange={(value) =>
+                              setSeoProfile(prev => ({ ...prev, minGap: parseInt(value) }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[50,100,150,200,250,300,350,400].map(num => (
+                                <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="exactAnchorPercent">Точные анкоры (%)</Label>
+                          <Select 
+                            value={seoProfile.exactAnchorPercent.toString()} 
+                            onValueChange={(value) =>
+                              setSeoProfile(prev => ({ ...prev, exactAnchorPercent: parseInt(value) }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[0,5,10,15,20,25,30,35,40,45,50].map(num => (
+                                <SelectItem key={num} value={num.toString()}>{num}%</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Сценарии генерации */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5" />
+                        Сценарии генерации
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="orphanFix"
+                            checked={seoProfile.scenarios.orphanFix}
+                            onCheckedChange={(checked) =>
+                              setSeoProfile(prev => ({
+                                ...prev,
+                                scenarios: { ...prev.scenarios, orphanFix: checked }
+                              }))
+                            }
+                          />
+                          <Label htmlFor="orphanFix">Исправление сирот</Label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="headConsolidation"
+                            checked={seoProfile.scenarios.headConsolidation}
+                            onCheckedChange={(checked) =>
+                              setSeoProfile(prev => ({
+                                ...prev,
+                                scenarios: { ...prev.scenarios, headConsolidation: checked }
+                              }))
+                            }
+                          />
+                          <Label htmlFor="headConsolidation">Консолидация голов</Label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="clusterCrossLink"
+                            checked={seoProfile.scenarios.clusterCrossLink}
+                            onCheckedChange={(checked) =>
+                              setSeoProfile(prev => ({
+                                ...prev,
+                                scenarios: { ...prev.scenarios, clusterCrossLink: checked }
+                              }))
+                            }
+                          />
+                          <Label htmlFor="clusterCrossLink">Кросс-линковка кластеров</Label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="commercialRouting"
+                            checked={seoProfile.scenarios.commercialRouting}
+                            onCheckedChange={(checked) =>
+                              setSeoProfile(prev => ({
+                                ...prev,
+                                scenarios: { ...prev.scenarios, commercialRouting: checked }
+                              }))
+                            }
+                          />
+                          <Label htmlFor="commercialRouting">Коммерческий роутинг</Label>
+                        </div>
+                      </div>
+
+                      {/* Дополнительные настройки сценариев */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
+                        <div>
+                          <div className="flex items-center space-x-2 mb-2">
+                            <Switch
+                              id="depthLift"
+                              checked={seoProfile.scenarios.depthLift.enabled}
+                              onCheckedChange={(checked) =>
+                                setSeoProfile(prev => ({
+                                  ...prev,
+                                  scenarios: { 
+                                    ...prev.scenarios, 
+                                    depthLift: { ...prev.scenarios.depthLift, enabled: checked }
+                                  }
+                                }))
+                              }
+                            />
+                            <Label htmlFor="depthLift">Поднятие глубоких страниц</Label>
+                          </div>
+                          {seoProfile.scenarios.depthLift.enabled && (
+                            <div className="ml-6">
+                              <Label htmlFor="minDepth">Минимальная глубина</Label>
+                              <Select 
+                                value={seoProfile.scenarios.depthLift.minDepth.toString()} 
+                                onValueChange={(value) =>
+                                  setSeoProfile(prev => ({
+                                    ...prev,
+                                    scenarios: { 
+                                      ...prev.scenarios, 
+                                      depthLift: { ...prev.scenarios.depthLift, minDepth: parseInt(value) }
+                                    }
+                                  }))
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[3,4,5,6,7,8].map(num => (
+                                    <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div>
+                          <div className="flex items-center space-x-2 mb-2">
+                            <Switch
+                              id="freshnessPush"
+                              checked={seoProfile.scenarios.freshnessPush.enabled}
+                              onCheckedChange={(checked) =>
+                                setSeoProfile(prev => ({
+                                  ...prev,
+                                  scenarios: { 
+                                    ...prev.scenarios, 
+                                    freshnessPush: { ...prev.scenarios.freshnessPush, enabled: checked }
+                                  }
+                                }))
+                              }
+                            />
+                            <Label htmlFor="freshnessPush">Продвижение свежих</Label>
+                          </div>
+                          {seoProfile.scenarios.freshnessPush.enabled && (
+                            <div className="ml-6 space-y-2">
+                              <div>
+                                <Label htmlFor="daysFresh">Дней свежести</Label>
+                                <Select 
+                                  value={seoProfile.scenarios.freshnessPush.daysFresh.toString()} 
+                                  onValueChange={(value) =>
+                                    setSeoProfile(prev => ({
+                                      ...prev,
+                                      scenarios: { 
+                                        ...prev.scenarios, 
+                                        freshnessPush: { ...prev.scenarios.freshnessPush, daysFresh: parseInt(value) }
+                                      }
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[7,14,21,30,45,60].map(num => (
+                                      <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor="linksPerDonor">Ссылок с донора</Label>
+                                <Select 
+                                  value={seoProfile.scenarios.freshnessPush.linksPerDonor.toString()} 
+                                  onValueChange={(value) =>
+                                    setSeoProfile(prev => ({
+                                      ...prev,
+                                      scenarios: { 
+                                        ...prev.scenarios, 
+                                        freshnessPush: { ...prev.scenarios.freshnessPush, linksPerDonor: parseInt(value) }
+                                      }
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[0,1,2,3].map(num => (
+                                      <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Политики ссылок */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="h-5 w-5" />
+                        Политики ссылок
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -1753,21 +2011,60 @@ export default function ProjectUnifiedSpec() {
                         <div>
                           <Label htmlFor="oldLinks">Обработка существующих ссылок</Label>
                           <Select 
-                            value={seoProfile.oldLinks} 
+                            value={seoProfile.policies.oldLinks} 
                             onValueChange={(value: 'enrich' | 'regenerate' | 'audit') =>
-                              setSeoProfile(prev => ({ ...prev, oldLinks: value }))
+                              setSeoProfile(prev => ({ 
+                                ...prev, 
+                                policies: { ...prev.policies, oldLinks: value }
+                              }))
                             }
                           >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="enrich">Enrich</SelectItem>
-                              <SelectItem value="regenerate">Regenerate</SelectItem>
-                              <SelectItem value="audit">Audit</SelectItem>
+                              <SelectItem value="enrich">Обогатить</SelectItem>
+                              <SelectItem value="regenerate">Перегенерировать</SelectItem>
+                              <SelectItem value="audit">Аудит</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
+                        
+                        <div>
+                          <Label htmlFor="brokenLinks">Обработка битых ссылок</Label>
+                          <Select 
+                            value={seoProfile.policies.brokenLinks} 
+                            onValueChange={(value: 'delete' | 'replace' | 'ignore') =>
+                              setSeoProfile(prev => ({ 
+                                ...prev, 
+                                policies: { ...prev.policies, brokenLinks: value }
+                              }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="delete">Удалить</SelectItem>
+                              <SelectItem value="replace">Заменить</SelectItem>
+                              <SelectItem value="ignore">Игнорировать</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="removeDuplicates"
+                          checked={seoProfile.policies.removeDuplicates}
+                          onCheckedChange={(checked) =>
+                            setSeoProfile(prev => ({ 
+                              ...prev, 
+                              policies: { ...prev.policies, removeDuplicates: checked }
+                            }))
+                          }
+                        />
+                        <Label htmlFor="removeDuplicates">Удалять дубликаты ссылок</Label>
                       </div>
                     </CardContent>
                   </Card>
