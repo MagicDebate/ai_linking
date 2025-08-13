@@ -27,7 +27,8 @@ import {
   Info,
   Loader2,
   BarChart3,
-  Clock
+  Clock,
+  Play
 } from "lucide-react";
 
 interface FieldMapping {
@@ -343,13 +344,8 @@ export default function ProjectUnifiedSpec() {
       await setStepData({ fieldMapping });
       
       setCurrentStep(3); // Переходим к SEO настройкам после маппинга
+      navigateToStep(3);
       toast({ title: "Маппинг сохранен! Переходим к SEO настройкам." });
-      // Автоматически запускаем импорт
-      setTimeout(() => {
-        if (csvPreview?.uploadId) {
-          startImportMutation.mutate();
-        }
-      }, 500);
     },
     onError: (error: any) => {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
@@ -972,8 +968,8 @@ export default function ProjectUnifiedSpec() {
                 </div>
               )}
 
-              {/* Шаг 2: Базовые настройки (SEO-профиль) */}
-              {currentStep === 2 && csvPreview && (
+              {/* Шаг 3: Базовые настройки (SEO-профиль) */}
+              {currentStep === 3 && csvPreview && (
                 <div className="space-y-8">
                   <div>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -1486,8 +1482,8 @@ export default function ProjectUnifiedSpec() {
                 </div>
               )}
 
-              {/* Шаг 3: Импорт данных с прогрессом - БЕЗ НАСТРОЕК SEO */}
-              {currentStep === 3 && (
+              {/* Шаг 2: Импорт данных с прогрессом */}
+              {currentStep === 2 && (
                 <div className="space-y-6">
                   {/* Заголовок */}
                   <div className="text-center">
@@ -1621,18 +1617,39 @@ export default function ProjectUnifiedSpec() {
 
                   {/* Кнопки управления */}
                   <div className="flex justify-between">
-                    <Button variant="outline" onClick={() => navigateToStep(2)}>
+                    <Button variant="outline" onClick={() => navigateToStep(1)}>
                       <ArrowLeft className="h-4 w-4 mr-2" />
-                      Назад к импорту данных
+                      Назад к загрузке CSV
                     </Button>
                     
-                    {/* Показываем кнопку перехода только когда импорт завершен ИЛИ если jobId не установлен */}
-                    {(importStatus?.status === 'completed' || !importJobId) && (
+                    {/* Кнопка запуска импорта если еще не запущен */}
+                    {!importJobId && (
+                      <Button 
+                        onClick={() => startImportMutation.mutate()}
+                        className="bg-blue-600 hover:bg-blue-700"
+                        disabled={startImportMutation.isPending}
+                      >
+                        {startImportMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Запускаем импорт...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-2" />
+                            Запустить импорт
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    
+                    {/* Показываем кнопку перехода только когда импорт завершен */}
+                    {importStatus?.status === 'completed' && (
                       <Button 
                         onClick={() => navigateToStep(3)} // Переходим к SEO настройкам после импорта
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-green-600 hover:bg-green-700"
                       >
-                        {!importJobId ? 'Пропустить импорт' : 'Перейти к SEO настройкам'}
+                        Перейти к SEO настройкам
                         <ArrowRight className="h-4 w-4 ml-2" />
                       </Button>
                     )}
