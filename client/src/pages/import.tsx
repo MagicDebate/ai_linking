@@ -134,9 +134,10 @@ export function ImportPage() {
       return data;
     },
     enabled: !!projectId && !!jobId,
-    refetchInterval: (data) => data?.status === "running" ? 1000 : 2000, // Быстрее обновляем во время выполнения
+    refetchInterval: 1000, // Принудительно каждую секунду
     refetchIntervalInBackground: true,
-    staleTime: 0, // Всегда считаем данные устаревшими для получения актуальной информации
+    staleTime: 0, // Всегда считаем данные устаревшими
+    cacheTime: 0, // Отключаем кэш полностью
     retry: 3,
     retryDelay: 1000,
   });
@@ -168,12 +169,22 @@ export function ImportPage() {
     console.log('🔄 jobId changed:', jobId);
   }, [jobId]);
 
-  // Log import status changes
+  // Log import status changes and force refetch
   useEffect(() => {
     if (importStatus) {
       console.log('🔄 Import status changed:', importStatus.status, importStatus.phase, importStatus.percent);
     }
-  }, [importStatus]);
+    
+    // Принудительно обновляем каждые 2 секунды
+    const interval = setInterval(() => {
+      if (jobId) {
+        console.log('🔄 Force refetching import status');
+        refetch();
+      }
+    }, 2000);
+    
+    return () => clearInterval(interval);
+  }, [importStatus, jobId, refetch]);
 
   const handleCancelImport = async () => {
     if (!jobId) return;
@@ -383,6 +394,18 @@ export function ImportPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                console.log('🔄 Manual refresh clicked');
+                refetch();
+              }}
+              disabled={isFetching}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              Обновить
+            </Button>
             {isFetching && (
               <div className="flex items-center gap-2 text-sm text-blue-600">
                 <RefreshCw className="h-4 w-4 animate-spin" />
