@@ -2657,6 +2657,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create new job endpoint
+  app.post("/api/jobs/create", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const { projectId } = req.body;
+      
+      if (!projectId) {
+        return res.status(400).json({ error: "Project ID is required" });
+      }
+
+      // Generate unique job ID
+      const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Create new job in importJobs table
+      const newJob = await db.insert(importJobs).values({
+        jobId,
+        projectId,
+        status: 'pending',
+        phase: 'loading',
+        percent: 0,
+        stepData: {},
+        seoProfile: {}
+      }).returning();
+
+      console.log('✅ New job created:', newJob[0]);
+
+      res.json({ 
+        success: true, 
+        jobId: newJob[0].jobId,
+        job: newJob[0]
+      });
+    } catch (error) {
+      console.error('❌ Error creating job:', error);
+      res.status(500).json({ error: "Failed to create job" });
+    }
+  });
+
+  // Get job state endpoint
+
   const httpServer = createServer(app);
   return httpServer;
 }

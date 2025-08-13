@@ -329,7 +329,31 @@ export default function ProjectUnifiedSpec() {
       const newCsvPreview = { ...data.preview, uploadId: data.uploadId };
       setCsvPreview(newCsvPreview);
       
-      // Сохраняем состояние в чекпоинты
+      // Создаем новый job если его нет
+      let currentJobId = importJobId;
+      if (!currentJobId) {
+        try {
+          const response = await fetch('/api/jobs/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId })
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            console.log('✅ New job created:', result.jobId);
+            await setImportJobId(result.jobId);
+            currentJobId = result.jobId;
+          } else {
+            throw new Error('Failed to create job');
+          }
+        } catch (error) {
+          console.error('❌ Failed to create job:', error);
+          toast({ title: "Ошибка создания задачи", description: error.message, variant: "destructive" });
+        }
+      }
+      
+      // Сохраняем состояние в чекпоинты с привязкой к jobId
       await setStepData({
         csvPreview: newCsvPreview,
         uploadedFile: uploadedFile ? { name: uploadedFile.name, size: uploadedFile.size } : null
@@ -592,6 +616,8 @@ export default function ProjectUnifiedSpec() {
       console.log('✅ State restored successfully');
     }
   }, [projectState, stateLoading, csvPreview, fieldMapping, importJobId]);
+
+
 
   if (projectLoading) {
     return (

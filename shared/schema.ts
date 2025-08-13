@@ -77,12 +77,12 @@ export const imports = pgTable("imports", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// Import jobs for Step 4 processing
+// Import jobs for project tasks (not just import)
 export const importJobs = pgTable("import_jobs", {
   id: varchar("id", { length: 50 }).primaryKey(),
   jobId: varchar("job_id", { length: 50 }).unique().notNull(),
   projectId: varchar("project_id").references(() => projects.id).notNull(),
-  importId: varchar("import_id").references(() => imports.id).notNull(),
+  importId: varchar("import_id").references(() => imports.id), // Делаем необязательным
   status: varchar("status", { length: 20 }).notNull().default("pending"), // pending, running, completed, failed, canceled
   phase: varchar("phase", { length: 50 }).notNull().default("loading"), // loading, cleaning, chunking, extracting, embedding, graphing, finalizing
   percent: integer("percent").notNull().default(0),
@@ -96,6 +96,8 @@ export const importJobs = pgTable("import_jobs", {
   importDuration: integer("import_duration"), // seconds
   logs: text("logs").array().notNull().default(sql`ARRAY[]::text[]`),
   errorMessage: text("error_message"),
+  stepData: jsonb("step_data").notNull().default(sql`'{}'::jsonb`), // Состояние шагов
+  seoProfile: jsonb("seo_profile").notNull().default(sql`'{}'::jsonb`), // SEO настройки
   startedAt: timestamp("started_at").defaultNow().notNull(),
   finishedAt: timestamp("finished_at"),
 });
