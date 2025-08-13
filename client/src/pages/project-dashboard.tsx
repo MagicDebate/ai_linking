@@ -56,10 +56,16 @@ export default function ProjectDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Отладочная информация
+  console.log('🔍 ProjectDashboard - projectId:', projectId);
+  console.log('🔍 ProjectDashboard - params:', params);
+  console.log('🔍 ProjectDashboard - URL:', window.location.pathname);
+
   // Fetch project data
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ['/api/projects', projectId],
     queryFn: async () => {
+      console.log('🔍 ProjectDashboard - Fetching project:', projectId);
       const response = await fetch(`/api/projects/${projectId}`, {
         credentials: 'include'
       });
