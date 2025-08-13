@@ -548,14 +548,6 @@ export default function ProjectUnifiedSpec() {
     await setSeoProfile(newProfile);
   };
 
-  // Принудительно обновляем данные проекта при загрузке
-  useEffect(() => {
-    if (projectId) {
-      console.log('🔄 Force refetching project data for projectId:', projectId);
-      queryClient.invalidateQueries(['/api/projects', projectId]);
-    }
-  }, [projectId, queryClient]);
-
   // Отладочная информация о projectId
   console.log('🔍 Component projectId:', projectId);
   console.log('🔍 URL projectId:', window.location.pathname.split('/')[2]);
@@ -565,42 +557,22 @@ export default function ProjectUnifiedSpec() {
     if (projectState && !stateLoading) {
       console.log('🔄 Restoring state from checkpoints:', projectState);
       
-      // Восстанавливаем SEO профиль
-      if (projectState.seoProfile && Object.keys(projectState.seoProfile).length > 0) {
-        setSeoProfile(projectState.seoProfile);
+      // Восстанавливаем данные только если их нет
+      if (projectState.stepData?.csvPreview && !csvPreview) {
+        setCsvPreview(projectState.stepData.csvPreview);
       }
       
-      // Восстанавливаем данные шагов
-      if (projectState.stepData) {
-        if (projectState.stepData.csvPreview) {
-          setCsvPreview(projectState.stepData.csvPreview);
-        }
-        if (projectState.stepData.fieldMapping) {
-          setFieldMapping(projectState.stepData.fieldMapping);
-        }
-        if (projectState.stepData.uploadedFile) {
-          // Для файла мы можем только восстановить имя, сам файл нужно загрузить заново
-          console.log('📁 File was uploaded:', projectState.stepData.uploadedFile.name);
-        }
+      if (projectState.stepData?.fieldMapping && Object.keys(projectState.stepData.fieldMapping).length > 0 && Object.keys(fieldMapping).length === 0) {
+        setFieldMapping(projectState.stepData.fieldMapping);
       }
       
-      // Восстанавливаем importJobId если есть
-      if (projectState.importJobId) {
+      if (projectState.importJobId && !importJobId) {
         setImportJobId(projectState.importJobId);
-      }
-      
-      // Если URL не соответствует текущему шагу, обновляем URL
-      const urlStep = getStepFromUrl();
-      const maxStep = determineMaxStep();
-      const targetStep = Math.max(urlStep, projectState.currentStep || maxStep);
-      
-      if (urlStep !== targetStep) {
-        navigateToStep(targetStep);
       }
       
       console.log('✅ State restored successfully');
     }
-  }, [projectState, stateLoading, setSeoProfile, setImportJobId]);
+  }, [projectState, stateLoading, csvPreview, fieldMapping, importJobId]);
 
   if (projectLoading) {
     return (
