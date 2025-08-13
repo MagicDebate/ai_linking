@@ -197,6 +197,11 @@ export default function ProjectUnifiedSpec() {
   
   // Функция для перехода к шагу с обновлением URL
   const navigateToStep = (step: number) => {
+    if (!projectId) {
+      console.error('❌ ProjectId is undefined, cannot navigate');
+      return;
+    }
+    
     const stepUrls = {
       1: `/project/${projectId}/upload`,
       2: `/project/${projectId}/import`,
@@ -207,8 +212,13 @@ export default function ProjectUnifiedSpec() {
       7: `/project/${projectId}/publish`
     };
     
-    setLocation(stepUrls[step as keyof typeof stepUrls] || `/project/${projectId}`);
-    setCurrentStep(step);
+    const targetUrl = stepUrls[step as keyof typeof stepUrls];
+    if (targetUrl) {
+      setLocation(targetUrl);
+      setCurrentStep(step);
+    } else {
+      console.error('❌ Invalid step number:', step);
+    }
   };
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -228,16 +238,6 @@ export default function ProjectUnifiedSpec() {
   const determineMaxStep = () => {
     if (!projectState) return 1;
     
-    // Если есть importJobId и импорт завершен, показываем шаг 4
-    if (projectState.importJobId && importStatus?.status === 'completed') {
-      return 4;
-    }
-    
-    // Если есть importJobId и импорт в процессе, показываем шаг 2
-    if (projectState.importJobId && importStatus?.status === 'running') {
-      return 2;
-    }
-    
     // Если есть SEO профиль, показываем шаг 3
     if (projectState.seoProfile && Object.keys(projectState.seoProfile).length > 0) {
       return 3;
@@ -254,6 +254,25 @@ export default function ProjectUnifiedSpec() {
   // Приоритет: URL > сохраненное состояние > максимальный доступный шаг
   const currentStep = getStepFromUrl() || projectState?.currentStep || determineMaxStep();
   
+  // Состояние импорта - используем из projectState
+  const importJobId = projectState?.importJobId || null;
+  
+  // Запрос статуса импорта с автообновлением
+  const { data: importStatus, isLoading: importStatusLoading } = useQuery({
+    queryKey: ['/api/import/status', importJobId],
+    queryFn: async () => {
+      if (!importJobId) return null;
+      const response = await fetch(`/api/import/status/${importJobId}`);
+      if (!response.ok) throw new Error('Failed to get import status');
+      return response.json();
+    },
+    enabled: !!importJobId && currentStep === 2,
+    refetchInterval: (data) => {
+      // Обновляем каждую секунду пока импорт активен
+      return data?.status === 'running' ? 1000 : false;
+    }
+  });
+
   // Шаг 1: CSV данные
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
@@ -417,25 +436,6 @@ export default function ProjectUnifiedSpec() {
     onError: (error: any) => {
       console.error('❌ Import start error:', error);
       toast({ title: "Ошибка импорта", description: error.message, variant: "destructive" });
-    }
-  });
-
-  // Состояние импорта - используем из projectState
-  const importJobId = projectState?.importJobId || null;
-  
-  // Запрос статуса импорта с автообновлением
-  const { data: importStatus, isLoading: importStatusLoading } = useQuery({
-    queryKey: ['/api/import/status', importJobId],
-    queryFn: async () => {
-      if (!importJobId) return null;
-      const response = await fetch(`/api/import/status/${importJobId}`);
-      if (!response.ok) throw new Error('Failed to get import status');
-      return response.json();
-    },
-    enabled: !!importJobId && currentStep === 2,
-    refetchInterval: (data) => {
-      // Обновляем каждую секунду пока импорт активен
-      return data?.status === 'running' ? 1000 : false;
     }
   });
 
