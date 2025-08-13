@@ -42,7 +42,7 @@ function Router() {
           <Route path="/project/:id/seo" component={ProjectPage} />
           <Route path="/project/:id/import" component={ImportPage} />
           <Route path="/project/:id/scope" component={ProjectPage} />
-          <Route path="/project/:id/generate" component={GenerateLinks} />
+          <Route path="/project/:id/generate" component={ProjectPage} />
           <Route path="/project/:id/draft" component={ProjectPage} />
           <Route path="/project/:id/publish" component={ProjectPage} />
           <Route path="/project/:projectId/draft/:runId" component={DraftReview} />

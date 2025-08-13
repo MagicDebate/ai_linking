@@ -236,6 +236,11 @@ export function ImportPage() {
               <Button variant="outline" onClick={() => window.location.href = `/project/${projectId}`}>
                 Вернуться к проекту
               </Button>
+              {!jobId && (
+                <Button onClick={() => window.location.href = `/project/${projectId}/upload`}>
+                  Загрузить CSV файл
+                </Button>
+              )}
               {jobId && (
                 <Button onClick={() => refetch()}>
                   <RefreshCw className="h-4 w-4 mr-2" />

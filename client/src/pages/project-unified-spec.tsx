@@ -204,12 +204,6 @@ export default function ProjectUnifiedSpec() {
       7: `/project/${projectId}/publish`
     };
     
-    // Для шага 5 (генерация) используем window.location для полного перехода
-    if (step === 5) {
-      window.location.href = `/project/${projectId}/generate`;
-      return;
-    }
-    
     setLocation(stepUrls[step as keyof typeof stepUrls] || `/project/${projectId}`);
     setCurrentStep(step);
   };
