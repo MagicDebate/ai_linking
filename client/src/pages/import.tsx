@@ -217,6 +217,14 @@ export function ImportPage() {
     return <div>Project not found</div>;
   }
 
+  // Автоматическое перенаправление если нет jobId
+  useEffect(() => {
+    if (!jobId && !isError) {
+      console.log('🔄 No jobId found, redirecting to project page');
+      window.location.href = `/project/${projectId}`;
+    }
+  }, [jobId, isError, projectId]);
+
   if (isError || !jobId) {
     return (
       <div className="container mx-auto py-8">
@@ -224,11 +232,11 @@ export function ImportPage() {
           <CardContent className="p-8 text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">
-              {!jobId ? 'Импорт не найден' : 'Импорт не найден'}
+              {!jobId ? 'Перенаправление...' : 'Импорт не найден'}
             </h2>
             <p className="text-gray-600 mb-4">
               {!jobId 
-                ? 'Для этого проекта еще не было запущено импортов. Сначала загрузите CSV файл на главной странице проекта.'
+                ? 'Вы перешли на страницу импорта, но для этого проекта еще не был запущен импорт. Система перенаправит вас на правильный этап работы с проектом.'
                 : 'Импорт джоб не найден или истек. Возможно, сервер был перезапущен.'
               }
             </p>
@@ -237,8 +245,8 @@ export function ImportPage() {
                 Вернуться к проекту
               </Button>
               {!jobId && (
-                <Button onClick={() => window.location.href = `/project/${projectId}/upload`}>
-                  Загрузить CSV файл
+                <Button onClick={() => window.location.href = `/project/${projectId}`}>
+                  Продолжить работу с проектом
                 </Button>
               )}
               {jobId && (
