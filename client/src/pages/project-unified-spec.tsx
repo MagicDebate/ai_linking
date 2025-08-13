@@ -183,6 +183,11 @@ export default function ProjectUnifiedSpec() {
   const projectId = params?.id;
   const { toast } = useToast();
   
+  // Отладочная информация о projectId
+  console.log('🔍 ProjectUnifiedSpec - projectId:', projectId);
+  console.log('🔍 ProjectUnifiedSpec - params:', params);
+  console.log('🔍 ProjectUnifiedSpec - location:', location);
+  
   // Определяем текущий шаг из URL
   const getStepFromUrl = () => {
     if (location.includes('/upload')) return 1;
@@ -357,9 +362,14 @@ export default function ProjectUnifiedSpec() {
       return response.json();
     },
     onSuccess: async () => {
+      console.log('✅ Mapping saved successfully');
+      console.log('🔍 Current projectId:', projectId);
+      console.log('🔍 Current location:', location);
+      
       // Сохраняем маппинг в чекпоинты
       await setStepData({ fieldMapping });
       
+      console.log('✅ Step data saved, navigating to step 2');
       setCurrentStep(2); // Переходим к импорту данных после маппинга
       navigateToStep(2);
       toast({ title: "Маппинг сохранен! Переходим к импорту данных." });
@@ -529,10 +539,6 @@ export default function ProjectUnifiedSpec() {
     // Сохраняем изменения в чекпоинты
     await setSeoProfile(newProfile);
   };
-
-  // Отладочная информация о projectId
-  console.log('🔍 Component projectId:', projectId);
-  console.log('🔍 URL projectId:', window.location.pathname.split('/')[2]);
 
   // Восстанавливаем состояние из чекпоинтов при загрузке
   useEffect(() => {
