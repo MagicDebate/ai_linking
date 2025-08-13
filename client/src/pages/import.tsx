@@ -209,8 +209,8 @@ export function ImportPage() {
   };
 
   const handleGenerateLinks = () => {
-    // Navigate to Step 5 or generation results
-    window.location.href = `/project/${projectId}?step=5`;
+    // Navigate to generation page
+    window.location.href = `/project/${projectId}/generate`;
   };
 
   if (!projectId) {
@@ -224,11 +224,11 @@ export function ImportPage() {
           <CardContent className="p-8 text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">
-              {!jobId ? 'ID импорта не указан' : 'Импорт не найден'}
+              {!jobId ? 'Импорт не найден' : 'Импорт не найден'}
             </h2>
             <p className="text-gray-600 mb-4">
               {!jobId 
-                ? 'Не удалось получить ID импорта. Возможно, вы перешли на эту страницу напрямую без запуска импорта.'
+                ? 'Для этого проекта еще не было запущено импортов. Сначала загрузите CSV файл на главной странице проекта.'
                 : 'Импорт джоб не найден или истек. Возможно, сервер был перезапущен.'
               }
             </p>
