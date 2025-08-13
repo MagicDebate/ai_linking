@@ -329,7 +329,7 @@ export default function ProjectDashboard() {
               <div className="text-center py-8 text-gray-500">
                 <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p>Запусков еще не было</p>
-                <p className="text-sm">Нажмите "Настройки генерации" для запуска первой генерации</p>
+                <p className="text-sm">Нажмите "Начать перелинковку" для запуска первой генерации</p>
               </div>
             )}
           </CardContent>
