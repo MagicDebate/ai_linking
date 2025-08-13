@@ -1209,22 +1209,29 @@ export default function ProjectUnifiedSpec() {
                           />
                         </div>
                         {seoProfile.scenarios.depthLift.enabled && (
-                          <div>
-                            <Label>Минимальная глубина: {seoProfile.scenarios.depthLift.minDepth} кликов</Label>
-                            <Slider
-                              value={[seoProfile.scenarios.depthLift.minDepth]}
-                              onValueChange={([value]) => setSeoProfile(prev => ({
-                                ...prev,
-                                scenarios: { 
-                                  ...prev.scenarios, 
-                                  depthLift: { ...prev.scenarios.depthLift, minDepth: value }
-                                }
-                              }))}
-                              min={3}
-                              max={8}
-                              step={1}
-                              className="mt-2"
-                            />
+                          <div className="ml-6">
+                            <Label htmlFor="minDepth">Минимальная глубина</Label>
+                            <Select 
+                              value={(seoProfile?.scenarios?.depthLift?.minDepth || 5).toString()} 
+                              onValueChange={(value) =>
+                                setSeoProfile(prev => ({
+                                  ...prev,
+                                  scenarios: { 
+                                    ...prev.scenarios, 
+                                    depthLift: { ...prev.scenarios.depthLift, minDepth: parseInt(value) }
+                                  }
+                                }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[3,4,5,6,7,8].map(num => (
+                                  <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                         )}
                       </div>
@@ -1753,7 +1760,7 @@ export default function ProjectUnifiedSpec() {
                         <div>
                           <Label htmlFor="maxLinks">Максимум ссылок на страницу</Label>
                           <Select 
-                            value={seoProfile.maxLinks.toString()} 
+                            value={(seoProfile?.maxLinks || 3).toString()} 
                             onValueChange={(value) =>
                               setSeoProfile(prev => ({ ...prev, maxLinks: parseInt(value) }))
                             }
@@ -1772,7 +1779,7 @@ export default function ProjectUnifiedSpec() {
                         <div>
                           <Label htmlFor="minGap">Минимальный промежуток (слов)</Label>
                           <Select 
-                            value={seoProfile.minGap.toString()} 
+                            value={(seoProfile?.minGap || 100).toString()} 
                             onValueChange={(value) =>
                               setSeoProfile(prev => ({ ...prev, minGap: parseInt(value) }))
                             }
@@ -1791,7 +1798,7 @@ export default function ProjectUnifiedSpec() {
                         <div>
                           <Label htmlFor="exactAnchorPercent">Точные анкоры (%)</Label>
                           <Select 
-                            value={seoProfile.exactAnchorPercent.toString()} 
+                            value={(seoProfile?.exactAnchorPercent || 20).toString()} 
                             onValueChange={(value) =>
                               setSeoProfile(prev => ({ ...prev, exactAnchorPercent: parseInt(value) }))
                             }
@@ -1823,7 +1830,7 @@ export default function ProjectUnifiedSpec() {
                         <div className="flex items-center space-x-2">
                           <Switch
                             id="orphanFix"
-                            checked={seoProfile.scenarios.orphanFix}
+                            checked={seoProfile?.scenarios?.orphanFix ?? true}
                             onCheckedChange={(checked) =>
                               setSeoProfile(prev => ({
                                 ...prev,
@@ -1837,7 +1844,7 @@ export default function ProjectUnifiedSpec() {
                         <div className="flex items-center space-x-2">
                           <Switch
                             id="headConsolidation"
-                            checked={seoProfile.scenarios.headConsolidation}
+                            checked={seoProfile?.scenarios?.headConsolidation ?? true}
                             onCheckedChange={(checked) =>
                               setSeoProfile(prev => ({
                                 ...prev,
@@ -1851,7 +1858,7 @@ export default function ProjectUnifiedSpec() {
                         <div className="flex items-center space-x-2">
                           <Switch
                             id="clusterCrossLink"
-                            checked={seoProfile.scenarios.clusterCrossLink}
+                            checked={seoProfile?.scenarios?.clusterCrossLink ?? true}
                             onCheckedChange={(checked) =>
                               setSeoProfile(prev => ({
                                 ...prev,
@@ -1865,7 +1872,7 @@ export default function ProjectUnifiedSpec() {
                         <div className="flex items-center space-x-2">
                           <Switch
                             id="commercialRouting"
-                            checked={seoProfile.scenarios.commercialRouting}
+                            checked={seoProfile?.scenarios?.commercialRouting ?? true}
                             onCheckedChange={(checked) =>
                               setSeoProfile(prev => ({
                                 ...prev,
@@ -1883,7 +1890,7 @@ export default function ProjectUnifiedSpec() {
                           <div className="flex items-center space-x-2 mb-2">
                             <Switch
                               id="depthLift"
-                              checked={seoProfile.scenarios.depthLift.enabled}
+                              checked={seoProfile?.scenarios?.depthLift?.enabled ?? true}
                               onCheckedChange={(checked) =>
                                 setSeoProfile(prev => ({
                                   ...prev,
@@ -1896,11 +1903,11 @@ export default function ProjectUnifiedSpec() {
                             />
                             <Label htmlFor="depthLift">Поднятие глубоких страниц</Label>
                           </div>
-                          {seoProfile.scenarios.depthLift.enabled && (
+                          {(seoProfile?.scenarios?.depthLift?.enabled ?? true) && (
                             <div className="ml-6">
                               <Label htmlFor="minDepth">Минимальная глубина</Label>
                               <Select 
-                                value={seoProfile.scenarios.depthLift.minDepth.toString()} 
+                                value={(seoProfile?.scenarios?.depthLift?.minDepth || 5).toString()} 
                                 onValueChange={(value) =>
                                   setSeoProfile(prev => ({
                                     ...prev,
@@ -1928,7 +1935,7 @@ export default function ProjectUnifiedSpec() {
                           <div className="flex items-center space-x-2 mb-2">
                             <Switch
                               id="freshnessPush"
-                              checked={seoProfile.scenarios.freshnessPush.enabled}
+                              checked={seoProfile?.scenarios?.freshnessPush?.enabled ?? true}
                               onCheckedChange={(checked) =>
                                 setSeoProfile(prev => ({
                                   ...prev,
@@ -1941,12 +1948,12 @@ export default function ProjectUnifiedSpec() {
                             />
                             <Label htmlFor="freshnessPush">Продвижение свежих</Label>
                           </div>
-                          {seoProfile.scenarios.freshnessPush.enabled && (
+                          {(seoProfile?.scenarios?.freshnessPush?.enabled ?? true) && (
                             <div className="ml-6 space-y-2">
                               <div>
                                 <Label htmlFor="daysFresh">Дней свежести</Label>
                                 <Select 
-                                  value={seoProfile.scenarios.freshnessPush.daysFresh.toString()} 
+                                  value={(seoProfile?.scenarios?.freshnessPush?.daysFresh || 30).toString()} 
                                   onValueChange={(value) =>
                                     setSeoProfile(prev => ({
                                       ...prev,
@@ -1970,7 +1977,7 @@ export default function ProjectUnifiedSpec() {
                               <div>
                                 <Label htmlFor="linksPerDonor">Ссылок с донора</Label>
                                 <Select 
-                                  value={seoProfile.scenarios.freshnessPush.linksPerDonor.toString()} 
+                                  value={(seoProfile?.scenarios?.freshnessPush?.linksPerDonor || 1).toString()} 
                                   onValueChange={(value) =>
                                     setSeoProfile(prev => ({
                                       ...prev,
@@ -2011,7 +2018,7 @@ export default function ProjectUnifiedSpec() {
                         <div>
                           <Label htmlFor="oldLinks">Обработка существующих ссылок</Label>
                           <Select 
-                            value={seoProfile.policies.oldLinks} 
+                            value={seoProfile?.policies?.oldLinks || 'enrich'} 
                             onValueChange={(value: 'enrich' | 'regenerate' | 'audit') =>
                               setSeoProfile(prev => ({ 
                                 ...prev, 
@@ -2033,7 +2040,7 @@ export default function ProjectUnifiedSpec() {
                         <div>
                           <Label htmlFor="brokenLinks">Обработка битых ссылок</Label>
                           <Select 
-                            value={seoProfile.policies.brokenLinks} 
+                            value={seoProfile?.policies?.brokenLinks || 'replace'} 
                             onValueChange={(value: 'delete' | 'replace' | 'ignore') =>
                               setSeoProfile(prev => ({ 
                                 ...prev, 
@@ -2056,7 +2063,7 @@ export default function ProjectUnifiedSpec() {
                       <div className="flex items-center space-x-2">
                         <Switch
                           id="removeDuplicates"
-                          checked={seoProfile.policies.removeDuplicates}
+                          checked={seoProfile?.policies?.removeDuplicates ?? true}
                           onCheckedChange={(checked) =>
                             setSeoProfile(prev => ({ 
                               ...prev, 
