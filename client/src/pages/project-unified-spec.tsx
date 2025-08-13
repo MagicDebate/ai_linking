@@ -185,8 +185,8 @@ export default function ProjectUnifiedSpec() {
   // Определяем текущий шаг из URL
   const getStepFromUrl = () => {
     if (location.includes('/upload')) return 1;
-    if (location.includes('/seo')) return 2;
-    if (location.includes('/import')) return 3;
+    if (location.includes('/import')) return 2;
+    if (location.includes('/seo')) return 3;
     if (location.includes('/scope')) return 4;
     if (location.includes('/generate')) return 5;
     if (location.includes('/draft')) return 6;
@@ -198,8 +198,8 @@ export default function ProjectUnifiedSpec() {
   const navigateToStep = (step: number) => {
     const stepUrls = {
       1: `/project/${projectId}/upload`,
-      2: `/project/${projectId}/seo`,
-      3: `/project/${projectId}/import`,
+      2: `/project/${projectId}/import`,
+      3: `/project/${projectId}/seo`,
       4: `/project/${projectId}/scope`,
       5: `/project/${projectId}/generate`,
       6: `/project/${projectId}/draft`,
@@ -232,14 +232,14 @@ export default function ProjectUnifiedSpec() {
       return 4;
     }
     
-    // Если есть importJobId и импорт в процессе, показываем шаг 3
+    // Если есть importJobId и импорт в процессе, показываем шаг 2
     if (projectState.importJobId && importStatus?.status === 'running') {
-      return 3;
+      return 2;
     }
     
-    // Если есть SEO профиль, показываем шаг 2
+    // Если есть SEO профиль, показываем шаг 3
     if (projectState.seoProfile && Object.keys(projectState.seoProfile).length > 0) {
-      return 2;
+      return 3;
     }
     
     // Если есть CSV данные, показываем шаг 1
@@ -310,10 +310,10 @@ export default function ProjectUnifiedSpec() {
         uploadedFile: uploadedFile ? { name: uploadedFile.name, size: uploadedFile.size } : null
       });
       
-      // Переходим на шаг 2 (SEO настройки) после загрузки
+      // Переходим на шаг 2 (импорт данных) после загрузки
       setCurrentStep(2);
       navigateToStep(2);
-      toast({ title: "Файл загружен! Переходим к настройкам SEO." });
+      toast({ title: "Файл загружен! Переходим к импорту данных." });
     },
     onError: (error: any) => {
       toast({ title: "Ошибка загрузки", description: error.message, variant: "destructive" });
@@ -342,8 +342,8 @@ export default function ProjectUnifiedSpec() {
       // Сохраняем маппинг в чекпоинты
       await setStepData({ fieldMapping });
       
-      setCurrentStep(3); // Переходим к импорту после маппинга
-      toast({ title: "Маппинг сохранен! Переходим к импорту данных." });
+      setCurrentStep(3); // Переходим к SEO настройкам после маппинга
+      toast({ title: "Маппинг сохранен! Переходим к SEO настройкам." });
       // Автоматически запускаем импорт
       setTimeout(() => {
         if (csvPreview?.uploadId) {
@@ -375,7 +375,7 @@ export default function ProjectUnifiedSpec() {
       await setSeoProfile(seoProfile);
       
       toast({ title: "Настройки сохранены!" });
-      setCurrentStep(3); // Переходим на шаг импорта
+      setCurrentStep(4); // Переходим на шаг настройки области
       // Запускаем импорт автоматически
       console.log('🚀 Trying to start import with uploadId:', csvPreview?.uploadId);
       if (csvPreview?.uploadId) {
@@ -642,8 +642,8 @@ export default function ProjectUnifiedSpec() {
 
   const steps = [
     { number: 1, title: "Загрузка CSV и маппинг", description: "Загрузите файл и настройте поля данных" },
-    { number: 2, title: "SEO профиль", description: "Настройте пресеты, сценарии и параметры" },
-    { number: 3, title: "Импорт данных", description: "Обработка и анализ загруженного контента" },
+    { number: 2, title: "Импорт данных", description: "Обработка и анализ загруженного контента" },
+    { number: 3, title: "SEO профиль", description: "Настройте пресеты, сценарии и параметры" },
     { number: 4, title: "Настройка области", description: "Выберите scope для генерации ссылок" },
     { number: 5, title: "Генерация ссылок", description: "Создание внутренних ссылок по сценариям" },
     { number: 6, title: "Проверка черновика", description: "Просмотр и редактирование предложенных ссылок" },
@@ -979,7 +979,7 @@ export default function ProjectUnifiedSpec() {
                       onClick={() => navigateToStep(2)}
                       disabled={!fieldMapping.url || !fieldMapping.title || !fieldMapping.content}
                     >
-                      Продолжить к SEO профилю
+                      Продолжить к импорту данных
                       <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
                   </div>
@@ -1635,18 +1635,18 @@ export default function ProjectUnifiedSpec() {
 
                   {/* Кнопки управления */}
                   <div className="flex justify-between">
-                    <Button variant="outline" onClick={() => navigateToStep(1)}>
+                    <Button variant="outline" onClick={() => navigateToStep(2)}>
                       <ArrowLeft className="h-4 w-4 mr-2" />
-                      Назад к маппингу
+                      Назад к импорту данных
                     </Button>
                     
                     {/* Показываем кнопку перехода только когда импорт завершен ИЛИ если jobId не установлен */}
                     {(importStatus?.status === 'completed' || !importJobId) && (
                       <Button 
-                        onClick={() => navigateToStep(4)} // Переходим к настройке области после импорта
+                        onClick={() => navigateToStep(3)} // Переходим к SEO настройкам после импорта
                         className="bg-blue-600 hover:bg-blue-700"
                       >
-                        {!importJobId ? 'Пропустить импорт' : 'Перейти к настройке области'}
+                        {!importJobId ? 'Пропустить импорт' : 'Перейти к SEO настройкам'}
                         <ArrowRight className="h-4 w-4 ml-2" />
                       </Button>
                     )}
@@ -1683,9 +1683,9 @@ export default function ProjectUnifiedSpec() {
                   </div>
 
                   <div className="flex justify-center gap-4">
-                    <Button variant="outline" onClick={() => navigateToStep(2)}>
+                    <Button variant="outline" onClick={() => navigateToStep(3)}>
                       <ArrowLeft className="h-4 w-4 mr-2" />
-                      Назад к SEO профилю
+                      Назад к SEO настройкам
                     </Button>
                     <Button 
                       onClick={() => generateLinksMutation.mutate()}
