@@ -237,10 +237,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single project
   app.get("/api/projects/:id", authenticateToken, async (req: any, res) => {
     try {
+      console.log('🔍 Fetching project:', req.params.id);
+      console.log('👤 User ID:', req.user.id);
+      
       const project = await storage.getProjectById(req.params.id);
-      if (!project || project.userId !== req.user.id) {
+      console.log('📋 Project found:', project ? 'YES' : 'NO');
+      
+      if (!project) {
+        console.log('❌ Project not found in database');
         return res.status(404).json({ message: "Project not found" });
       }
+      
+      if (project.userId !== req.user.id) {
+        console.log('❌ Project belongs to different user:', project.userId, 'vs', req.user.id);
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      console.log('✅ Project found and authorized');
       res.json(project);
     } catch (error) {
       console.error("Get project error:", error);
@@ -274,18 +287,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get last run
   app.get("/api/projects/:id/last-run", authenticateToken, async (req: any, res) => {
     try {
+      console.log('🔍 Fetching last run for project:', req.params.id);
+      
       const project = await storage.getProjectById(req.params.id);
       if (!project || project.userId !== req.user.id) {
+        console.log('❌ Project not found or unauthorized');
         return res.status(404).json({ message: "Project not found" });
       }
 
       // Получаем последний запуск генерации
       const lastRun = await storage.getLastGenerationRun(req.params.id);
+      console.log('📊 Last run found:', lastRun ? 'YES' : 'NO');
       
       if (!lastRun) {
-        return res.status(404).json({ message: "No runs found" });
+        console.log('ℹ️ No runs found for project - this is normal for new projects');
+        return res.status(200).json(null);
       }
 
+      console.log('✅ Last run found:', lastRun.runId);
       res.json(lastRun);
     } catch (error) {
       console.error("Get last run error:", error);

@@ -60,7 +60,9 @@ export default function ProjectDashboard() {
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ['/api/projects', projectId],
     queryFn: async () => {
-      const response = await fetch(`/api/projects/${projectId}`);
+      const response = await fetch(`/api/projects/${projectId}`, {
+        credentials: 'include'
+      });
       if (!response.ok) throw new Error('Failed to fetch project');
       return response.json();
     },
@@ -71,7 +73,9 @@ export default function ProjectDashboard() {
   const { data: metrics, isLoading: metricsLoading } = useQuery<ProjectMetrics>({
     queryKey: ['/api/projects', projectId, 'metrics'],
     queryFn: async () => {
-      const response = await fetch(`/api/projects/${projectId}/metrics`);
+      const response = await fetch(`/api/projects/${projectId}/metrics`, {
+        credentials: 'include'
+      });
       if (!response.ok) throw new Error('Failed to fetch metrics');
       return response.json();
     },
@@ -79,10 +83,12 @@ export default function ProjectDashboard() {
   });
 
   // Fetch last run
-  const { data: lastRun, isLoading: lastRunLoading } = useQuery<LastRun>({
+  const { data: lastRun, isLoading: lastRunLoading } = useQuery<LastRun | null>({
     queryKey: ['/api/projects', projectId, 'last-run'],
     queryFn: async () => {
-      const response = await fetch(`/api/projects/${projectId}/last-run`);
+      const response = await fetch(`/api/projects/${projectId}/last-run`, {
+        credentials: 'include'
+      });
       if (!response.ok) throw new Error('Failed to fetch last run');
       return response.json();
     },
@@ -262,7 +268,7 @@ export default function ProjectDashboard() {
         </div>
 
         {/* Last Run */}
-        {lastRun && (
+        {lastRun ? (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -309,6 +315,22 @@ export default function ProjectDashboard() {
                   Обработано URL: {lastRun.totalUrls}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Последний запуск
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8 text-gray-500">
+                <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>Запусков еще не было</p>
+                <p className="text-sm">Нажмите "Настройки генерации" для запуска первой генерации</p>
+              </div>
             </CardContent>
           </Card>
         )}
