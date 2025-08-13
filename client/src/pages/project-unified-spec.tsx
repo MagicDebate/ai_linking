@@ -283,8 +283,8 @@ export default function ProjectUnifiedSpec() {
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
   
-  // Шаг 2: SEO профиль - используем из projectState
-  const seoProfile = projectState?.seoProfile || DEFAULT_PROFILE;
+  // Шаг 2: SEO профиль - используем из projectState с безопасным слиянием
+  const seoProfile = projectState?.seoProfile ? { ...DEFAULT_PROFILE, ...projectState.seoProfile } : DEFAULT_PROFILE;
   
   // Загрузка проекта
   const { data: project, isLoading: projectLoading, error: projectError } = useQuery({
@@ -571,21 +571,6 @@ export default function ProjectUnifiedSpec() {
     await setSeoProfile(newProfile);
   };
 
-  // Функция очистки состояния для новой задачи
-  const clearStateForNewTask = async () => {
-    console.log('🧹 Clearing state for new task');
-    setUploadedFile(null);
-    setCsvPreview(null);
-    setFieldMapping({});
-    
-    // Очищаем чекпоинты
-    await setStepData({});
-    await setImportJobId(null);
-    await setSeoProfile(null);
-    
-    toast({ title: "Состояние очищено! Можете начать новую задачу." });
-  };
-
   // Восстанавливаем состояние из чекпоинтов при загрузке
   useEffect(() => {
     if (projectState && !stateLoading) {
@@ -743,28 +728,6 @@ export default function ProjectUnifiedSpec() {
               {/* Шаг 1: Загрузка и маппинг CSV */}
               {currentStep === 1 && (
                 <div className="space-y-6">
-                  {/* Кнопка очистки состояния если есть сохраненные данные */}
-                  {(csvPreview || projectState?.stepData?.csvPreview) && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <AlertCircle className="h-5 w-5 text-yellow-600" />
-                          <span className="text-sm text-yellow-800">
-                            Обнаружены сохраненные данные. Хотите начать новую задачу?
-                          </span>
-                        </div>
-                        <Button
-                          onClick={clearStateForNewTask}
-                          variant="outline"
-                          size="sm"
-                          className="border-yellow-300 text-yellow-700 hover:bg-yellow-100"
-                        >
-                          Начать новую задачу
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="text-center space-y-4">
                     <h3 className="text-lg font-medium text-gray-900">
                       Загрузите CSV файл
