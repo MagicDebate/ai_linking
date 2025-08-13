@@ -25,7 +25,9 @@ import {
   ArrowLeft,
   Settings,
   Info,
-  Loader2
+  Loader2,
+  BarChart3,
+  Clock
 } from "lucide-react";
 
 interface FieldMapping {
@@ -1717,6 +1719,95 @@ export default function ProjectUnifiedSpec() {
                       ) : (
                         <>
                           <Settings className="h-4 w-4 mr-2" />
+                          Запустить генерацию ссылок
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Шаг 5: Генерация ссылок */}
+              {currentStep === 5 && (
+                <div className="space-y-6">
+                  <div className="text-center space-y-4">
+                    <BarChart3 className="h-16 w-16 text-green-600 mx-auto" />
+                    <h3 className="text-xl font-semibold text-gray-900">
+                      Генерация ссылок
+                    </h3>
+                    <p className="text-gray-600">
+                      Настройте параметры генерации и запустите создание внутренних ссылок.
+                    </p>
+                  </div>
+
+                  {/* Настройки генерации */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Settings className="h-5 w-5" />
+                        Настройки генерации
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="oldLinks">Обработка существующих ссылок</Label>
+                          <Select 
+                            value={seoProfile.oldLinks} 
+                            onValueChange={(value: 'enrich' | 'regenerate' | 'audit') =>
+                              setSeoProfile(prev => ({ ...prev, oldLinks: value }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="enrich">Enrich</SelectItem>
+                              <SelectItem value="regenerate">Regenerate</SelectItem>
+                              <SelectItem value="audit">Audit</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* История запусков */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Clock className="h-5 w-5" />
+                        История запусков
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-center py-8 text-gray-500">
+                        <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p>История запусков будет отображаться здесь</p>
+                        <p className="text-sm">После первого запуска генерации</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Кнопки управления */}
+                  <div className="flex justify-between">
+                    <Button variant="outline" onClick={() => navigateToStep(4)}>
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Назад к настройке области
+                    </Button>
+                    <Button 
+                      onClick={() => generateLinksMutation.mutate()}
+                      disabled={generateLinksMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {generateLinksMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Запускаем генерацию...
+                        </>
+                      ) : (
+                        <>
+                          <BarChart3 className="h-4 w-4 mr-2" />
                           Запустить генерацию ссылок
                         </>
                       )}
