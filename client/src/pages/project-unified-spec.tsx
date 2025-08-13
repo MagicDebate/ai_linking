@@ -376,21 +376,7 @@ export default function ProjectUnifiedSpec() {
       
       toast({ title: "Настройки сохранены!" });
       setCurrentStep(4); // Переходим на шаг настройки области
-      // Запускаем импорт автоматически
-      console.log('🚀 Trying to start import with uploadId:', csvPreview?.uploadId);
-      if (csvPreview?.uploadId) {
-        // Небольшая задержка чтобы UI обновился
-        setTimeout(() => {
-          startImportMutation.mutate();
-        }, 100);
-      } else {
-        console.error('❌ No uploadId available for import');
-        toast({ 
-          title: "Ошибка", 
-          description: "Не найден ID загрузки. Попробуйте загрузить CSV снова.",
-          variant: "destructive" 
-        });
-      }
+      navigateToStep(4);
     },
     onError: (error: any) => {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
@@ -431,8 +417,8 @@ export default function ProjectUnifiedSpec() {
       // Сохраняем importJobId в чекпоинты
       await setImportJobId(data.jobId);
       
-      // Переходим на страницу импорта с jobId
-      window.location.href = `/project/${projectId}/import?jobId=${data.jobId}`;
+      // Переходим на страницу импорта
+      navigateToStep(2);
     },
     onError: (error: any) => {
       console.error('❌ Import start error:', error);
@@ -452,7 +438,7 @@ export default function ProjectUnifiedSpec() {
       if (!response.ok) throw new Error('Failed to get import status');
       return response.json();
     },
-    enabled: !!importJobId && currentStep === 3,
+    enabled: !!importJobId && currentStep === 2,
     refetchInterval: (data) => {
       // Обновляем каждую секунду пока импорт активен
       return data?.status === 'running' ? 1000 : false;
@@ -468,11 +454,11 @@ export default function ProjectUnifiedSpec() {
       statusCheck: importStatus?.status 
     });
     
-    if (importStatus?.status === 'completed' && currentStep === 3) {
+    if (importStatus?.status === 'completed' && currentStep === 2) {
       toast({ title: "Импорт завершен успешно!" });
-      // Убираем setTimeout и сразу сохраняем шаг 4
-      navigateToStep(4);
-    } else if (importStatus && importStatus.status === 'failed' && currentStep === 3) {
+      // Переходим к SEO настройкам после завершения импорта
+      navigateToStep(3);
+    } else if (importStatus && importStatus.status === 'failed' && currentStep === 2) {
       toast({ 
         title: "Ошибка импорта", 
         description: importStatus.error || "Неизвестная ошибка",
@@ -505,7 +491,7 @@ export default function ProjectUnifiedSpec() {
     onSuccess: async (data) => {
       toast({ title: "Генерация ссылок запущена!" });
       // Переходим на страницу генерации ссылок для отслеживания прогресса
-      window.location.href = `/project/${projectId}/generate`;
+      navigateToStep(5);
     },
     onError: (error: any) => {
       toast({ title: "Ошибка генерации", description: error.message, variant: "destructive" });
