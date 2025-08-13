@@ -239,9 +239,9 @@ export default function ProjectDashboard() {
               <div className="text-2xl font-bold">
                 {metricsLoading ? '...' : metrics?.deepPages || 0}
               </div>
-              <p className="text-xs text-muted-foreground">
-                P95 click depth > 3
-              </p>
+                              <p className="text-xs text-muted-foreground">
+                  P95 click depth &gt; 3
+                </p>
             </CardContent>
           </Card>
 
