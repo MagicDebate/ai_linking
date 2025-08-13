@@ -267,34 +267,60 @@ export function ImportPage() {
       <div className="container mx-auto py-8">
         <Card>
           <CardContent className="p-8 text-center">
-            <RefreshCw className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-4" />
-            <div className="space-y-3">
-              <p>Загрузка статуса импорта...</p>
-              <p className="text-sm text-gray-500">
-                Project ID: {projectId}, Job ID: {jobId || 'не указан'}
-              </p>
-              <p className="text-sm text-gray-500">
-                Auto Refresh: {autoRefresh ? 'Включено' : 'Выключено'}, 
-                Is Fetching: {isFetching ? 'Да' : 'Нет'}, 
-                Is Error: {isError ? 'Да' : 'Нет'}
-              </p>
-              <div className="flex gap-2 justify-center">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => refetch()}
-                >
-                  Обновить вручную
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => window.location.href = `/project/${projectId}`}
-                >
-                  Вернуться к проекту
-                </Button>
+            {!jobId ? (
+              <div className="space-y-4">
+                <Database className="h-12 w-12 text-blue-500 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold text-gray-900">Импорт данных</h2>
+                <p className="text-gray-600">
+                  Для этого проекта еще не запущен импорт. Запустите импорт для обработки загруженных данных.
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <Button 
+                    onClick={() => window.location.href = `/project/${projectId}/upload`}
+                    variant="outline"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Вернуться к загрузке
+                  </Button>
+                  <Button 
+                    onClick={() => window.location.href = `/project/${projectId}`}
+                    variant="outline"
+                  >
+                    <Home className="h-4 w-4 mr-2" />
+                    К проекту
+                  </Button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                <RefreshCw className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-4" />
+                <p>Загрузка статуса импорта...</p>
+                <p className="text-sm text-gray-500">
+                  Project ID: {projectId}, Job ID: {jobId || 'не указан'}
+                </p>
+                <p className="text-sm text-gray-500">
+                  Auto Refresh: {autoRefresh ? 'Включено' : 'Выключено'}, 
+                  Is Fetching: {isFetching ? 'Да' : 'Нет'}, 
+                  Is Error: {isError ? 'Да' : 'Нет'}
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => refetch()}
+                  >
+                    Обновить вручную
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => window.location.href = `/project/${projectId}`}
+                  >
+                    Вернуться к проекту
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

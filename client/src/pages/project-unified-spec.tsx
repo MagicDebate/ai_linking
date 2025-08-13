@@ -369,10 +369,41 @@ export default function ProjectUnifiedSpec() {
       // Сохраняем маппинг в чекпоинты
       await setStepData({ fieldMapping });
       
-      console.log('✅ Step data saved, navigating to step 2');
-      setCurrentStep(2); // Переходим к импорту данных после маппинга
-      navigateToStep(2);
-      toast({ title: "Маппинг сохранен! Переходим к импорту данных." });
+      console.log('✅ Step data saved, starting import');
+      
+      // Автоматически запускаем импорт после сохранения маппинга
+      if (csvPreview?.uploadId) {
+        try {
+          const response = await fetch('/api/import/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              projectId,
+              uploadId: csvPreview.uploadId 
+            })
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            console.log('✅ Import started:', result);
+            
+            // Сохраняем importJobId в чекпоинты
+            await setImportJobId(result.jobId);
+            
+            // Переходим на страницу импорта с jobId
+            window.location.href = `/project/${projectId}/import?jobId=${result.jobId}`;
+            toast({ title: "Импорт запущен! Переходим к отслеживанию прогресса." });
+          } else {
+            throw new Error('Failed to start import');
+          }
+        } catch (error) {
+          console.error('❌ Failed to start import:', error);
+          toast({ title: "Ошибка запуска импорта", description: error.message, variant: "destructive" });
+        }
+      } else {
+        console.error('❌ No uploadId available');
+        toast({ title: "Ошибка", description: "Не найден ID загрузки", variant: "destructive" });
+      }
     },
     onError: (error: any) => {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
