@@ -248,6 +248,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get project metrics
+  app.get("/api/projects/:id/metrics", authenticateToken, async (req: any, res) => {
+    try {
+      const project = await storage.getProjectById(req.params.id);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // TODO: Реализовать получение реальных метрик из базы данных
+      // Пока возвращаем заглушки
+      const metrics = {
+        orphanPages: 0,
+        deepPages: 0,
+        redirectLinksPercent: 0
+      };
+
+      res.json(metrics);
+    } catch (error) {
+      console.error("Get project metrics error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get last run
+  app.get("/api/projects/:id/last-run", authenticateToken, async (req: any, res) => {
+    try {
+      const project = await storage.getProjectById(req.params.id);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Получаем последний запуск генерации
+      const lastRun = await storage.getLastGenerationRun(req.params.id);
+      
+      if (!lastRun) {
+        return res.status(404).json({ message: "No runs found" });
+      }
+
+      res.json(lastRun);
+    } catch (error) {
+      console.error("Get last run error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Create project
   app.post("/api/projects", authenticateToken, async (req: any, res) => {
     try {
@@ -1673,6 +1718,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get runs error:", error);
       res.status(500).json({ error: "Failed to get generation runs" });
+    }
+  });
+
+  // Download CSV for specific run
+  app.get("/api/generate/download/:runId", authenticateToken, async (req: any, res) => {
+    try {
+      const { runId } = req.params;
+      
+      // Get generation run details
+      const run = await db
+        .select()
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
+
+      if (!run || run.length === 0) {
+        return res.status(404).json({ error: "Run not found" });
+      }
+
+      // Validate project belongs to user
+      const project = await storage.getProjectById(run[0].projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // TODO: Реализовать генерацию CSV файла из результатов генерации
+      // Пока возвращаем заглушку
+      const csvContent = `URL,Anchor Text,Target URL,Score\n`;
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="links-${runId}.csv"`);
+      res.send(csvContent);
+    } catch (error) {
+      console.error("Download CSV error:", error);
+      res.status(500).json({ error: "Failed to download CSV" });
     }
   });
 

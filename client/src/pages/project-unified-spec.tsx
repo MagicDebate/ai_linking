@@ -263,7 +263,9 @@ export default function ProjectUnifiedSpec() {
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ['/api/projects', projectId],
     queryFn: async () => {
-      const response = await fetch(`/api/projects/${projectId}`);
+      const response = await fetch(`/api/projects/${projectId}`, {
+        credentials: 'include'
+      });
       if (!response.ok) throw new Error('Failed to fetch project');
       return response.json() as Promise<Project>;
     },

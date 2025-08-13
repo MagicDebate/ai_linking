@@ -13,6 +13,7 @@ import {
   embeddings,
   edges,
   graphMeta,
+  generationRuns,
   type User, 
   type InsertUser,
   type Project,
@@ -128,6 +129,32 @@ export class DatabaseStorage implements IStorage {
       .from(projects)
       .where(eq(projects.id, projectId));
     return project || undefined;
+  }
+
+  async getLastGenerationRun(projectId: string): Promise<any | undefined> {
+    const [run] = await db
+      .select()
+      .from(generationRuns)
+      .where(eq(generationRuns.projectId, projectId))
+      .orderBy(desc(generationRuns.startedAt))
+      .limit(1);
+    return run || undefined;
+  }
+
+  async getGenerationRuns(projectId: string): Promise<any[]> {
+    return await db
+      .select()
+      .from(generationRuns)
+      .where(eq(generationRuns.projectId, projectId))
+      .orderBy(desc(generationRuns.startedAt));
+  }
+
+  async getGenerationRunById(runId: string): Promise<any | undefined> {
+    const [run] = await db
+      .select()
+      .from(generationRuns)
+      .where(eq(generationRuns.runId, runId));
+    return run || undefined;
   }
 
   async createProject(project: InsertProject): Promise<Project> {

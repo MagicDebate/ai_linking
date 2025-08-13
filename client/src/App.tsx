@@ -8,6 +8,7 @@ import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
 import ProjectPage from "@/pages/project-unified-spec";
 import { ImportPage } from "@/pages/import";
+import ProjectDashboard from "@/pages/project-dashboard";
 
 import DebugPages from "@/pages/debug-pages-new";
 import DraftReview from "@/pages/draft-review";
@@ -37,7 +38,7 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/dashboard" component={Dashboard} />
-          <Route path="/project/:id" component={ProjectPage} />
+          <Route path="/project/:id" component={ProjectDashboard} />
           <Route path="/project/:id/upload" component={ProjectPage} />
           <Route path="/project/:id/seo" component={ProjectPage} />
           <Route path="/project/:id/import" component={ImportPage} />
