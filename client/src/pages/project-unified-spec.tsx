@@ -275,11 +275,18 @@ export default function ProjectUnifiedSpec() {
     return 1;
   };
   
-  // Приоритет: URL > сохраненное состояние > максимальный доступный шаг
-  const currentStep = getStepFromUrl() || projectState?.currentStep || determineMaxStep();
-  
   // Состояние импорта - используем из projectState
   const importJobId = projectState?.importJobId || null;
+  
+  // Приоритет: URL > сохраненное состояние > максимальный доступный шаг
+  // Но если есть активный импорт, принудительно показываем шаг 2
+  let currentStep = getStepFromUrl() || projectState?.currentStep || determineMaxStep();
+  
+  // Если есть активный импорт (importJobId), принудительно показываем шаг 2
+  if (importJobId && currentStep !== 2) {
+    console.log('🔍 Active import detected, forcing step 2');
+    currentStep = 2;
+  }
   
   // Запрос статуса импорта с автообновлением
   const { data: importStatus, isLoading: importStatusLoading } = useQuery({
@@ -433,7 +440,9 @@ export default function ProjectUnifiedSpec() {
             await setImportJobId(result.jobId);
             
             // Переходим к шагу 2 (импорт) в том же интерфейсе
+            console.log('🔍 Navigating to step 2 after import start');
             navigateToStep(2);
+            setCurrentStep(2); // Принудительно устанавливаем шаг 2
             toast({ title: "Импорт запущен! Отслеживаем прогресс." });
           } else {
             throw new Error('Failed to start import');
