@@ -5,15 +5,6 @@ interface StartGenerationParams {
   seoProfile: any; // SEOProfile from SEOSettings
 }
 
-// Изолированная функция для логирования без внешних зависимостей
-const logGenerationEvent = (type: 'start' | 'error', data: any) => {
-  if (type === 'start') {
-    console.log('✅ Generation started:', data);
-  } else {
-    console.error('❌ Generation start error:', data);
-  }
-};
-
 export function useGeneration() {
   const queryClient = useQueryClient();
 
@@ -36,10 +27,10 @@ export function useGeneration() {
       return response.json();
     },
     onSuccess: (data) => {
-      logGenerationEvent('start', data);
+      console.log('✅ Generation started:', data);
     },
     onError: (error: Error) => {
-      logGenerationEvent('error', error);
+      console.error('❌ Generation start error:', error);
     },
   });
 
