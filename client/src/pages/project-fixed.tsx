@@ -5,7 +5,7 @@ import { useProjectState } from "@/hooks/useProjectState";
 import { useProjectNavigation } from "@/hooks/useProjectNavigation";
 import { useImportStatus } from "@/hooks/useImportStatus";
 import { useProjectMutations } from "@/hooks/useProjectMutations";
-import { useGeneration } from "@/hooks/useGeneration";
+import { useGeneration, useGenerationProgress } from "@/hooks/useGeneration";
 import { ImportProgress } from "@/components/ImportProgress";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import { SEOSettings, SEOProfile } from "@/components/SEOSettings";
@@ -104,9 +104,7 @@ export default function ProjectFixed() {
   const { 
     startGeneration, 
     startGenerationAsync, 
-    isStartingGeneration, 
-    useGenerationProgress, 
-    useDraftResults 
+    isStartingGeneration,
   } = useGeneration();
 
   const { navigateToStep, getCurrentStep } = useProjectNavigation();
