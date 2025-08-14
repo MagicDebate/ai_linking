@@ -224,6 +224,7 @@ export default function ProjectUnifiedSpec() {
       console.error('❌ Invalid step number:', step);
     }
   };
+  
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -237,7 +238,9 @@ export default function ProjectUnifiedSpec() {
     setStepData 
   } = useProjectState(projectId);
 
-  // Шаги согласно ТЗ - используем состояние из чекпоинтов
+  // Состояние импорта - используем из projectState
+  const importJobId = projectState?.importJobId || null;
+  
   // Определяем максимальный доступный шаг на основе состояния
   const determineMaxStep = () => {
     if (!projectState) return 1;
@@ -274,9 +277,6 @@ export default function ProjectUnifiedSpec() {
     
     return 1;
   };
-  
-  // Состояние импорта - используем из projectState
-  const importJobId = projectState?.importJobId || null;
   
   // Приоритет: URL > сохраненное состояние > максимальный доступный шаг
   // Но если есть активный импорт, принудительно показываем шаг 2
@@ -616,9 +616,6 @@ export default function ProjectUnifiedSpec() {
 
   const applyPreset = async (preset: keyof typeof PRESETS) => {
     const newProfile = PRESETS[preset];
-    setSeoProfile(newProfile);
-    
-    // Сохраняем изменения в чекпоинты
     await setSeoProfile(newProfile);
   };
 
@@ -643,8 +640,6 @@ export default function ProjectUnifiedSpec() {
       console.log('✅ State restored successfully');
     }
   }, [projectState, stateLoading, csvPreview, fieldMapping, importJobId]);
-
-
 
   if (projectLoading) {
     return (
@@ -1084,11 +1079,12 @@ export default function ProjectUnifiedSpec() {
                               ? 'border-blue-500 bg-blue-50' 
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
-                          onClick={() => {
+                          onClick={async () => {
                             if (preset.key !== 'custom') {
-                              applyPreset(preset.key);
+                              await applyPreset(preset.key);
+                            } else {
+                              await setSeoProfile({ ...seoProfile, preset: preset.key });
                             }
-                            setSeoProfile(prev => ({ ...prev, preset: preset.key }));
                           }}
                         >
                           <h5 className={`font-medium ${seoProfile.preset === preset.key ? 'text-blue-900' : 'text-gray-900'}`}>
@@ -1115,7 +1111,7 @@ export default function ProjectUnifiedSpec() {
                           <Label>Максимум ссылок на страницу: {seoProfile.maxLinks}</Label>
                           <Slider
                             value={[seoProfile.maxLinks]}
-                            onValueChange={([value]) => setSeoProfile(prev => ({ ...prev, maxLinks: value }))}
+                            onValueChange={async ([value]) => await setSeoProfile({ ...seoProfile, maxLinks: value })}
                             min={1}
                             max={10}
                             step={1}
@@ -1127,7 +1123,7 @@ export default function ProjectUnifiedSpec() {
                           <Label>Минимальное расстояние: {seoProfile.minGap} слов</Label>
                           <Slider
                             value={[seoProfile.minGap]}
-                            onValueChange={([value]) => setSeoProfile(prev => ({ ...prev, minGap: value }))}
+                            onValueChange={async ([value]) => await setSeoProfile({ ...seoProfile, minGap: value })}
                             min={50}
                             max={400}
                             step={10}
