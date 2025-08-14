@@ -1026,7 +1026,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Project not found" });
       }
 
-      // Save SEO profile (simplified for now - could be stored in separate table)
+      // Save SEO profile to project state
+      await storage.saveProjectState(projectId, req.user.id, {
+        seoProfile: profile
+      });
+
       console.log("SEO profile saved for project:", projectId, profile);
       
       res.json({ success: true });
@@ -2851,8 +2855,7 @@ class ContentProcessor {
     
     const updateData: any = { 
       phase, 
-      percent,
-      logs: sql`array_append(logs, ${logMessage})`
+      percent
     };
     
     // Добавляем статистику если есть
@@ -2865,7 +2868,10 @@ class ContentProcessor {
       if (stats.avgClickDepth) updateData.avgClickDepth = stats.avgClickDepth;
     }
     
-    await this.storage.updateImportJob(jobId, updateData);
+    console.log(`💾 Updating job ${jobId} with data:`, updateData);
+    console.log(`📝 Adding log message: ${logMessage}`);
+    await this.storage.updateImportJob(jobId, { ...updateData, logs: [logMessage] });
+    console.log(`✅ Job ${jobId} updated successfully`);
     
     // Дополнительное логирование для завершения
     if (percent === 100) {

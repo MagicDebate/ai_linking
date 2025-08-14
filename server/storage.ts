@@ -452,8 +452,12 @@ export class DatabaseStorage implements IStorage {
       Object.assign(job, updates);
       
       // Handle logs properly
-      if (updates.logs && Array.isArray(updates.logs)) {
-        job.logs = [...(job.logs || []), ...updates.logs];
+      if (updates.logs) {
+        if (Array.isArray(updates.logs)) {
+          job.logs = [...(job.logs || []), ...updates.logs];
+        } else if (typeof updates.logs === 'string') {
+          job.logs = [...(job.logs || []), updates.logs];
+        }
         if (job.logs.length > 1000) {
           job.logs = job.logs.slice(-1000);
         }
