@@ -291,10 +291,9 @@ export default function ProjectUnifiedSpec() {
       return response.json();
     },
     enabled: !!importJobId && currentStep === 2,
-    refetchInterval: (data) => {
-      // Обновляем каждую секунду пока импорт активен
-      return data?.status === 'running' ? 1000 : false;
-    }
+    refetchInterval: 1000, // Принудительно обновляем каждую секунду на шаге 2
+    staleTime: 0, // Данные всегда считаются устаревшими
+    cacheTime: 0 // Отключаем кэширование
   });
 
   // Шаг 1: CSV данные
@@ -433,9 +432,9 @@ export default function ProjectUnifiedSpec() {
             // Сохраняем importJobId в чекпоинты
             await setImportJobId(result.jobId);
             
-            // Переходим на страницу импорта с jobId
-            window.location.href = `/project/${projectId}/import?jobId=${result.jobId}`;
-            toast({ title: "Импорт запущен! Переходим к отслеживанию прогресса." });
+            // Переходим к шагу 2 (импорт) в том же интерфейсе
+            navigateToStep(2);
+            toast({ title: "Импорт запущен! Отслеживаем прогресс." });
           } else {
             throw new Error('Failed to start import');
           }
@@ -1581,6 +1580,10 @@ export default function ProjectUnifiedSpec() {
                     </div>
                   ) : importStatus ? (
                     <div className="space-y-6">
+                      {/* Отладочная информация */}
+                      <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded">
+                        Debug: jobId={importJobId}, status={importStatus.status}, phase={importStatus.phase}, percent={importStatus.percent}%
+                      </div>
                       {/* Основной прогресс */}
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
