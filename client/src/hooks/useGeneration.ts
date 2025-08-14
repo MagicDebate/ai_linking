@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useToast } from '@/hooks/use-toast';
 
 interface GenerationProgress {
   runId: string;
@@ -34,6 +34,7 @@ interface StartGenerationParams {
 
 export function useGeneration() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Start generation mutation
   const startGenerationMutation = useMutation({
@@ -54,11 +55,15 @@ export function useGeneration() {
       return response.json();
     },
     onSuccess: (data) => {
-      toast.success('Генерация ссылок запущена!');
+      toast({ title: "Генерация ссылок запущена!" });
       console.log('✅ Generation started:', data);
     },
     onError: (error: Error) => {
-      toast.error(`Ошибка запуска генерации: ${error.message}`);
+      toast({ 
+        title: "Ошибка запуска генерации", 
+        description: error.message,
+        variant: "destructive" 
+      });
       console.error('❌ Generation start error:', error);
     },
   });
