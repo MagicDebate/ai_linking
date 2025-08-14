@@ -205,7 +205,7 @@ export function SEOSettings({
                 <div>
                   <h5 className="font-medium">Depth Lift</h5>
                   <p className="text-sm text-gray-600">Поднятие глубоко вложенных страниц</p>
-                  <p className="text-xs text-gray-500">URL с глубиной >2–3 в структуре сайта, добавление ссылок на верхние уровни</p>
+                                     <p className="text-xs text-gray-500">URL с глубиной &gt;2–3 в структуре сайта, добавление ссылок на верхние уровни</p>
                 </div>
               </div>
               <Switch
