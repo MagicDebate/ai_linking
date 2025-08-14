@@ -192,7 +192,7 @@ export default function ProjectUnifiedSpec() {
   // Определяем текущий шаг из URL
   const getStepFromUrl = () => {
     if (location.includes('/upload')) return 1;
-    if (location.includes('/import')) return 2;
+    if (location.includes('/import-progress')) return 2;
     if (location.includes('/seo')) return 3;
     if (location.includes('/generate')) return 4;
     if (location.includes('/draft')) return 5;
@@ -209,7 +209,7 @@ export default function ProjectUnifiedSpec() {
     
     const stepUrls = {
       1: `/project/${projectId}/upload`,
-      2: `/project/${projectId}/import`,
+      2: `/project/${projectId}/import-progress`,
       3: `/project/${projectId}/seo`,
       4: `/project/${projectId}/generate`,
       5: `/project/${projectId}/draft`,

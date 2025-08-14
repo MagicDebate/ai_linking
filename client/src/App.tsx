@@ -42,6 +42,7 @@ function Router() {
           <Route path="/project/:id/upload" component={ProjectPage} />
           <Route path="/project/:id/seo" component={ProjectPage} />
           <Route path="/project/:id/import" component={ImportPage} />
+          <Route path="/project/:id/import-progress" component={ProjectPage} />
           <Route path="/project/:id/scope" component={ProjectPage} />
           <Route path="/project/:id/generate" component={ProjectPage} />
           <Route path="/project/:id/draft" component={ProjectPage} />
