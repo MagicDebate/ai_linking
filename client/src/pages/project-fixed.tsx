@@ -248,6 +248,8 @@ export default function ProjectFixed() {
       console.log('✅ Generation started:', result);
       setGenerationRunId(result.runId);
       
+      toast({ title: "Генерация ссылок запущена!" });
+      
       // Переходим к следующему шагу
       navigateToStep(4, projectId!);
       
