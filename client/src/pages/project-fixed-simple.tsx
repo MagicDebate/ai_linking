@@ -1,18 +1,35 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
+import { useProjectState } from "@/hooks/useProjectState";
+import { useProjectNavigation } from "@/hooks/useProjectNavigation";
+import { useImportStatus } from "@/hooks/useImportStatus";
+import { useProjectMutations } from "@/hooks/useProjectMutations";
+import { useGeneration } from "@/hooks/useGeneration";
+import { useGenerationProgress } from "@/hooks/useGenerationProgress";
+import { ImportProgress } from "@/components/ImportProgress";
+import { GenerationProgress } from "@/components/GenerationProgress";
+import { SEOSettings, SEOProfile } from "@/components/SEOSettings";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast-simple";
 import {
   Upload,
+  FileText,
+  Globe,
+  CheckCircle2,
   ArrowRight,
+  Download,
+  AlertCircle,
   ArrowLeft,
   Settings,
+  Info,
   Loader2,
   BarChart3,
+  Clock,
   Play,
   Database
 } from "lucide-react";
@@ -27,32 +44,88 @@ interface CsvPreview {
   uploadId?: string;
 }
 
-interface ProjectState {
-  currentStep: number;
-  importJobId?: string;
-  seoProfile: any;
+interface Project {
+  id: string;
+  name: string;
+  domain: string;
+  status: "QUEUED" | "READY";
+  updatedAt: string;
 }
 
-export default function ProjectFixed() {
+// Используем SEOProfile из компонента SEOSettings
+const DEFAULT_PROFILE: SEOProfile = {
+  maxLinks: 3,
+  minGap: 100,
+  exactAnchorPercent: 20,
+  stopAnchors: [],
+  priorityPages: [],
+  hubPages: [],
+  tasks: {
+    orphanFix: true,
+    headConsolidation: true,
+    clusterCrossLink: true,
+    commercialRouting: true,
+    depthLift: { enabled: true, minDepth: 5 },
+    freshnessPush: { enabled: true, daysFresh: 30, linksPerDonor: 1 }
+  },
+  policies: {
+    oldLinks: 'enrich',
+    removeDuplicates: true,
+    brokenLinks: 'replace'
+  },
+  htmlAttributes: {
+    className: '',
+    rel: { noopener: false, noreferrer: false, nofollow: false },
+    targetBlank: false,
+    classMode: 'append'
+  }
+};
+
+export default function ProjectFixedSimple() {
   const [, params] = useRoute("/project/:id/*");
   const [location, setLocation] = useLocation();
   const projectId = params?.id;
+  const { toast } = useToast();
   
-  console.log('🔍 ProjectFixed - projectId:', projectId);
-  console.log('🔍 ProjectFixed - location:', location);
+  console.log('🔍 ProjectFixedSimple - projectId:', projectId);
+  console.log('🔍 ProjectFixedSimple - location:', location);
   
+  // Хуки
+  const { 
+    projectState, 
+    isLoading: stateLoading, 
+    setCurrentStep, 
+    setImportJobId, 
+    setSeoProfile, 
+    setStepData 
+  } = useProjectState(projectId);
+
+  const { navigateToStep } = useProjectNavigation(projectId, setCurrentStep);
+  const { importStatus, isLoading: importLoading } = useImportStatus(projectState?.importJobId);
+  const { 
+    uploadFile, 
+    mapFields, 
+    startImport, 
+    isUploading, 
+    isMapping, 
+    isStartingImport 
+  } = useProjectMutations(projectId, setImportJobId, setStepData);
+
+  const { 
+    startGenerationAsync, 
+    isStartingGeneration,
+  } = useGeneration();
+
+  const { data: generationProgress, isLoading: generationLoading } = useGenerationProgress(generationRunId);
+
   // Local state
-  const [projectState, setProjectState] = useState<ProjectState>({
-    currentStep: 1,
-    seoProfile: {}
-  });
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [seoProfile, setSeoProfileLocal] = useState<SEOProfile>(DEFAULT_PROFILE);
+  const [generationRunId, setGenerationRunId] = useState<string | null>(null);
 
-  // Get current step from URL
+  // Get current step from URL or state
   const getCurrentStep = () => {
     if (location.includes('/upload')) return 1;
     if (location.includes('/import')) return 2;
@@ -60,104 +133,70 @@ export default function ProjectFixed() {
     if (location.includes('/generate')) return 4;
     if (location.includes('/draft')) return 5;
     if (location.includes('/export')) return 6;
-    return 1;
+    return projectState?.currentStep || 1;
   };
 
   const currentStep = getCurrentStep();
 
-  // Simple navigation
-  const navigateToStep = (step: number) => {
-    const stepPaths = ['', '/upload', '/import', '/settings', '/generate', '/draft', '/export'];
-    window.history.pushState(null, '', `/project/${projectId}${stepPaths[step]}`);
-  };
-
   // Handle file upload
   const handleFileUpload = async (file: File) => {
     setUploadedFile(file);
-    setIsLoading(true);
-    setError(null);
-    
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to upload file');
-      }
-      
-      const result = await response.json();
+      const result = await uploadFile(file);
       setCsvPreview(result);
-      console.log('✅ File uploaded successfully');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
-      console.error('❌ Upload error:', err);
-    } finally {
-      setIsLoading(false);
+      toast({ title: "Файл загружен успешно!" });
+    } catch (error) {
+      toast({ title: "Ошибка загрузки файла", description: error.message, variant: "destructive" });
     }
   };
 
   // Handle field mapping
   const handleFieldMapping = async () => {
-    setIsLoading(true);
-    setError(null);
-    
     try {
-      const response = await fetch('/api/field-mapping', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ mapping: fieldMapping }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to map fields');
-      }
-      
-      console.log('✅ Fields mapped successfully');
+      await mapFields(fieldMapping);
+      toast({ title: "Поля сопоставлены успешно!" });
       navigateToStep(2);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Mapping failed');
-      console.error('❌ Mapping error:', err);
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      toast({ title: "Ошибка сопоставления полей", description: error.message, variant: "destructive" });
     }
   };
 
   // Handle import start
   const handleStartImport = async () => {
-    setIsLoading(true);
-    setError(null);
-    
     try {
-      const response = await fetch('/api/import/start', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ projectId }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to start import');
-      }
-      
-      const result = await response.json();
-      setProjectState(prev => ({ ...prev, importJobId: result.jobId }));
-      console.log('✅ Import started successfully');
+      await startImport();
+      toast({ title: "Импорт запущен!" });
       navigateToStep(2);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import failed');
-      console.error('❌ Import error:', err);
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      toast({ title: "Ошибка запуска импорта", description: error.message, variant: "destructive" });
     }
   };
+
+  // Handle generation start
+  const handleGenerate = async () => {
+    try {
+      const result = await startGenerationAsync({ projectId: projectId!, seoProfile });
+      setGenerationRunId(result.runId);
+      toast({ title: "Генерация ссылок запущена!" });
+      navigateToStep(4);
+    } catch (error) {
+      toast({ title: "Ошибка запуска генерации", description: error.message, variant: "destructive" });
+    }
+  };
+
+  // Auto-transition from import to settings
+  useEffect(() => {
+    if (importStatus?.status === 'completed' && currentStep === 2) {
+      navigateToStep(3);
+    }
+  }, [importStatus?.status, currentStep, navigateToStep]);
+
+  // Auto-transition from generation to draft
+  useEffect(() => {
+    if (generationProgress?.status === 'draft' && currentStep === 4) {
+      navigateToStep(5);
+    }
+  }, [generationProgress?.status, currentStep, navigateToStep]);
 
   // Handle back to upload
   const handleBackToUpload = () => {
@@ -169,12 +208,12 @@ export default function ProjectFixed() {
     navigateToStep(1);
   };
 
-  if (isLoading) {
+  if (stateLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-screen">
           <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Загрузка...</span>
+          <span className="ml-2">Загрузка проекта...</span>
         </div>
       </Layout>
     );
@@ -188,15 +227,9 @@ export default function ProjectFixed() {
           <div className="flex items-center space-x-4 text-sm text-gray-600">
             <span>Шаг {currentStep} из 6</span>
             <span>•</span>
-            <span>Статус: Активный</span>
+            <span>Статус: {projectState?.status || 'Загрузка...'}</span>
           </div>
         </div>
-
-        {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-700">
-            {error}
-          </div>
-        )}
 
         {/* Step 1: Upload */}
         {currentStep === 1 && (
@@ -219,7 +252,7 @@ export default function ProjectFixed() {
                       const file = e.target.files?.[0];
                       if (file) handleFileUpload(file);
                     }}
-                    disabled={isLoading}
+                    disabled={isUploading}
                   />
                 </div>
                 
@@ -258,10 +291,10 @@ export default function ProjectFixed() {
                     
                     <Button 
                       onClick={handleFieldMapping}
-                      disabled={isLoading}
+                      disabled={isMapping}
                       className="w-full"
                     >
-                      {isLoading ? (
+                      {isMapping ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Сопоставление...
@@ -290,21 +323,32 @@ export default function ProjectFixed() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8">
-                <Button onClick={handleStartImport} disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Запуск импорта...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="mr-2 h-4 w-4" />
-                      Запустить импорт
-                    </>
-                  )}
-                </Button>
-              </div>
+              {importStatus ? (
+                <ImportProgress 
+                  status={importStatus.status}
+                  phase={importStatus.phase}
+                  percent={importStatus.percent}
+                  processed={importStatus.processed}
+                  total={importStatus.total}
+                  errorMessage={importStatus.errorMessage}
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <Button onClick={handleStartImport} disabled={isStartingImport}>
+                    {isStartingImport ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Запуск импорта...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="mr-2 h-4 w-4" />
+                        Запустить импорт
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -319,13 +363,12 @@ export default function ProjectFixed() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8">
-                <p>Настройки генерации будут здесь</p>
-                <Button onClick={() => navigateToStep(4)} className="mt-4">
-                  Продолжить
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
+              <SEOSettings 
+                seoProfile={seoProfile}
+                onProfileChange={setSeoProfileLocal}
+                onGenerate={handleGenerate}
+                isGenerating={isStartingGeneration}
+              />
             </CardContent>
           </Card>
         )}
@@ -340,13 +383,37 @@ export default function ProjectFixed() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8">
-                <p>Генерация ссылок будет здесь</p>
-                <Button onClick={() => navigateToStep(5)} className="mt-4">
-                  Продолжить
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
+              {generationRunId ? (
+                <GenerationProgress 
+                  runId={generationRunId}
+                  status={generationProgress?.status || 'running'}
+                  phase={generationProgress?.phase || 'Инициализация'}
+                  percent={generationProgress?.percent || 0}
+                  generated={generationProgress?.generated || 0}
+                  rejected={generationProgress?.rejected || 0}
+                  taskProgress={generationProgress?.taskProgress || {}}
+                  counters={generationProgress?.counters || { scanned: 0, candidates: 0, accepted: 0, rejected: 0 }}
+                  startedAt={generationProgress?.startedAt || new Date().toISOString()}
+                  finishedAt={generationProgress?.finishedAt}
+                  errorMessage={generationProgress?.errorMessage}
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <Button onClick={handleGenerate} disabled={isStartingGeneration}>
+                    {isStartingGeneration ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Запуск генерации...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="mr-2 h-4 w-4" />
+                        Запустить генерацию
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
