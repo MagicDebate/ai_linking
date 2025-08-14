@@ -170,31 +170,67 @@ export function SEOSettings({
                 icon: <Link className="h-4 w-4" />,
                 details: 'Векторная схожесть внутри кластера, генерация ссылок между статьями одной темы'
               },
-              { 
-                key: 'commercialRouting', 
-                title: 'Commercial Routing', 
-                desc: 'Перелив на Money Pages',
-                icon: <TrendingUp className="h-4 w-4" />,
-                details: 'Список целевых коммерческих страниц, приоритетная перелинковка туда'
-              }
-            ].map((task) => (
-              <div key={task.key} className="p-4 border rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    {task.icon}
-                    <div>
-                      <h5 className="font-medium">{task.title}</h5>
-                      <p className="text-sm text-gray-600">{task.desc}</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={seoProfile.tasks[task.key as keyof typeof seoProfile.tasks] as boolean}
-                    onCheckedChange={(checked) => updateTasks({ [task.key]: checked })}
-                  />
-                </div>
-                <p className="text-xs text-gray-500">{task.details}</p>
-              </div>
-            ))}
+                             { 
+                 key: 'commercialRouting', 
+                 title: 'Commercial Routing', 
+                 desc: 'Перелив на Money Pages',
+                 icon: <TrendingUp className="h-4 w-4" />,
+                 details: 'Список целевых коммерческих страниц, приоритетная перелинковка туда'
+               }
+             ].map((task) => (
+               <div key={task.key} className="p-4 border rounded-lg">
+                 <div className="flex items-center justify-between mb-3">
+                   <div className="flex items-center gap-3">
+                     {task.icon}
+                     <div>
+                       <h5 className="font-medium">{task.title}</h5>
+                       <p className="text-sm text-gray-600">{task.desc}</p>
+                     </div>
+                   </div>
+                   <Switch
+                     checked={seoProfile.tasks[task.key as keyof typeof seoProfile.tasks] as boolean}
+                     onCheckedChange={(checked) => updateTasks({ [task.key]: checked })}
+                   />
+                 </div>
+                 <p className="text-xs text-gray-500">{task.details}</p>
+                 
+                 {/* Priority Pages - для Commercial Routing */}
+                 {task.key === 'commercialRouting' && seoProfile.tasks.commercialRouting && (
+                   <div className="mt-4 pt-4 border-t">
+                     <Label htmlFor="priorityPages">Priority Pages (Money Pages)</Label>
+                     <Textarea
+                       id="priorityPages"
+                       value={seoProfile.priorityPages.join(', ')}
+                       onChange={(e) => {
+                         const urls = e.target.value.split(',').map(s => s.trim()).filter(s => s);
+                         updateProfile({ priorityPages: urls });
+                       }}
+                       placeholder="Введите URL через запятую"
+                       className="mt-1"
+                     />
+                     <p className="text-xs text-gray-500 mt-1">Коммерческие страницы для Commercial Routing</p>
+                   </div>
+                 )}
+                 
+                 {/* Hub Pages - для Head Consolidation */}
+                 {task.key === 'headConsolidation' && seoProfile.tasks.headConsolidation && (
+                   <div className="mt-4 pt-4 border-t">
+                     <Label htmlFor="hubPages">Hub Pages</Label>
+                     <Textarea
+                       id="hubPages"
+                       value={seoProfile.hubPages.join(', ')}
+                       onChange={(e) => {
+                         const urls = e.target.value.split(',').map(s => s.trim()).filter(s => s);
+                         updateProfile({ hubPages: urls });
+                       }}
+                       placeholder="Введите URL через запятую"
+                       className="mt-1"
+                     />
+                     <p className="text-xs text-gray-500 mt-1">Канонические/хаб-страницы для Head Consolidation</p>
+                   </div>
+                 )}
+               </div>
+             ))}
           </div>
 
           {/* Depth Lift */}
@@ -358,45 +394,7 @@ export function SEOSettings({
             </div>
           </div>
 
-          {/* Priority Pages - видно только если Commercial Routing включен */}
-          {seoProfile.tasks.commercialRouting && (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="priorityPages">Priority Pages (Money Pages)</Label>
-                <Textarea
-                  id="priorityPages"
-                  value={seoProfile.priorityPages.join(', ')}
-                  onChange={(e) => {
-                    const urls = e.target.value.split(',').map(s => s.trim()).filter(s => s);
-                    updateProfile({ priorityPages: urls });
-                  }}
-                  placeholder="Введите URL через запятую"
-                  className="mt-1"
-                />
-                <p className="text-xs text-gray-500 mt-1">Коммерческие страницы для Commercial Routing</p>
-              </div>
-            </div>
-          )}
-
-          {/* Hub Pages - видно только если Head Consolidation включен */}
-          {seoProfile.tasks.headConsolidation && (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="hubPages">Hub Pages</Label>
-                <Textarea
-                  id="hubPages"
-                  value={seoProfile.hubPages.join(', ')}
-                  onChange={(e) => {
-                    const urls = e.target.value.split(',').map(s => s.trim()).filter(s => s);
-                    updateProfile({ hubPages: urls });
-                  }}
-                  placeholder="Введите URL через запятую"
-                  className="mt-1"
-                />
-                <p className="text-xs text-gray-500 mt-1">Канонические/хаб-страницы для Head Consolidation</p>
-              </div>
-            </div>
-          )}
+          
         </CardContent>
       </Card>
 
