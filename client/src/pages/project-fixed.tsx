@@ -58,7 +58,7 @@ const DEFAULT_PROFILE: SEOProfile = {
   stopAnchors: [],
   priorityPages: [],
   hubPages: [],
-  scenarios: {
+  tasks: {
     orphanFix: true,
     headConsolidation: true,
     clusterCrossLink: true,
@@ -213,6 +213,11 @@ export default function ProjectFixed() {
   };
 
   const handleBackToUpload = async () => {
+    // Если есть данные CSV, показываем их, если нет - очищаем форму
+    if (!csvPreview) {
+      setUploadedFile(null);
+      setFieldMapping({});
+    }
     await navigateToStep(1, projectId!);
   };
 

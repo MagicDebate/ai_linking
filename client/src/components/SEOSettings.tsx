@@ -7,20 +7,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { 
   Settings, 
   Link, 
   Target, 
   FileText, 
-  Layers, 
   TrendingUp,
   Clock,
   ArrowUp,
   RefreshCw,
-  Trash2,
   Code,
-  ExternalLink
+  ExternalLink,
+  CheckCircle2
 } from 'lucide-react';
 
 export interface SEOProfile {
@@ -34,8 +32,8 @@ export interface SEOProfile {
   priorityPages: string[];    // Money pages for Commercial Routing
   hubPages: string[];        // Hub pages for Head Consolidation
   
-  // Сценарии ON/OFF + настройки
-  scenarios: {
+  // Задачи ON/OFF + настройки
+  tasks: {
     orphanFix: boolean;
     headConsolidation: boolean;
     clusterCrossLink: boolean;
@@ -78,7 +76,7 @@ const DEFAULT_PROFILE: SEOProfile = {
   stopAnchors: [],
   priorityPages: [],
   hubPages: [],
-  scenarios: {
+  tasks: {
     orphanFix: true,
     headConsolidation: true,
     clusterCrossLink: true,
@@ -116,10 +114,10 @@ export function SEOSettings({
     onProfileChange({ ...seoProfile, ...updates });
   };
 
-  const updateScenarios = (updates: Partial<SEOProfile['scenarios']>) => {
+  const updateTasks = (updates: Partial<SEOProfile['tasks']>) => {
     onProfileChange({
       ...seoProfile,
-      scenarios: { ...seoProfile.scenarios, ...updates }
+      tasks: { ...seoProfile.tasks, ...updates }
     });
   };
 
@@ -139,55 +137,62 @@ export function SEOSettings({
 
   return (
     <div className="space-y-6">
-      {/* Сценарии - НА ПЕРВОМ МЕСТЕ */}
+      {/* Задачи - НА ПЕРВОМ МЕСТЕ */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Layers className="h-5 w-5" />
-            Сценарии генерации
+            <CheckCircle2 className="h-5 w-5" />
+            Задачи генерации
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Простые сценарии */}
+          {/* Простые задачи */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               { 
                 key: 'orphanFix', 
                 title: 'Orphan Fix', 
-                desc: 'Исправление сиротских страниц',
-                icon: <FileText className="h-4 w-4" />
+                desc: 'Исправление «сиротских» страниц',
+                icon: <FileText className="h-4 w-4" />,
+                details: 'URL всех страниц без внутренних входящих ссылок'
               },
               { 
                 key: 'headConsolidation', 
                 title: 'Head Consolidation', 
-                desc: 'Консолидация главных страниц',
-                icon: <Target className="h-4 w-4" />
+                desc: 'Консолидация заголовков',
+                icon: <Target className="h-4 w-4" />,
+                details: 'Карта заголовков H2/H3, перераспределение ссылок по секциям'
               },
               { 
                 key: 'clusterCrossLink', 
                 title: 'Cluster Cross-Link', 
-                desc: 'Перекрестные ссылки в кластерах',
-                icon: <Link className="h-4 w-4" />
+                desc: 'Перелинковка внутри кластеров',
+                icon: <Link className="h-4 w-4" />,
+                details: 'Векторная схожесть внутри кластера, генерация ссылок между статьями одной темы'
               },
               { 
                 key: 'commercialRouting', 
                 title: 'Commercial Routing', 
-                desc: 'Маршрутизация на коммерческие страницы',
-                icon: <TrendingUp className="h-4 w-4" />
+                desc: 'Перелив на Money Pages',
+                icon: <TrendingUp className="h-4 w-4" />,
+                details: 'Список целевых коммерческих страниц, приоритетная перелинковка туда'
               }
-            ].map((scenario) => (
-              <div key={scenario.key} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  {scenario.icon}
-                  <div>
-                    <h5 className="font-medium">{scenario.title}</h5>
-                    <p className="text-sm text-gray-600">{scenario.desc}</p>
+            ].map((task) => (
+              <div key={task.key} className="p-4 border rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    {task.icon}
+                    <div>
+                      <h5 className="font-medium">{task.title}</h5>
+                      <p className="text-sm text-gray-600">{task.desc}</p>
+                    </div>
                   </div>
+                  <Switch
+                    checked={seoProfile.tasks[task.key as keyof typeof seoProfile.tasks] as boolean}
+                    onCheckedChange={(checked) => updateTasks({ [task.key]: checked })}
+                  />
                 </div>
-                <Switch
-                  checked={seoProfile.scenarios[scenario.key as keyof typeof seoProfile.scenarios] as boolean}
-                  onCheckedChange={(checked) => updateScenarios({ [scenario.key]: checked })}
-                />
+                <p className="text-xs text-gray-500">{task.details}</p>
               </div>
             ))}
           </div>
@@ -199,23 +204,24 @@ export function SEOSettings({
                 <ArrowUp className="h-4 w-4" />
                 <div>
                   <h5 className="font-medium">Depth Lift</h5>
-                  <p className="text-sm text-gray-600">Поднятие глубоких страниц</p>
+                  <p className="text-sm text-gray-600">Поднятие глубоко вложенных страниц</p>
+                  <p className="text-xs text-gray-500">URL с глубиной >2–3 в структуре сайта, добавление ссылок на верхние уровни</p>
                 </div>
               </div>
               <Switch
-                checked={seoProfile.scenarios.depthLift.enabled}
-                onCheckedChange={(checked) => updateScenarios({ 
-                  depthLift: { ...seoProfile.scenarios.depthLift, enabled: checked }
+                checked={seoProfile.tasks.depthLift.enabled}
+                onCheckedChange={(checked) => updateTasks({ 
+                  depthLift: { ...seoProfile.tasks.depthLift, enabled: checked }
                 })}
               />
             </div>
-            {seoProfile.scenarios.depthLift.enabled && (
+            {seoProfile.tasks.depthLift.enabled && (
               <div className="ml-7">
                 <Label htmlFor="minDepth">Минимальная глубина</Label>
                 <Select 
-                  value={seoProfile.scenarios.depthLift.minDepth.toString()} 
-                  onValueChange={(value) => updateScenarios({
-                    depthLift: { ...seoProfile.scenarios.depthLift, minDepth: parseInt(value) }
+                  value={seoProfile.tasks.depthLift.minDepth.toString()} 
+                  onValueChange={(value) => updateTasks({
+                    depthLift: { ...seoProfile.tasks.depthLift, minDepth: parseInt(value) }
                   })}
                 >
                   <SelectTrigger>
@@ -238,24 +244,25 @@ export function SEOSettings({
                 <Clock className="h-4 w-4" />
                 <div>
                   <h5 className="font-medium">Freshness Push</h5>
-                  <p className="text-sm text-gray-600">Продвижение свежего контента</p>
+                  <p className="text-sm text-gray-600">Подсветка свежего контента</p>
+                  <p className="text-xs text-gray-500">Страницы с датой обновления/публикации за последние N дней, приоритетные ссылки на них</p>
                 </div>
               </div>
               <Switch
-                checked={seoProfile.scenarios.freshnessPush.enabled}
-                onCheckedChange={(checked) => updateScenarios({ 
-                  freshnessPush: { ...seoProfile.scenarios.freshnessPush, enabled: checked }
+                checked={seoProfile.tasks.freshnessPush.enabled}
+                onCheckedChange={(checked) => updateTasks({ 
+                  freshnessPush: { ...seoProfile.tasks.freshnessPush, enabled: checked }
                 })}
               />
             </div>
-            {seoProfile.scenarios.freshnessPush.enabled && (
+            {seoProfile.tasks.freshnessPush.enabled && (
               <div className="ml-7 space-y-4">
                 <div>
-                  <Label>Свежесть: {seoProfile.scenarios.freshnessPush.daysFresh} дней</Label>
+                  <Label>Свежесть: {seoProfile.tasks.freshnessPush.daysFresh} дней</Label>
                   <Slider
-                    value={[seoProfile.scenarios.freshnessPush.daysFresh]}
-                    onValueChange={([value]) => updateScenarios({
-                      freshnessPush: { ...seoProfile.scenarios.freshnessPush, daysFresh: value }
+                    value={[seoProfile.tasks.freshnessPush.daysFresh]}
+                    onValueChange={([value]) => updateTasks({
+                      freshnessPush: { ...seoProfile.tasks.freshnessPush, daysFresh: value }
                     })}
                     min={7}
                     max={60}
@@ -264,11 +271,11 @@ export function SEOSettings({
                   />
                 </div>
                 <div>
-                  <Label>Ссылок на донора: {seoProfile.scenarios.freshnessPush.linksPerDonor}</Label>
+                  <Label>Ссылок на донора: {seoProfile.tasks.freshnessPush.linksPerDonor}</Label>
                   <Slider
-                    value={[seoProfile.scenarios.freshnessPush.linksPerDonor]}
-                    onValueChange={([value]) => updateScenarios({
-                      freshnessPush: { ...seoProfile.scenarios.freshnessPush, linksPerDonor: value }
+                    value={[seoProfile.tasks.freshnessPush.linksPerDonor]}
+                    onValueChange={([value]) => updateTasks({
+                      freshnessPush: { ...seoProfile.tasks.freshnessPush, linksPerDonor: value }
                     })}
                     min={0}
                     max={3}
@@ -352,7 +359,7 @@ export function SEOSettings({
           </div>
 
           {/* Priority Pages - видно только если Commercial Routing включен */}
-          {seoProfile.scenarios.commercialRouting && (
+          {seoProfile.tasks.commercialRouting && (
             <div className="space-y-4">
               <div>
                 <Label htmlFor="priorityPages">Priority Pages (Money Pages)</Label>
@@ -372,7 +379,7 @@ export function SEOSettings({
           )}
 
           {/* Hub Pages - видно только если Head Consolidation включен */}
-          {seoProfile.scenarios.headConsolidation && (
+          {seoProfile.tasks.headConsolidation && (
             <div className="space-y-4">
               <div>
                 <Label htmlFor="hubPages">Hub Pages</Label>
