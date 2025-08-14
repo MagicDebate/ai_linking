@@ -195,10 +195,12 @@ export const generationRuns = pgTable("generation_runs", {
   generated: integer("generated").notNull().default(0),
   rejected: integer("rejected").notNull().default(0),
   
+  // Task progress tracking
+  taskProgress: jsonb("task_progress").notNull().default(sql`'{}'::jsonb`), // { orphanFix: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 }, ... }
+  counters: jsonb("counters").notNull().default(sql`'{}'::jsonb`), // { scanned: 0, candidates: 0, accepted: 0, rejected: 0 }
+  
   // Generation parameters stored as JSON
-  scenarios: jsonb("scenarios").notNull().default(sql`'{}'::jsonb`),
-  rules: jsonb("rules").notNull().default(sql`'{}'::jsonb`),
-  scope: jsonb("scope").notNull().default(sql`'{}'::jsonb`),
+  seoProfile: jsonb("seo_profile").notNull().default(sql`'{}'::jsonb`), // SEOProfile object from UI
   
   startedAt: timestamp("started_at").defaultNow().notNull(),
   finishedAt: timestamp("finished_at"),
@@ -231,12 +233,15 @@ export const linkCandidates = pgTable("link_candidates", {
   anchorText: text("anchor_text").notNull(),
   
   // Link metadata
-  scenario: varchar("scenario", { length: 30 }).notNull(), // orphan, head, depth, fresh, cross, money
-  similarity: real("similarity"), // cosine similarity for cannibalization
-  position: integer("position").notNull(), // position in source text
-  isDraft: boolean("is_draft").notNull().default(true),
-  isRejected: boolean("is_rejected").notNull().default(false),
-  rejectionReason: text("rejection_reason"),
+  type: varchar("type", { length: 30 }).notNull(), // orphan_fix, head_consolidation, cluster_cross_link, commercial_routing, depth_lift, freshness_push
+  status: varchar("status", { length: 20 }).notNull().default("accepted"), // accepted, rejected, flagged
+  anchorSource: varchar("anchor_source", { length: 20 }).notNull().default("text"), // text, ai, generic
+  confidence: real("confidence"), // 0.0-1.0 confidence score
+  reason: text("reason"), // rejection reason: limit_reached, min_gap, duplicate, stop_anchor, broken_no_replacement, low_confidence, outside_scope
+  
+  // Position and similarity
+  positionHint: jsonb("position_hint"), // { page_id, block_id, offset }
+  similarity: real("similarity"), // cosine similarity for similarity-based tasks
   
   // HTML attributes
   cssClass: text("css_class"),

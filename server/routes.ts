@@ -2712,6 +2712,203 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get job state endpoint
 
+  // ========== LINK GENERATION API ==========
+  
+  // Start link generation
+  app.post("/api/generate/start", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId, seoProfile } = req.body;
+      
+      if (!projectId || !seoProfile) {
+        return res.status(400).json({ error: "Missing required parameters" });
+      }
+
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get latest import job
+      const importJob = await db
+        .select()
+        .from(importJobs)
+        .where(eq(importJobs.projectId, projectId))
+        .orderBy(desc(importJobs.startedAt))
+        .limit(1);
+
+      if (!importJob.length || importJob[0].status !== 'completed') {
+        return res.status(400).json({ error: "No completed import found. Please complete import first." });
+      }
+
+      // Create new generation run
+      const newRun = await db.insert(generationRuns).values({
+        projectId: projectId,
+        importId: importJob[0].importId,
+        status: 'running',
+        phase: 'starting',
+        percent: 0,
+        generated: 0,
+        rejected: 0,
+        taskProgress: {
+          orphanFix: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 },
+          headConsolidation: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 },
+          clusterCrossLink: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 },
+          commercialRouting: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 },
+          depthLift: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 },
+          freshnessPush: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 }
+        },
+        counters: { scanned: 0, candidates: 0, accepted: 0, rejected: 0 },
+        seoProfile: seoProfile
+      }).returning();
+
+      console.log('✅ New generation run created:', newRun[0]);
+
+      // Start background generation process
+      // TODO: Implement LinkGenerationWorker
+      // await linkGenerationQueue.add('generate', { runId: newRun[0].runId, seoProfile });
+
+      res.json({ 
+        success: true, 
+        runId: newRun[0].runId,
+        run: newRun[0]
+      });
+    } catch (error) {
+      console.error('❌ Error starting generation:', error);
+      res.status(500).json({ error: "Failed to start generation" });
+    }
+  });
+
+  // Get generation progress
+  app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
+    try {
+      const { runId } = req.params;
+      
+      // Validate run belongs to user's project
+      const run = await db
+        .select({ 
+          projectId: generationRuns.projectId,
+          status: generationRuns.status,
+          phase: generationRuns.phase,
+          percent: generationRuns.percent,
+          generated: generationRuns.generated,
+          rejected: generationRuns.rejected,
+          taskProgress: generationRuns.taskProgress,
+          counters: generationRuns.counters,
+          startedAt: generationRuns.startedAt,
+          finishedAt: generationRuns.finishedAt,
+          errorMessage: generationRuns.errorMessage
+        })
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
+
+      if (!run.length) {
+        return res.status(404).json({ error: "Generation run not found" });
+      }
+
+      const project = await storage.getProjectById(run[0].projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      res.json({
+        runId: runId,
+        status: run[0].status,
+        phase: run[0].phase,
+        percent: run[0].percent,
+        generated: run[0].generated,
+        rejected: run[0].rejected,
+        taskProgress: run[0].taskProgress,
+        counters: run[0].counters,
+        startedAt: run[0].startedAt,
+        finishedAt: run[0].finishedAt,
+        errorMessage: run[0].errorMessage
+      });
+    } catch (error) {
+      console.error('❌ Error getting generation progress:', error);
+      res.status(500).json({ error: "Failed to get progress" });
+    }
+  });
+
+  // Get draft results for review
+  app.get("/api/generate/draft/:runId", authenticateToken, async (req: any, res) => {
+    try {
+      const { runId } = req.params;
+      const { type, status, limit = 50, offset = 0 } = req.query;
+      
+      // Validate run belongs to user's project
+      const run = await db
+        .select({ projectId: generationRuns.projectId, status: generationRuns.status })
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
+
+      if (!run.length) {
+        return res.status(404).json({ error: "Generation run not found" });
+      }
+
+      const project = await storage.getProjectById(run[0].projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      if (run[0].status !== 'draft') {
+        return res.status(400).json({ error: "Generation is not in draft status" });
+      }
+
+      // Build filter conditions
+      let whereConditions = [eq(linkCandidates.runId, runId)];
+      
+      if (type && type !== 'all') {
+        whereConditions.push(eq(linkCandidates.type, type as string));
+      }
+      
+      if (status && status !== 'all') {
+        whereConditions.push(eq(linkCandidates.status, status as string));
+      }
+
+      // Get candidates with pagination
+      const candidates = await db
+        .select()
+        .from(linkCandidates)
+        .where(and(...whereConditions))
+        .limit(Number(limit))
+        .offset(Number(offset))
+        .orderBy(linkCandidates.createdAt);
+
+      // Get total count
+      const totalCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(linkCandidates)
+        .where(and(...whereConditions));
+
+      // Get type statistics
+      const stats = await db
+        .select({
+          type: linkCandidates.type,
+          status: linkCandidates.status,
+          count: sql<number>`count(*)`
+        })
+        .from(linkCandidates)
+        .where(eq(linkCandidates.runId, runId))
+        .groupBy(linkCandidates.type, linkCandidates.status);
+
+      res.json({
+        candidates: candidates,
+        total: totalCount[0].count,
+        stats: stats,
+        pagination: {
+          limit: Number(limit),
+          offset: Number(offset)
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error getting draft results:', error);
+      res.status(500).json({ error: "Failed to get draft results" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
