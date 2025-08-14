@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export interface ProjectState {
   currentStep: number;
@@ -19,15 +18,18 @@ export interface SaveProjectStateParams {
 }
 
 export function useProjectState(projectId: string | undefined) {
-  const queryClient = useQueryClient();
-  const [localState, setLocalState] = useState<Partial<ProjectState>>({});
+  const [state, setState] = useState<Partial<ProjectState>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
   // Fetch project state
-  const { data: projectState, isLoading, error } = useQuery<ProjectState>({
-    queryKey: ['project-state', projectId],
-    queryFn: async () => {
-      if (!projectId) throw new Error('Project ID is required');
-      
+  const fetchState = useCallback(async () => {
+    if (!projectId) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
       const response = await fetch(`/api/projects/${projectId}/state`, {
         credentials: 'include',
       });
@@ -36,17 +38,20 @@ export function useProjectState(projectId: string | undefined) {
         throw new Error('Failed to fetch project state');
       }
       
-      return response.json();
-    },
-    enabled: !!projectId,
-    staleTime: 0, // Always fetch fresh data
-  });
+      const data = await response.json();
+      setState(data);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Unknown error'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [projectId]);
 
-  // Save project state mutation
-  const saveStateMutation = useMutation({
-    mutationFn: async (params: SaveProjectStateParams) => {
-      if (!projectId) throw new Error('Project ID is required');
-      
+  // Save project state
+  const saveState = useCallback(async (params: SaveProjectStateParams) => {
+    if (!projectId) return;
+    
+    try {
       const response = await fetch(`/api/projects/${projectId}/state`, {
         method: 'POST',
         headers: {
@@ -60,88 +65,68 @@ export function useProjectState(projectId: string | undefined) {
         throw new Error('Failed to save project state');
       }
       
-      return response.json();
-    },
-    onSuccess: () => {
-      // Invalidate and refetch project state
-      queryClient.invalidateQueries({ queryKey: ['project-state', projectId] });
-    },
-  });
-
-  // Auto-save state when local state changes
-  const saveState = useCallback(async (params: SaveProjectStateParams) => {
-    try {
-      await saveStateMutation.mutateAsync(params);
-      setLocalState(params);
-    } catch (error) {
-      console.error('Failed to save project state:', error);
+      const data = await response.json();
+      setState(prev => ({ ...prev, ...data }));
+    } catch (err) {
+      console.error('Failed to save project state:', err);
+      setError(err instanceof Error ? err : new Error('Unknown error'));
     }
-  }, [saveStateMutation]);
+  }, [projectId]);
 
   // Save state on step change
   const setCurrentStep = useCallback(async (step: number, additionalData?: Record<string, any>) => {
-    const currentState = projectState || localState;
-    
     await saveState({
       currentStep: step,
       stepData: {
-        ...currentState.stepData,
+        ...state.stepData,
         ...additionalData,
       },
-      importJobId: currentState.importJobId,
-      seoProfile: currentState.seoProfile || {},
+      importJobId: state.importJobId,
+      seoProfile: state.seoProfile || {},
     });
-  }, [projectState, localState, saveState]);
+  }, [state, saveState]);
 
   // Save import job ID
   const setImportJobId = useCallback(async (jobId: string) => {
-    const currentState = projectState || localState;
-    
     await saveState({
-      currentStep: currentState.currentStep || 1,
-      stepData: currentState.stepData || {},
+      currentStep: state.currentStep || 1,
+      stepData: state.stepData || {},
       importJobId: jobId,
-      seoProfile: currentState.seoProfile || {},
+      seoProfile: state.seoProfile || {},
     });
-  }, [projectState, localState, saveState]);
+  }, [state, saveState]);
 
   // Save SEO profile
   const setSeoProfile = useCallback(async (profile: Record<string, any>) => {
-    const currentState = projectState || localState;
-    
     await saveState({
-      currentStep: currentState.currentStep || 1,
-      stepData: currentState.stepData || {},
-      importJobId: currentState.importJobId,
+      currentStep: state.currentStep || 1,
+      stepData: state.stepData || {},
+      importJobId: state.importJobId,
       seoProfile: profile,
     });
-  }, [projectState, localState, saveState]);
+  }, [state, saveState]);
 
   // Save step data
   const setStepData = useCallback(async (data: Record<string, any>) => {
-    const currentState = projectState || localState;
-    
     await saveState({
-      currentStep: currentState.currentStep || 1,
+      currentStep: state.currentStep || 1,
       stepData: {
-        ...currentState.stepData,
+        ...state.stepData,
         ...data,
       },
-      importJobId: currentState.importJobId,
-      seoProfile: currentState.seoProfile || {},
+      importJobId: state.importJobId,
+      seoProfile: state.seoProfile || {},
     });
-  }, [projectState, localState, saveState]);
+  }, [state, saveState]);
 
-  // Initialize local state from server state
+  // Fetch state on mount and when projectId changes
   useEffect(() => {
-    if (projectState && !localState.currentStep) {
-      setLocalState(projectState);
-    }
-  }, [projectState, localState.currentStep]);
+    fetchState();
+  }, [fetchState]);
 
   return {
     // State
-    projectState: projectState || localState,
+    projectState: state,
     isLoading,
     error,
     
@@ -151,10 +136,7 @@ export function useProjectState(projectId: string | undefined) {
     setImportJobId,
     setSeoProfile,
     setStepData,
-    
-    // Mutation state
-    isSaving: saveStateMutation.isPending,
-    saveError: saveStateMutation.error,
+    refetch: fetchState,
   };
 }
 
