@@ -541,10 +541,12 @@ export default function ProjectUnifiedSpec() {
     });
     
     if (importStatus?.status === 'completed' && currentStep === 2) {
+      console.log('✅ Import completed, navigating to step 3');
       toast({ title: "Импорт завершен успешно!" });
       // Переходим к SEO настройкам после завершения импорта
       navigateToStep(3);
     } else if (importStatus && importStatus.status === 'failed' && currentStep === 2) {
+      console.log('❌ Import failed:', importStatus.error);
       toast({ 
         title: "Ошибка импорта", 
         description: importStatus.error || "Неизвестная ошибка",
