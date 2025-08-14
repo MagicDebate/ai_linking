@@ -201,7 +201,7 @@ export default function ProjectUnifiedSpec() {
   };
   
   // Функция для перехода к шагу с обновлением URL
-  const navigateToStep = (step: number) => {
+  const navigateToStep = async (step: number) => {
     if (!projectId) {
       console.error('❌ ProjectId is undefined, cannot navigate');
       return;
@@ -218,8 +218,9 @@ export default function ProjectUnifiedSpec() {
     
     const targetUrl = stepUrls[step as keyof typeof stepUrls];
     if (targetUrl) {
+      console.log(`🔀 Navigating to step ${step}: ${targetUrl}`);
       setLocation(targetUrl);
-      setCurrentStep(step);
+      await setCurrentStep(step);
     } else {
       console.error('❌ Invalid step number:', step);
     }
@@ -286,6 +287,10 @@ export default function ProjectUnifiedSpec() {
   if (importJobId && currentStep !== 2) {
     console.log('🔍 Active import detected, forcing step 2');
     currentStep = 2;
+    // Обновляем URL если нужно
+    if (!location.includes('/import-progress')) {
+      setLocation(`/project/${projectId}/import-progress`);
+    }
   }
   
   // Запрос статуса импорта с автообновлением
@@ -293,14 +298,21 @@ export default function ProjectUnifiedSpec() {
     queryKey: ['/api/import/status', importJobId],
     queryFn: async () => {
       if (!importJobId) return null;
-      const response = await fetch(`/api/import/status/${importJobId}`);
+      console.log(`🔍 Fetching import status for jobId: ${importJobId}`);
+      const response = await fetch(`/api/import/status/${importJobId}`, {
+        credentials: 'include'
+      });
       if (!response.ok) throw new Error('Failed to get import status');
-      return response.json();
+      const data = await response.json();
+      console.log(`📊 Import status response:`, data);
+      return data;
     },
     enabled: !!importJobId && currentStep === 2,
     refetchInterval: 1000, // Принудительно обновляем каждую секунду на шаге 2
     staleTime: 0, // Данные всегда считаются устаревшими
-    cacheTime: 0 // Отключаем кэширование
+    cacheTime: 0, // Отключаем кэширование
+    retry: 3,
+    retryDelay: 1000
   });
 
   // Шаг 1: CSV данные
@@ -388,7 +400,8 @@ export default function ProjectUnifiedSpec() {
       toast({ title: "Файл загружен! Настройте маппинг полей." });
     },
     onError: (error: any) => {
-      toast({ title: "Ошибка загрузки", description: error.message, variant: "destructive" });
+      const errorMessage = error?.message || 'Неизвестная ошибка';
+      toast({ title: "Ошибка загрузки", description: errorMessage, variant: "destructive" });
     }
   });
 
@@ -441,8 +454,7 @@ export default function ProjectUnifiedSpec() {
             
             // Переходим к шагу 2 (импорт) в том же интерфейсе
             console.log('🔍 Navigating to step 2 after import start');
-            navigateToStep(2);
-            setCurrentStep(2); // Принудительно устанавливаем шаг 2
+            await navigateToStep(2);
             toast({ title: "Импорт запущен! Отслеживаем прогресс." });
           } else {
             throw new Error('Failed to start import');
@@ -484,7 +496,8 @@ export default function ProjectUnifiedSpec() {
       navigateToStep(4);
     },
     onError: (error: any) => {
-      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+      const errorMessage = error?.message || 'Неизвестная ошибка';
+      toast({ title: "Ошибка", description: errorMessage, variant: "destructive" });
     }
   });
 
@@ -527,7 +540,8 @@ export default function ProjectUnifiedSpec() {
     },
     onError: (error: any) => {
       console.error('❌ Import start error:', error);
-      toast({ title: "Ошибка импорта", description: error.message, variant: "destructive" });
+      const errorMessage = error?.message || 'Неизвестная ошибка';
+      toast({ title: "Ошибка импорта", description: errorMessage, variant: "destructive" });
     }
   });
 
@@ -553,7 +567,7 @@ export default function ProjectUnifiedSpec() {
         variant: "destructive" 
       });
     }
-  }, [importStatus, currentStep, importJobId, setCurrentStep]);
+  }, [importStatus, currentStep, importJobId]);
 
   // Мутация запуска генерации ссылок с полным SEO профилем
   const generateLinksMutation = useMutation({
@@ -582,7 +596,8 @@ export default function ProjectUnifiedSpec() {
       navigateToStep(5);
     },
     onError: (error: any) => {
-      toast({ title: "Ошибка генерации", description: error.message, variant: "destructive" });
+      const errorMessage = error?.message || 'Неизвестная ошибка';
+      toast({ title: "Ошибка генерации", description: errorMessage, variant: "destructive" });
     }
   });
 
@@ -636,12 +651,13 @@ export default function ProjectUnifiedSpec() {
       }
       
       if (projectState.importJobId && !importJobId) {
+        console.log('🔄 Restoring importJobId:', projectState.importJobId);
         setImportJobId(projectState.importJobId);
       }
       
       console.log('✅ State restored successfully');
     }
-  }, [projectState, stateLoading, csvPreview, fieldMapping, importJobId]);
+  }, [projectState, stateLoading, csvPreview, fieldMapping, importJobId, setImportJobId]);
 
   if (projectLoading) {
     return (
