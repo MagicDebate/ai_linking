@@ -6,6 +6,7 @@ import { useProjectNavigation } from "@/hooks/useProjectNavigation";
 import { useImportStatus } from "@/hooks/useImportStatus";
 import { useProjectMutations } from "@/hooks/useProjectMutations";
 import { ImportProgress } from "@/components/ImportProgress";
+import { SEOSettings, SEOProfile } from "@/components/SEOSettings";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,54 +50,8 @@ interface Project {
   updatedAt: string;
 }
 
-// Основные настройки согласно ТЗ
-interface SEOProfile {
-  preset: 'basic' | 'ecommerce' | 'freshness' | 'custom';
-  maxLinks: number;
-  minGap: number;
-  exactAnchorPercent: number;
-  stopAnchors: string[];
-  priorityPages: string[];
-  hubPages: string[];
-  scenarios: {
-    orphanFix: boolean;
-    headConsolidation: boolean;
-    clusterCrossLink: boolean;
-    commercialRouting: boolean;
-    depthLift: {
-      enabled: boolean;
-      minDepth: number;
-    };
-    freshnessPush: {
-      enabled: boolean;
-      daysFresh: number;
-      linksPerDonor: number;
-    };
-  };
-  cannibalization: {
-    threshold: 'low' | 'medium' | 'high';
-    action: 'block' | 'flag';
-    canonicRule: 'length' | 'url' | 'manual';
-  };
-  policies: {
-    oldLinks: 'enrich' | 'regenerate' | 'audit';
-    removeDuplicates: boolean;
-    brokenLinks: 'delete' | 'replace' | 'ignore';
-  };
-  htmlAttributes: {
-    className: string;
-    classMode: 'append' | 'replace';
-    rel: {
-      noopener: boolean;
-      noreferrer: boolean;
-      nofollow: boolean;
-    };
-    targetBlank: boolean;
-  };
-}
-
+// Используем SEOProfile из компонента SEOSettings
 const DEFAULT_PROFILE: SEOProfile = {
-  preset: 'basic',
   maxLinks: 3,
   minGap: 100,
   exactAnchorPercent: 20,
@@ -108,20 +63,8 @@ const DEFAULT_PROFILE: SEOProfile = {
     headConsolidation: true,
     clusterCrossLink: true,
     commercialRouting: true,
-    depthLift: {
-      enabled: false,
-      minDepth: 5
-    },
-    freshnessPush: {
-      enabled: false,
-      daysFresh: 30,
-      linksPerDonor: 1
-    }
-  },
-  cannibalization: {
-    threshold: 'medium',
-    action: 'block',
-    canonicRule: 'length'
+    depthLift: { enabled: true, minDepth: 5 },
+    freshnessPush: { enabled: true, daysFresh: 30, linksPerDonor: 1 }
   },
   policies: {
     oldLinks: 'enrich',
@@ -130,37 +73,9 @@ const DEFAULT_PROFILE: SEOProfile = {
   },
   htmlAttributes: {
     className: '',
-    classMode: 'append',
-    rel: {
-      noopener: true,
-      noreferrer: false,
-      nofollow: false
-    },
-    targetBlank: false
-  }
-};
-
-const PRESETS = {
-  basic: DEFAULT_PROFILE,
-  ecommerce: {
-    ...DEFAULT_PROFILE,
-    preset: 'ecommerce',
-    scenarios: {
-      ...DEFAULT_PROFILE.scenarios,
-      clusterCrossLink: false
-    }
-  },
-  freshness: {
-    ...DEFAULT_PROFILE,
-    preset: 'freshness',
-    scenarios: {
-      ...DEFAULT_PROFILE.scenarios,
-      freshnessPush: { enabled: true, daysFresh: 30, linksPerDonor: 1 }
-    }
-  },
-  custom: {
-    ...DEFAULT_PROFILE,
-    preset: 'custom'
+    rel: { noopener: false, noreferrer: false, nofollow: false },
+    targetBlank: false,
+    classMode: 'append'
   }
 };
 
@@ -594,28 +509,30 @@ export default function ProjectFixed() {
 
               {/* Шаг 3: SEO профиль */}
               {currentStep === 3 && (
-                <div className="text-center space-y-6">
-                  <div className="space-y-4">
+                <div className="space-y-6">
+                  <div className="text-center space-y-4">
                     <Settings className="h-16 w-16 text-green-600 mx-auto" />
                     <h3 className="text-xl font-semibold text-gray-900">
                       SEO профиль
                     </h3>
                     <p className="text-gray-600">
-                      Настройте параметры для генерации внутренних ссылок.
+                      Настройте сценарии и параметры для генерации внутренних ссылок.
                     </p>
                   </div>
 
-                  <div className="flex justify-center gap-4">
+                  <SEOSettings
+                    seoProfile={seoProfile}
+                    onProfileChange={(newProfile) => {
+                      setSeoProfile(newProfile);
+                    }}
+                    onGenerate={() => navigateToStep(4, projectId!)}
+                    isGenerating={false}
+                  />
+
+                  <div className="flex justify-center">
                     <Button variant="outline" onClick={handleBackToUpload}>
                       <ArrowLeft className="h-4 w-4 mr-2" />
                       Назад к импорту
-                    </Button>
-                    <Button 
-                      onClick={() => navigateToStep(4, projectId!)}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <ArrowRight className="h-4 w-4 mr-2" />
-                      Перейти к генерации
                     </Button>
                   </div>
                 </div>

@@ -314,7 +314,7 @@ export default function ProjectUnifiedSpec() {
     retry: 3,
     retryDelay: 1000
   });
-
+  
   // Шаг 1: CSV данные
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
@@ -434,7 +434,7 @@ export default function ProjectUnifiedSpec() {
       console.log('✅ Step data saved, starting import');
       
       // Автоматически запускаем импорт после сохранения маппинга
-      if (csvPreview?.uploadId) {
+        if (csvPreview?.uploadId) {
         try {
           const response = await fetch('/api/import/start', {
             method: 'POST',
@@ -643,11 +643,11 @@ export default function ProjectUnifiedSpec() {
       
       // Восстанавливаем данные только если их нет
       if (projectState.stepData?.csvPreview && !csvPreview) {
-        setCsvPreview(projectState.stepData.csvPreview);
-      }
+          setCsvPreview(projectState.stepData.csvPreview);
+        }
       
       if (projectState.stepData?.fieldMapping && Object.keys(projectState.stepData.fieldMapping).length > 0 && Object.keys(fieldMapping).length === 0) {
-        setFieldMapping(projectState.stepData.fieldMapping);
+          setFieldMapping(projectState.stepData.fieldMapping);
       }
       
       if (projectState.importJobId && !importJobId) {
@@ -1272,9 +1272,9 @@ export default function ProjectUnifiedSpec() {
                               value={(seoProfile?.scenarios?.depthLift?.minDepth || 5).toString()} 
                               onValueChange={(value) =>
                                 setSeoProfile(prev => ({
-                                  ...prev,
-                                  scenarios: { 
-                                    ...prev.scenarios, 
+                                ...prev,
+                                scenarios: { 
+                                  ...prev.scenarios, 
                                     depthLift: { ...prev.scenarios.depthLift, minDepth: parseInt(value) }
                                   }
                                 }))
@@ -1600,7 +1600,7 @@ export default function ProjectUnifiedSpec() {
                     <div className="space-y-4">
                       <Loader2 className="h-8 w-8 animate-spin mx-auto text-blue-600" />
                       <p className="text-gray-600">Загружаем статус импорта...</p>
-                    </div>
+                        </div>
                   ) : importStatus ? (
                     <div className="space-y-6">
                       {/* Отладочная информация */}
@@ -1608,18 +1608,18 @@ export default function ProjectUnifiedSpec() {
                         Debug: jobId={importJobId}, status={importStatus.status}, phase={importStatus.phase}, percent={importStatus.percent}%
                       </div>
                       {/* Основной прогресс */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
                           <span>Общий прогресс</span>
                           <span>{importStatus.percent}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-3">
-                          <div 
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div 
                             className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                            style={{ width: `${importStatus.percent}%` }}
-                          />
+                              style={{ width: `${importStatus.percent}%` }}
+                            />
+                          </div>
                         </div>
-                      </div>
 
                       {/* Текущая фаза */}
                       <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
@@ -1633,8 +1633,8 @@ export default function ProjectUnifiedSpec() {
                               Обработка в процессе...
                             </p>
                           )}
-                        </div>
-                      </div>
+                            </div>
+                          </div>
 
                       {/* Статистика */}
                       {importStatus.stats && (
@@ -1654,11 +1654,11 @@ export default function ProjectUnifiedSpec() {
                           <div className="text-center p-3 bg-gray-50 rounded-lg">
                             <div className="text-2xl font-bold text-purple-600">
                               {importStatus.stats.totalWords || 0}
-                            </div>
-                            <div className="text-sm text-gray-600">Слов</div>
-                          </div>
                         </div>
-                      )}
+                            <div className="text-sm text-gray-600">Слов</div>
+                            </div>
+                          </div>
+                        )}
 
                       {/* Кнопки действий */}
                       <div className="flex justify-center gap-4">
@@ -1684,9 +1684,9 @@ export default function ProjectUnifiedSpec() {
                             <p className="text-sm text-gray-600">
                               {importStatus.errorMessage || "Произошла ошибка при обработке данных"}
                             </p>
-                          </div>
+                                </div>
                         )}
-                      </div>
+                              </div>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -1697,11 +1697,11 @@ export default function ProjectUnifiedSpec() {
                           <ArrowLeft className="h-4 w-4 mr-2" />
                           Назад к загрузке
                         </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                            </div>
+                          </div>
+                        )}
+                          </div>
+                        )}
 
               {/* Шаг 4: Генерация ссылок */}
               {currentStep === 4 && (
@@ -1721,7 +1721,7 @@ export default function ProjectUnifiedSpec() {
                       <ArrowLeft className="h-4 w-4 mr-2" />
                       Назад к SEO настройкам
                     </Button>
-                    <Button 
+                            <Button 
                       onClick={() => generateLinksMutation.mutate()}
                       disabled={generateLinksMutation.isPending}
                       className="bg-green-600 hover:bg-green-700"
@@ -1737,10 +1737,10 @@ export default function ProjectUnifiedSpec() {
                           Запустить генерацию ссылок
                         </>
                       )}
-                    </Button>
-                  </div>
-                </div>
-              )}
+                            </Button>
+                          </div>
+                      </div>
+                    )}
 
               {/* Шаг 5: Проверка черновика */}
               {currentStep === 5 && (
@@ -1820,7 +1820,7 @@ export default function ProjectUnifiedSpec() {
                               ))}
                             </SelectContent>
                           </Select>
-                        </div>
+                  </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -1933,8 +1933,8 @@ export default function ProjectUnifiedSpec() {
                                   ))}
                                 </SelectContent>
                               </Select>
-                            </div>
-                          )}
+                </div>
+              )}
                         </div>
                         
                         <div>
@@ -1953,7 +1953,7 @@ export default function ProjectUnifiedSpec() {
                             <Label htmlFor="freshnessPush">Продвижение свежих</Label>
                           </div>
                           {seoProfile?.scenarios?.freshnessPush?.enabled && (
-                            <div className="space-y-4">
+                  <div className="space-y-4">
                               <div>
                                 <Label>Свежесть: {seoProfile?.scenarios?.freshnessPush?.daysFresh || 30} дней</Label>
                                 <Slider
@@ -1970,7 +1970,7 @@ export default function ProjectUnifiedSpec() {
                                   step={1}
                                   className="mt-2"
                                 />
-                              </div>
+                  </div>
                               <div>
                                 <Label>Ссылок на донора: {seoProfile?.scenarios?.freshnessPush?.linksPerDonor || 1}</Label>
                                 <Slider
