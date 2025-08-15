@@ -119,6 +119,10 @@ export class LinkGenerator {
 
   // ГЛАВНАЯ ФУНКЦИЯ ГЕНЕРАЦИИ ПО СЦЕНАРИЯМ
   async generateLinks(params: GenerationParams, runId: string): Promise<void> {
+    console.log('🚀 [LinkGenerator] generateLinks called with params:', JSON.stringify(params, null, 2));
+    console.log('🚀 [LinkGenerator] runId:', runId);
+    console.log('🚀 [LinkGenerator] projectId:', this.projectId);
+    
     try {
 
       console.log('🚀 Starting SPEC-COMPLIANT scenario-based link generation...');
@@ -647,7 +651,7 @@ export class LinkGenerationWorker {
 
   async generateLinks(seoProfile: any, runId: string): Promise<void> {
     console.log('🚀 [LinkGenerationWorker] Starting generation for runId:', runId);
-    console.log('🚀 [LinkGenerationWorker] SEO Profile:', seoProfile);
+    console.log('🚀 [LinkGenerationWorker] SEO Profile:', JSON.stringify(seoProfile, null, 2));
     
     try {
       // Получаем информацию о run
@@ -667,6 +671,8 @@ export class LinkGenerationWorker {
       // Создаем экземпляр LinkGenerator
       const generator = new LinkGenerator(projectId);
       
+      console.log('🚀 [LinkGenerationWorker] LinkGenerator created, starting generateLinks...');
+      
       // Запускаем генерацию
       await generator.generateLinks(seoProfile, runId);
       
@@ -680,8 +686,11 @@ export class LinkGenerationWorker {
         finishedAt: new Date()
       }).where(eq(generationRuns.runId, runId));
       
+      console.log('✅ [LinkGenerationWorker] Run status updated to draft');
+      
     } catch (error) {
       console.error('❌ [LinkGenerationWorker] Generation failed:', error);
+      console.error('❌ [LinkGenerationWorker] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       
       // Обновляем статус на failed
       await db.update(generationRuns).set({
