@@ -2704,6 +2704,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cancel all running generations for a project
+  app.post("/api/generate/cancel-all/:projectId", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Cancel all running generations for this project
+      const result = await db.update(generationRuns).set({
+        status: 'canceled',
+        finishedAt: new Date()
+      }).where(and(
+        eq(generationRuns.projectId, projectId),
+        eq(generationRuns.status, 'running')
+      ));
+
+      console.log('✅ Canceled all running generations for project:', projectId);
+
+      res.json({ success: true, message: "All running generations canceled" });
+    } catch (error) {
+      console.error('❌ Error canceling all generations:', error);
+      res.status(500).json({ error: "Failed to cancel generations" });
+    }
+  });
+
   // Get generation progress
   app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
     try {
