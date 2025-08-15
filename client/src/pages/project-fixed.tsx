@@ -579,27 +579,24 @@ export default function ProjectFixed() {
               {/* Шаг 4: Генерация ссылок */}
               {currentStep === 4 && (
                 <div className="space-y-6">
-                  {!generationRunId ? (
-                    // Начальный экран - кнопка запуска
-                    <div className="text-center space-y-6">
-                      <div className="space-y-4">
-                        <BarChart3 className="h-16 w-16 text-green-600 mx-auto" />
-                        <h3 className="text-xl font-semibold text-gray-900">
-                          Генерация ссылок
-                        </h3>
-                        <p className="text-gray-600">
-                          Создаем внутренние ссылки по настроенным сценариям и параметрам.
-                        </p>
-                      </div>
-
-                      <div className="flex justify-center gap-4">
-                        <Button variant="outline" onClick={() => navigateToStep(3, projectId!)}>
-                          <ArrowLeft className="h-4 w-4 mr-2" />
-                          Назад к SEO настройкам
-                        </Button>
-                      </div>
+                  <div className="text-center space-y-6">
+                    <div className="space-y-4">
+                      <BarChart3 className="h-16 w-16 text-green-600 mx-auto" />
+                      <h3 className="text-xl font-semibold text-gray-900">
+                        Генерация ссылок
+                      </h3>
+                      <p className="text-gray-600">
+                        Создаем внутренние ссылки по настроенным сценариям и параметрам.
+                      </p>
                     </div>
-                  )}
+
+                    <div className="flex justify-center gap-4">
+                      <Button variant="outline" onClick={() => navigateToStep(3, projectId!)}>
+                        <ArrowLeft className="h-4 w-4 mr-2" />
+                        Назад к SEO настройкам
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
 
