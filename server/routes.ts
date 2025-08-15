@@ -2740,15 +2740,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('✅ New generation run created:', newRun[0]);
 
       // Start background generation process
+      console.log('🚨 [GENERATE API] ===== НАЧАЛО ЗАПУСКА ГЕНЕРАЦИИ =====');
       console.log('🚀 Starting background generation process...');
+      console.log('🚨 [GENERATE API] Run ID:', newRun[0].runId);
+      console.log('🚨 [GENERATE API] Project ID:', projectId);
       
       // Import and use LinkGenerationWorker
+      console.log('🚨 [GENERATE API] Importing LinkGenerationWorker...');
       const { LinkGenerationWorker } = await import('./linkGenerator');
+      console.log('🚨 [GENERATE API] LinkGenerationWorker imported successfully');
+      
       const worker = new LinkGenerationWorker();
+      console.log('🚨 [GENERATE API] Worker created, starting generation...');
       
       // Start generation in background
       worker.generateLinks(seoProfile, newRun[0].runId).catch(err => {
-        console.error('❌ Generation failed:', err);
+        console.error('❌ [GENERATE API] Generation failed:', err);
+        console.error('❌ [GENERATE API] Error stack:', err instanceof Error ? err.stack : 'No stack trace');
         // Update run status to failed
         db.update(generationRuns).set({
           status: 'failed',
@@ -2756,6 +2764,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           finishedAt: new Date()
         }).where(eq(generationRuns.runId, newRun[0].runId));
       });
+      
+      console.log('🚨 [GENERATE API] ===== ГЕНЕРАЦИЯ ЗАПУЩЕНА В ФОНЕ =====');
 
       res.json({ 
         success: true, 
