@@ -120,9 +120,11 @@ export class LinkGenerator {
 
   // ГЛАВНАЯ ФУНКЦИЯ ГЕНЕРАЦИИ ПО СЦЕНАРИЯМ
   async generateLinks(params: GenerationParams, runId: string): Promise<void> {
+    console.log('🚨 [LinkGenerator] ===== НАЧАЛО ГЕНЕРАЦИИ ССЫЛОК =====');
     console.log('🚀 [LinkGenerator] generateLinks called with params:', JSON.stringify(params, null, 2));
     console.log('🚀 [LinkGenerator] runId:', runId);
     console.log('🚀 [LinkGenerator] projectId:', this.projectId);
+    console.log('🚨 [LinkGenerator] ===== ПРОЕКТ ID:', this.projectId, '=====');
     
     try {
 
@@ -609,7 +611,9 @@ export class LinkGenerator {
 
   // Загрузка страниц проекта
   private async loadPages(): Promise<any[]> {
+    console.log('🚨 [loadPages] ===== НАЧАЛО ЗАГРУЗКИ СТРАНИЦ =====');
     console.log('🔍 [loadPages] Loading pages for project:', this.projectId);
+    console.log('🚨 [loadPages] ===== ПРОЕКТ ID:', this.projectId, '=====');
     
     // Получаем последний завершенный импорт для проекта
     console.log('🔍 [loadPages] Looking for completed imports...');
@@ -928,8 +932,10 @@ export class LinkGenerationWorker {
   }
 
   async generateLinks(seoProfile: any, runId: string): Promise<void> {
+    console.log('🚨 [LinkGenerationWorker] ===== НАЧАЛО РАБОТЫ ВОРКЕРА =====');
     console.log('🚀 [LinkGenerationWorker] Starting generation for runId:', runId);
     console.log('🚀 [LinkGenerationWorker] SEO Profile:', JSON.stringify(seoProfile, null, 2));
+    console.log('🚨 [LinkGenerationWorker] ===== RUN ID:', runId, '=====');
     
     try {
       // Получаем информацию о run
