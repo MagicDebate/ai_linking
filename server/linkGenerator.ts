@@ -638,3 +638,59 @@ export class LinkGenerator {
     return runId;
   }
 }
+
+// Класс для выполнения генерации ссылок
+export class LinkGenerationWorker {
+  constructor() {
+    console.log('🔧 LinkGenerationWorker initialized');
+  }
+
+  async generateLinks(seoProfile: any, runId: string): Promise<void> {
+    console.log('🚀 [LinkGenerationWorker] Starting generation for runId:', runId);
+    console.log('🚀 [LinkGenerationWorker] SEO Profile:', seoProfile);
+    
+    try {
+      // Получаем информацию о run
+      const run = await db
+        .select({ projectId: generationRuns.projectId })
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
+
+      if (!run.length) {
+        throw new Error(`Run ${runId} not found`);
+      }
+
+      const projectId = run[0].projectId;
+      console.log('🚀 [LinkGenerationWorker] Project ID:', projectId);
+
+      // Создаем экземпляр LinkGenerator
+      const generator = new LinkGenerator(projectId);
+      
+      // Запускаем генерацию
+      await generator.generateLinks(seoProfile, runId);
+      
+      console.log('✅ [LinkGenerationWorker] Generation completed successfully');
+      
+      // Обновляем статус на draft
+      await db.update(generationRuns).set({
+        status: 'draft',
+        phase: 'completed',
+        percent: 100,
+        finishedAt: new Date()
+      }).where(eq(generationRuns.runId, runId));
+      
+    } catch (error) {
+      console.error('❌ [LinkGenerationWorker] Generation failed:', error);
+      
+      // Обновляем статус на failed
+      await db.update(generationRuns).set({
+        status: 'failed',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        finishedAt: new Date()
+      }).where(eq(generationRuns.runId, runId));
+      
+      throw error;
+    }
+  }
+}

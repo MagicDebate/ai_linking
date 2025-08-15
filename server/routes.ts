@@ -2740,8 +2740,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('✅ New generation run created:', newRun[0]);
 
       // Start background generation process
-      // TODO: Implement LinkGenerationWorker
-      // await linkGenerationQueue.add('generate', { runId: newRun[0].runId, seoProfile });
+      console.log('🚀 Starting background generation process...');
+      
+      // Import and use LinkGenerationWorker
+      const { LinkGenerationWorker } = await import('./linkGenerator');
+      const worker = new LinkGenerationWorker();
+      
+      // Start generation in background
+      worker.generateLinks(seoProfile, newRun[0].runId).catch(err => {
+        console.error('❌ Generation failed:', err);
+        // Update run status to failed
+        db.update(generationRuns).set({
+          status: 'failed',
+          errorMessage: err.message,
+          finishedAt: new Date()
+        }).where(eq(generationRuns.runId, newRun[0].runId));
+      });
 
       res.json({ 
         success: true, 
