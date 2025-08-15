@@ -6,9 +6,9 @@ import { useProjectNavigation } from "@/hooks/useProjectNavigation";
 import { useImportStatus } from "@/hooks/useImportStatus";
 import { useProjectMutations } from "@/hooks/useProjectMutations";
 import { useGeneration } from "@/hooks/useGeneration";
-import { useGenerationProgress } from "@/hooks/useGenerationProgress";
+
 import { ImportProgress } from "@/components/ImportProgress";
-import { GenerationProgress } from "@/components/GenerationProgress";
+
 import { SEOSettings, SEOProfile } from "@/components/SEOSettings";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -101,15 +101,11 @@ export default function ProjectFixed() {
     setStepData 
   } = useProjectState(projectId);
 
-  // Generation hooks
-  const { 
-    startGeneration, 
-    startGenerationAsync, 
-    isStartingGeneration,
-  } = useGeneration();
-
   const { navigateToStep, getCurrentStep } = useProjectNavigation();
   const { uploadMutation, mappingMutation, startImportMutation, generateLinksMutation } = useProjectMutations();
+  
+  // Хук генерации
+  const { startGenerationAsync, isStartingGeneration } = useGeneration();
   
   // Определяем текущий шаг
   const currentStep = getCurrentStep(location);
@@ -117,15 +113,12 @@ export default function ProjectFixed() {
   // Состояние импорта
   const importJobId = projectState?.importJobId || null;
   const { data: importStatus, isLoading: importStatusLoading } = useImportStatus(importJobId, currentStep);
-
-  // Состояние генерации
-  const { data: generationProgress, isLoading: generationLoading } = useGenerationProgress(generationRunId);
   
   // Локальное состояние
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
-  const [generationRunId, setGenerationRunId] = useState<string | null>(null);
+
   const fileRef = useRef<HTMLInputElement>(null);
   
   // SEO профиль
@@ -236,22 +229,15 @@ export default function ProjectFixed() {
   };
 
   const handleGenerate = async () => {
-    console.log('🚀 Starting generation with profile:', seoProfile);
-    
+    if (!projectId) {
+      toast({ title: "Ошибка", description: "Не найден ID проекта", variant: "destructive" });
+      return;
+    }
+
     try {
-      const result = await startGenerationAsync({ 
-        projectId: projectId!, 
-        seoProfile 
-      });
-      
+      const result = await startGenerationAsync({ projectId, seoProfile });
+      toast({ title: "Генерация запущена!", description: "Отслеживайте прогресс ниже" });
       console.log('✅ Generation started:', result);
-      setGenerationRunId(result.runId);
-      
-      toast({ title: "Генерация ссылок запущена!" });
-      
-      // Переходим к следующему шагу
-      navigateToStep(4, projectId!);
-      
     } catch (error) {
       console.error('❌ Generation error:', error);
       toast({ 
@@ -261,6 +247,8 @@ export default function ProjectFixed() {
       });
     }
   };
+
+
 
   // Автоматический переход после завершения импорта
   useEffect(() => {
@@ -278,21 +266,7 @@ export default function ProjectFixed() {
     }
   }, [importStatus, currentStep]);
 
-  // Автоматический переход после завершения генерации
-  useEffect(() => {
-    if (generationProgress?.status === 'draft' && currentStep === 4) {
-      console.log('✅ Generation completed, navigating to step 5');
-      toast({ title: "Генерация завершена! Черновик готов для ревью." });
-      navigateToStep(5, projectId!);
-    } else if (generationProgress?.status === 'failed' && currentStep === 4) {
-      console.log('❌ Generation failed:', generationProgress.errorMessage);
-      toast({ 
-        title: "Ошибка генерации", 
-        description: generationProgress.errorMessage || "Неизвестная ошибка",
-        variant: "destructive" 
-      });
-    }
-  }, [generationProgress, currentStep]);
+
 
   // Восстановление состояния
   useEffect(() => {
@@ -582,14 +556,14 @@ export default function ProjectFixed() {
                     </p>
                   </div>
 
-                  <SEOSettings
-                    seoProfile={seoProfile}
-                    onProfileChange={(newProfile) => {
-                      setSeoProfile(newProfile);
-                    }}
-                    onGenerate={handleGenerate}
-                    isGenerating={isStartingGeneration}
-                  />
+                                     <SEOSettings
+                     seoProfile={seoProfile}
+                     onProfileChange={(newProfile) => {
+                       setSeoProfile(newProfile);
+                     }}
+                     onGenerate={handleGenerate}
+                     isGenerating={isStartingGeneration}
+                   />
 
                   <div className="flex justify-center">
                     <Button variant="outline" onClick={handleBackToUpload}>
@@ -621,62 +595,9 @@ export default function ProjectFixed() {
                           <ArrowLeft className="h-4 w-4 mr-2" />
                           Назад к SEO настройкам
                         </Button>
-                        <Button 
-                          onClick={handleGenerate}
-                          disabled={isStartingGeneration}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          {isStartingGeneration ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Запускаем генерацию...
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-4 w-4 mr-2" />
-                              Запустить генерацию ссылок
-                            </>
-                          )}
-                        </Button>
                       </div>
                     </div>
-                  ) : (
-                    // Экран прогресса генерации
-                    <div className="space-y-6">
-                      <div className="flex justify-center">
-                        <Button variant="outline" onClick={() => navigateToStep(3, projectId!)}>
-                          <ArrowLeft className="h-4 w-4 mr-2" />
-                          Назад к SEO настройкам
-                        </Button>
-                      </div>
-                      
-                      {generationLoading ? (
-                        <div className="text-center space-y-4">
-                          <Loader2 className="h-12 w-12 text-blue-600 mx-auto animate-spin" />
-                          <p className="text-blue-600 font-medium">Загружаем прогресс генерации...</p>
-                        </div>
-                      ) : generationProgress ? (
-                        <GenerationProgress
-                          runId={generationRunId}
-                          status={generationProgress.status}
-                          phase={generationProgress.phase}
-                          percent={generationProgress.percent}
-                          generated={generationProgress.generated}
-                          rejected={generationProgress.rejected}
-                          taskProgress={generationProgress.taskProgress}
-                          counters={generationProgress.counters}
-                          startedAt={generationProgress.startedAt}
-                          finishedAt={generationProgress.finishedAt}
-                          errorMessage={generationProgress.errorMessage}
-                        />
-                      ) : (
-                        <div className="text-center space-y-4">
-                          <AlertCircle className="h-12 w-12 text-red-600 mx-auto" />
-                          <p className="text-red-600 font-medium">Ошибка загрузки прогресса</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
+
                 </div>
               )}
 

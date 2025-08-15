@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 
 interface StartGenerationParams {
   projectId: string;
@@ -6,9 +6,6 @@ interface StartGenerationParams {
 }
 
 export function useGeneration() {
-  const queryClient = useQueryClient();
-
-  // Start generation mutation
   const startGenerationMutation = useMutation({
     mutationFn: async ({ projectId, seoProfile }: StartGenerationParams) => {
       const response = await fetch('/api/generate/start', {
@@ -25,12 +22,6 @@ export function useGeneration() {
       }
 
       return response.json();
-    },
-    onSuccess: (data) => {
-      console.log('✅ Generation started:', data);
-    },
-    onError: (error: Error) => {
-      console.error('❌ Generation start error:', error);
     },
   });
 

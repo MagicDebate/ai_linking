@@ -106,9 +106,9 @@ interface SEOSettingsProps {
 
 export function SEOSettings({ 
   seoProfile, 
-  onProfileChange, 
-  onGenerate, 
-  isGenerating = false 
+  onProfileChange,
+  onGenerate,
+  isGenerating = false
 }: SEOSettingsProps) {
   const updateProfile = (updates: Partial<SEOProfile>) => {
     onProfileChange({ ...seoProfile, ...updates });
@@ -528,30 +528,30 @@ export function SEOSettings({
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+                 </CardContent>
+       </Card>
 
-      {/* Кнопка генерации */}
-      <div className="flex justify-center">
-        <Button 
-          onClick={onGenerate}
-          disabled={isGenerating}
-          size="lg"
-          className="px-8"
-        >
-          {isGenerating ? (
-            <>
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              Генерация...
-            </>
-          ) : (
-            <>
-              <Link className="h-4 w-4 mr-2" />
-              Начать генерацию ссылок
-            </>
-          )}
-        </Button>
-      </div>
-    </div>
-  );
-}
+       {/* Кнопка генерации */}
+       <div className="flex justify-center">
+         <Button 
+           onClick={onGenerate}
+           disabled={isGenerating}
+           size="lg"
+           className="px-8"
+         >
+           {isGenerating ? (
+             <>
+               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+               Генерация...
+             </>
+           ) : (
+             <>
+               <Link className="h-4 w-4 mr-2" />
+               Начать генерацию ссылок
+             </>
+           )}
+         </Button>
+       </div>
+     </div>
+   );
+ }
