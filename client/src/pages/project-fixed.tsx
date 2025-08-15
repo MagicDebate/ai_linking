@@ -558,14 +558,14 @@ export default function ProjectFixed() {
                     </p>
                   </div>
 
-                                     <SEOSettings
-                     seoProfile={seoProfile}
-                     onProfileChange={(newProfile) => {
-                       setSeoProfile(newProfile);
-                     }}
-                     onGenerate={handleGenerate}
-                     isGenerating={isStartingGeneration}
-                   />
+                  <SEOSettings
+                    seoProfile={seoProfile}
+                    onProfileChange={(newProfile) => {
+                      setSeoProfile(newProfile);
+                    }}
+                    onGenerate={handleGenerate}
+                    isGenerating={isStartingGeneration}
+                  />
 
                   <div className="flex justify-center">
                     <Button variant="outline" onClick={handleBackToUpload}>
