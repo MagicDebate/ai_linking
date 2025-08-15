@@ -2670,6 +2670,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cancel generation run
+  app.post("/api/generate/cancel/:runId", authenticateToken, async (req: any, res) => {
+    try {
+      const { runId } = req.params;
+      
+      // Validate run belongs to user's project
+      const run = await db
+        .select({ projectId: generationRuns.projectId, status: generationRuns.status })
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
+
+      if (!run.length) {
+        return res.status(404).json({ error: "Generation run not found" });
+      }
+
+      const project = await storage.getProjectById(run[0].projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Update run status to canceled
+      await db.update(generationRuns).set({
+        status: 'canceled',
+        finishedAt: new Date()
+      }).where(eq(generationRuns.runId, runId));
+
+      res.json({ success: true, message: "Generation canceled" });
+    } catch (error) {
+      console.error('❌ Error canceling generation:', error);
+      res.status(500).json({ error: "Failed to cancel generation" });
+    }
+  });
+
   // Get generation progress
   app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
     try {
