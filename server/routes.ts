@@ -1706,35 +1706,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Stream generation progress (Server-Sent Events)
-  app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
-    const { runId } = req.params;
-    
-    try {
-      // Validate run belongs to user's project
-      const run = await db
-        .select({ projectId: generationRuns.projectId })
-        .from(generationRuns)
-        .where(eq(generationRuns.runId, runId))
-        .limit(1);
 
-      if (!run.length) {
-        return res.status(404).json({ error: "Generation run not found" });
-      }
-
-      const project = await storage.getProjectById(run[0].projectId);
-      if (!project || project.userId !== req.user.id) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-
-      // Add client to progress stream
-      progressStreamManager.addClient(runId, res);
-      
-    } catch (error) {
-      console.error("Progress stream error:", error);
-      res.status(500).json({ error: "Failed to setup progress stream" });
-    }
-  });
 
   // Get generation runs for project
   app.get("/api/generate/runs/:projectId", authenticateToken, async (req: any, res) => {
