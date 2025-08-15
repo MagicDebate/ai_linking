@@ -2583,6 +2583,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Start link generation
   app.post("/api/generate/start", authenticateToken, async (req: any, res) => {
+    console.log('🚨 [GENERATE API] ===== ENDPOINT ВЫЗВАН =====');
+    console.log('🚨 [GENERATE API] Request body:', req.body);
+    console.log('🚨 [GENERATE API] User ID:', req.user?.id);
+    
     try {
       const { projectId, seoProfile } = req.body;
       
