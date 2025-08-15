@@ -2756,8 +2756,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get generation progress
   app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
+    console.log('🔍 [PROGRESS API] Request received for runId:', runId);
+    console.log('🔍 [PROGRESS API] User:', req.user?.id);
+    console.log('🔍 [PROGRESS API] Headers:', req.headers);
+    
     try {
       const { runId } = req.params;
+      console.log('🔍 [PROGRESS API] Extracted runId:', runId);
+      
+      console.log('🔍 [PROGRESS API] Querying database for runId:', runId);
       
       // Validate run belongs to user's project
       const run = await db
@@ -2778,16 +2785,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(generationRuns.runId, runId))
         .limit(1);
 
+      console.log('🔍 [PROGRESS API] Database query result:', run);
+
       if (!run.length) {
+        console.log('❌ [PROGRESS API] No run found for runId:', runId);
         return res.status(404).json({ error: "Generation run not found" });
       }
 
+      console.log('🔍 [PROGRESS API] Validating project access for projectId:', run[0].projectId);
+      
       const project = await storage.getProjectById(run[0].projectId);
+      console.log('🔍 [PROGRESS API] Project found:', project);
+      console.log('🔍 [PROGRESS API] User ID from request:', req.user.id);
+      console.log('🔍 [PROGRESS API] Project user ID:', project?.userId);
+      
       if (!project || project.userId !== req.user.id) {
+        console.log('❌ [PROGRESS API] Access denied - project not found or user mismatch');
         return res.status(403).json({ error: "Access denied" });
       }
 
-      res.json({
+      const responseData = {
         runId: runId,
         status: run[0].status,
         phase: run[0].phase,
@@ -2799,7 +2816,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startedAt: run[0].startedAt,
         finishedAt: run[0].finishedAt,
         errorMessage: run[0].errorMessage
-      });
+      };
+
+      console.log('✅ [PROGRESS API] Sending response:', JSON.stringify(responseData, null, 2));
+      res.json(responseData);
     } catch (error) {
       console.error('❌ Error getting generation progress:', error);
       res.status(500).json({ error: "Failed to get progress" });

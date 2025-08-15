@@ -126,6 +126,10 @@ export default function ProjectFixed() {
   
   // Хук для отслеживания прогресса генерации
   const { data: generationProgress, isLoading: generationProgressLoading } = useGenerationProgress(generationRunId);
+  
+  console.log('🔍 [ProjectFixed] generationRunId:', generationRunId);
+  console.log('🔍 [ProjectFixed] generationProgress:', generationProgress);
+  console.log('🔍 [ProjectFixed] generationProgressLoading:', generationProgressLoading);
 
   const fileRef = useRef<HTMLInputElement>(null);
   
@@ -627,40 +631,56 @@ export default function ProjectFixed() {
                     </Button>
                   </div>
                   
-                  {generationRunId && generationProgress ? (
-                    <GenerationProgress
-                      runId={generationRunId}
-                      status={generationProgress.status}
-                      phase={generationProgress.phase}
-                      percent={generationProgress.percent}
-                      generated={generationProgress.generated}
-                      rejected={generationProgress.rejected}
-                      taskProgress={generationProgress.taskProgress}
-                      counters={generationProgress.counters}
-                      startedAt={generationProgress.startedAt}
-                      finishedAt={generationProgress.finishedAt}
-                      errorMessage={generationProgress.errorMessage}
-                    />
-                  ) : generationProgressLoading ? (
-                    <div className="text-center space-y-4">
-                      <Loader2 className="h-12 w-12 text-blue-600 mx-auto animate-spin" />
-                      <h3 className="text-xl font-semibold text-gray-900">
-                        Загружаем прогресс генерации...
-                      </h3>
-                    </div>
-                  ) : (
-                    <div className="text-center space-y-4">
-                      <AlertCircle className="h-12 w-12 text-orange-600 mx-auto" />
-                      <h3 className="text-xl font-semibold text-gray-900">
-                        Ошибка загрузки прогресса
-                      </h3>
-                      <p className="text-gray-600">
-                        Не удалось загрузить информацию о генерации
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
+                  {(() => {
+                    console.log('🔍 [ProjectFixed Step 4] Rendering condition check:');
+                    console.log('  - generationRunId:', generationRunId);
+                    console.log('  - generationProgress:', generationProgress);
+                    console.log('  - generationProgressLoading:', generationProgressLoading);
+                    
+                    if (generationRunId && generationProgress) {
+                      console.log('✅ [ProjectFixed Step 4] Rendering GenerationProgress component');
+                      return (
+                        <GenerationProgress
+                          runId={generationRunId}
+                          status={generationProgress.status}
+                          phase={generationProgress.phase}
+                          percent={generationProgress.percent}
+                          generated={generationProgress.generated}
+                          rejected={generationProgress.rejected}
+                          taskProgress={generationProgress.taskProgress}
+                          counters={generationProgress.counters}
+                          startedAt={generationProgress.startedAt}
+                          finishedAt={generationProgress.finishedAt}
+                          errorMessage={generationProgress.errorMessage}
+                        />
+                      );
+                                         } else if (generationProgressLoading) {
+                       console.log('⏳ [ProjectFixed Step 4] Rendering loading state');
+                       return (
+                         <div className="text-center space-y-4">
+                           <Loader2 className="h-12 w-12 text-blue-600 mx-auto animate-spin" />
+                           <h3 className="text-xl font-semibold text-gray-900">
+                             Загружаем прогресс генерации...
+                           </h3>
+                         </div>
+                       );
+                     } else {
+                       console.log('❌ [ProjectFixed Step 4] Rendering error state');
+                       return (
+                         <div className="text-center space-y-4">
+                           <AlertCircle className="h-12 w-12 text-orange-600 mx-auto" />
+                           <h3 className="text-xl font-semibold text-gray-900">
+                             Ошибка загрузки прогресса
+                           </h3>
+                           <p className="text-gray-600">
+                             Не удалось загрузить информацию о генерации
+                           </p>
+                         </div>
+                       );
+                     }
+                   })()}
+                  </div>
+                )}
 
               {/* Шаг 5: Проверка черновика */}
               {currentStep === 5 && (

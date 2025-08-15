@@ -102,6 +102,19 @@ export function GenerationProgress({
   finishedAt,
   errorMessage
 }: GenerationProgressProps) {
+  console.log('🔍 [GenerationProgress] Component rendered with props:', {
+    runId,
+    status,
+    phase,
+    percent,
+    generated,
+    rejected,
+    taskProgress,
+    counters,
+    startedAt,
+    finishedAt,
+    errorMessage
+  });
   const getStatusIcon = () => {
     switch (status) {
       case 'running':

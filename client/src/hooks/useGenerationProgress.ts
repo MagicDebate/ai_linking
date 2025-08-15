@@ -27,17 +27,33 @@ interface GenerationProgress {
 }
 
 export function useGenerationProgress(runId: string | null) {
+  console.log('🔍 [useGenerationProgress] Hook called with runId:', runId);
+  
   return useQuery({
     queryKey: ['generation-progress', runId],
     queryFn: async (): Promise<GenerationProgress> => {
-      if (!runId) throw new Error('No run ID provided');
+      console.log('🔍 [useGenerationProgress] QueryFn called with runId:', runId);
       
+      if (!runId) {
+        console.log('❌ [useGenerationProgress] No runId provided');
+        throw new Error('No run ID provided');
+      }
+      
+      console.log('🔍 [useGenerationProgress] Fetching from:', `/api/generate/progress/${runId}`);
       const response = await fetch(`/api/generate/progress/${runId}`);
+      
+      console.log('🔍 [useGenerationProgress] Response status:', response.status);
+      console.log('🔍 [useGenerationProgress] Response headers:', Object.fromEntries(response.headers.entries()));
+      
       if (!response.ok) {
         const error = await response.json();
+        console.log('❌ [useGenerationProgress] Response error:', error);
         throw new Error(error.error || 'Failed to get generation progress');
       }
-      return response.json();
+      
+      const data = await response.json();
+      console.log('✅ [useGenerationProgress] Response data:', data);
+      return data;
     },
     enabled: !!runId,
     refetchInterval: (data) => {
