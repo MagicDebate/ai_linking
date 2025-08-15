@@ -1331,14 +1331,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         policies: generationParams.policies
       });
 
+      // Создаем запись о запуске и получаем runId
+      const runId = await generator.createGenerationRun(generationParams);
+
       // Start generation in background
-      generator.generateLinks(generationParams).then((runId: string) => {
+      generator.generateLinks(generationParams, runId).then(() => {
         console.log(`✅ Generation completed with runId: ${runId}`);
       }).catch((error: any) => {
         console.error("Generation failed:", error);
       });
 
-      res.json({ success: true, message: "Generation started" });
+      res.json({ success: true, message: "Generation started", runId });
     } catch (error) {
       console.error("Generation start error:", error);
       res.status(500).json({ error: "Failed to start generation" });

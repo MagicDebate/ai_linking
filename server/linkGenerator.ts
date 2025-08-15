@@ -82,38 +82,44 @@ export class LinkGenerator {
     this.projectId = projectId;
   }
 
-  // ГЛАВНАЯ ФУНКЦИЯ ГЕНЕРАЦИИ ПО СЦЕНАРИЯМ
-  async generateLinks(params: GenerationParams): Promise<string> {
+  // Создание записи о запуске генерации
+  async createGenerationRun(params: GenerationParams): Promise<string> {
     const runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // Получаем последний импорт для проекта
+    const latestImport = await db
+      .select({ id: imports.id })
+      .from(imports)
+      .where(eq(imports.projectId, this.projectId))
+      .orderBy(desc(imports.createdAt))
+      .limit(1);
+
+    if (!latestImport.length) {
+      throw new Error('No imports found for this project');
+    }
+
+    const importId = latestImport[0].id;
+
+    // Создаем запись о запуске
+    await db
+      .insert(generationRuns)
+      .values({
+        runId,
+        projectId: this.projectId,
+        importId: importId,
+        status: 'running',
+        phase: 'initialization',
+        percent: 0,
+        generated: 0,
+        rejected: 0
+      });
+
+    return runId;
+  }
+
+  // ГЛАВНАЯ ФУНКЦИЯ ГЕНЕРАЦИИ ПО СЦЕНАРИЯМ
+  async generateLinks(params: GenerationParams, runId: string): Promise<void> {
     try {
-      // Получаем последний импорт для проекта
-      const latestImport = await db
-        .select({ id: imports.id })
-        .from(imports)
-        .where(eq(imports.projectId, this.projectId))
-        .orderBy(desc(imports.createdAt))
-        .limit(1);
-
-      if (!latestImport.length) {
-        throw new Error('No imports found for this project');
-      }
-
-      const importId = latestImport[0].id;
-
-      // Создаем запись о запуске
-      await db
-        .insert(generationRuns)
-        .values({
-          runId,
-          projectId: this.projectId,
-          importId: importId,
-          status: 'running',
-          phase: 'initialization',
-          percent: 0,
-          generated: 0,
-          rejected: 0
-        });
 
       console.log('🚀 Starting SPEC-COMPLIANT scenario-based link generation...');
       console.log('📋 Active scenarios:', {
@@ -230,8 +236,6 @@ export class LinkGenerator {
 
       console.log('✅ Link generation completed successfully!');
       console.log('📊 Final statistics:', finalStats);
-
-      return runId;
 
     } catch (error) {
       console.error('❌ Link generation failed:', error);
