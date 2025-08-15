@@ -1,5 +1,5 @@
 import { db } from './db';
-import { linkCandidates, generationRuns, pageEmbeddings, pagesClean, graphMeta, importJobs, embeddings, blocks, pagesRaw } from '@shared/schema';
+import { linkCandidates, generationRuns, pageEmbeddings, pagesClean, graphMeta, importJobs, embeddings, blocks, pagesRaw, imports } from '@shared/schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { embeddingService } from './embeddingService';
 import { linkGenerationQueue } from './queue';
@@ -87,13 +87,27 @@ export class LinkGenerator {
     const runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     try {
+      // Получаем последний импорт для проекта
+      const latestImport = await db
+        .select({ id: imports.id })
+        .from(imports)
+        .where(eq(imports.projectId, this.projectId))
+        .orderBy(desc(imports.createdAt))
+        .limit(1);
+
+      if (!latestImport.length) {
+        throw new Error('No imports found for this project');
+      }
+
+      const importId = latestImport[0].id;
+
       // Создаем запись о запуске
       await db
         .insert(generationRuns)
         .values({
           runId,
           projectId: this.projectId,
-          importId: 'default-import',
+          importId: importId,
           status: 'running',
           phase: 'initialization',
           percent: 0,
