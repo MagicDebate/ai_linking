@@ -447,44 +447,67 @@ export class LinkGenerator {
 
     // Для каждого блока исходной страницы ищем похожие блоки
     for (const sourceBlock of sourceBlocks) {
-      const similarBlocks = await embeddingService.findSimilarBlocks(
-        sourceBlock.id,
-        this.projectId,
-        10, // topK
-        threshold
-      );
+      try {
+        const similarBlocks = await embeddingService.findSimilarBlocks(
+          sourceBlock.id,
+          this.projectId,
+          10, // topK
+          threshold
+        );
 
-             // Группируем результаты по страницам
-       for (const similarBlock of similarBlocks) {
-         // Получаем pageId из blockId
-         const targetBlock = await db
-           .select({ pageId: blocks.pageId })
-           .from(blocks)
-           .where(eq(blocks.id, similarBlock.blockId))
-           .limit(1);
-         
-         if (targetBlock.length > 0) {
-           const targetPage = allPages.find(p => p.id === targetBlock[0].pageId);
-           if (targetPage && targetPage.id !== sourcePage.id) {
-             const existing = similarities.find(s => s.page.id === targetPage.id);
-             if (existing) {
-               existing.score = Math.max(existing.score, similarBlock.pageScore);
-             } else {
-               similarities.push({
-                 page: targetPage,
-                 score: similarBlock.pageScore
-               });
-             }
-           }
-         }
-       }
+        console.log(`🔍 [findSimilarPagesByCosine] Found ${similarBlocks.length} similar blocks for block ${sourceBlock.id}`);
+
+        // Группируем результаты по страницам
+        for (const similarBlock of similarBlocks) {
+          // Получаем pageId из blockId
+          const targetBlock = await db
+            .select({ pageId: blocks.pageId })
+            .from(blocks)
+            .where(eq(blocks.id, similarBlock.blockId))
+            .limit(1);
+          
+          if (targetBlock.length > 0) {
+            const targetPage = allPages.find(p => p.id === targetBlock[0].pageId);
+            if (targetPage && targetPage.id !== sourcePage.id) {
+              const existing = similarities.find(s => s.page.id === targetPage.id);
+              if (existing) {
+                existing.score = Math.max(existing.score, similarBlock.pageScore);
+              } else {
+                similarities.push({
+                  page: targetPage,
+                  score: similarBlock.pageScore
+                });
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ [findSimilarPagesByCosine] Error finding similar blocks, using fallback:', error);
+      }
+    }
+
+    // Если не нашли похожих страниц через эмбеддинги, используем fallback
+    if (similarities.length === 0) {
+      console.log('⚠️ [findSimilarPagesByCosine] No similar pages found via embeddings, using fallback');
+      
+      // Fallback: возвращаем случайные страницы (кроме самой себя)
+      const otherPages = allPages.filter(p => p.id !== sourcePage.id);
+      const shuffled = otherPages.sort(() => Math.random() - 0.5);
+      
+      return shuffled.slice(0, limit).map(page => ({
+        page,
+        score: 0.5 // Низкий score для fallback
+      }));
     }
 
     // Сортируем по score и берем top limit
-    return similarities
+    const result = similarities
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map(s => s.page);
+    
+    console.log(`🔍 [findSimilarPagesByCosine] Returning ${result.length} similar pages`);
+    return result;
   }
 
   // Попытка создать ссылку с проверкой всех политик
