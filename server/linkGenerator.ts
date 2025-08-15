@@ -548,6 +548,25 @@ export class LinkGenerator {
   private async loadPages(): Promise<any[]> {
     console.log('🔍 [loadPages] Loading pages for project:', this.projectId);
     
+    // Получаем последний завершенный импорт для проекта
+    const latestImport = await db
+      .select({ jobId: importJobs.jobId })
+      .from(importJobs)
+      .where(and(
+        eq(importJobs.projectId, this.projectId),
+        eq(importJobs.status, 'completed')
+      ))
+      .orderBy(desc(importJobs.startedAt))
+      .limit(1);
+
+    if (!latestImport.length) {
+      console.log('❌ [loadPages] No completed import found for project:', this.projectId);
+      return [];
+    }
+
+    const jobId = latestImport[0].jobId;
+    console.log('🔍 [loadPages] Using jobId from latest import:', jobId);
+    
     const pages = await db
       .select({
         id: pagesClean.id,
@@ -564,11 +583,11 @@ export class LinkGenerator {
       .from(pagesClean)
       .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
       .leftJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
-      .where(eq(pagesRaw.jobId, 'default-job')); // Упрощенно
+      .where(eq(pagesRaw.jobId, jobId));
 
     console.log('🔍 [loadPages] Found pages:', pages.length);
     console.log('🔍 [loadPages] Sample page:', pages[0]);
-    console.log('🔍 [loadPages] Orphan pages:', pages.filter(p => p.isOrphan).length);
+    console.log('🔍 [loadPages] Orphan pages:', pages.filter((p: any) => p.isOrphan).length);
 
     return pages;
   }
