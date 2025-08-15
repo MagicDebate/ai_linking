@@ -118,6 +118,7 @@ export default function ProjectFixed() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
+  const [generationRunId, setGenerationRunId] = useState<string | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   
@@ -236,6 +237,7 @@ export default function ProjectFixed() {
 
     try {
       const result = await startGenerationAsync({ projectId, seoProfile });
+      setGenerationRunId(result.runId);
       toast({ title: "Генерация запущена!", description: "Отслеживайте прогресс ниже" });
       console.log('✅ Generation started:', result);
     } catch (error) {
@@ -597,7 +599,7 @@ export default function ProjectFixed() {
                         </Button>
                       </div>
                     </div>
-
+                  )}
                 </div>
               )}
 
