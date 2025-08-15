@@ -6,8 +6,10 @@ import { useProjectNavigation } from "@/hooks/useProjectNavigation";
 import { useImportStatus } from "@/hooks/useImportStatus";
 import { useProjectMutations } from "@/hooks/useProjectMutations";
 import { useGeneration } from "@/hooks/useGeneration";
+import { useGenerationProgress } from "@/hooks/useGenerationProgress";
 
 import { ImportProgress } from "@/components/ImportProgress";
+import { GenerationProgress } from "@/components/GenerationProgress";
 
 import { SEOSettings, SEOProfile } from "@/components/SEOSettings";
 import Layout from "@/components/Layout";
@@ -102,7 +104,7 @@ export default function ProjectFixed() {
     setSeoProfile, 
     setStepData 
   } = useProjectState(projectId);
-
+  
   const { navigateToStep, getCurrentStep } = useProjectNavigation();
   const { uploadMutation, mappingMutation, startImportMutation, generateLinksMutation } = useProjectMutations();
   
@@ -121,6 +123,9 @@ export default function ProjectFixed() {
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
   const [generationRunId, setGenerationRunId] = useState<string | null>(null);
+  
+  // Хук для отслеживания прогресса генерации
+  const { data: generationProgress, isLoading: generationProgressLoading } = useGenerationProgress(generationRunId);
 
   const fileRef = useRef<HTMLInputElement>(null);
   
@@ -239,12 +244,22 @@ export default function ProjectFixed() {
 
     try {
       const result = await startGenerationAsync({ projectId, seoProfile });
-      setGenerationRunId(result.runId);
-      toast({ title: "Генерация запущена!", description: "Отслеживайте прогресс ниже" });
       console.log('✅ Generation started:', result);
       
-      // Переходим к шагу 4 для отображения прогресса
-      await navigateToStep(4, projectId!);
+      // Устанавливаем runId из ответа
+      if (result && result.runId) {
+        setGenerationRunId(result.runId);
+        
+        // Сохраняем generationRunId в состоянии проекта
+        await setStepData({ generationRunId: result.runId });
+        
+        toast({ title: "Генерация запущена!", description: "Отслеживайте прогресс ниже" });
+        
+        // Переходим к шагу 4 для отображения прогресса
+        await navigateToStep(4, projectId!);
+      } else {
+        toast({ title: "Ошибка", description: "Не получен ID генерации", variant: "destructive" });
+      }
     } catch (error) {
       console.error('❌ Generation error:', error);
       toast({ 
@@ -273,6 +288,22 @@ export default function ProjectFixed() {
     }
   }, [importStatus, currentStep]);
 
+  // Автоматический переход после завершения генерации
+  useEffect(() => {
+    if (generationProgress?.status === 'draft' && currentStep === 4) {
+      console.log('✅ Generation completed, navigating to step 5');
+      toast({ title: "Генерация завершена успешно!" });
+      navigateToStep(5, projectId!);
+    } else if (generationProgress?.status === 'failed' && currentStep === 4) {
+      console.log('❌ Generation failed:', generationProgress.errorMessage);
+      toast({ 
+        title: "Ошибка генерации", 
+        description: generationProgress.errorMessage || "Неизвестная ошибка",
+        variant: "destructive" 
+      });
+    }
+  }, [generationProgress, currentStep, projectId]);
+
 
 
   // Восстановление состояния
@@ -291,6 +322,11 @@ export default function ProjectFixed() {
       if (projectState.importJobId && !importJobId) {
         console.log('🔄 Restoring importJobId:', projectState.importJobId);
         setImportJobId(projectState.importJobId);
+      }
+      
+      if (projectState.stepData?.generationRunId && !generationRunId) {
+        console.log('🔄 Restoring generationRunId:', projectState.stepData.generationRunId);
+        setGenerationRunId(projectState.stepData.generationRunId);
       }
       
       console.log('✅ State restored successfully');
@@ -584,67 +620,43 @@ export default function ProjectFixed() {
               {/* Шаг 4: Генерация ссылок */}
               {currentStep === 4 && (
                 <div className="space-y-6">
-                  {!generationRunId ? (
-                    // Начальный экран - кнопка запуска
-                    <div className="text-center space-y-6">
-                      <div className="space-y-4">
-                        <BarChart3 className="h-16 w-16 text-green-600 mx-auto" />
-                        <h3 className="text-xl font-semibold text-gray-900">
-                          Генерация ссылок
-                        </h3>
-                        <p className="text-gray-600">
-                          Создаем внутренние ссылки по настроенным сценариям и параметрам.
-                        </p>
-                      </div>
-
-                      <div className="flex justify-center gap-4">
-                        <Button variant="outline" onClick={() => navigateToStep(3, projectId!)}>
-                          <ArrowLeft className="h-4 w-4 mr-2" />
-                          Назад к SEO настройкам
-                        </Button>
-                        <Button 
-                          onClick={handleGenerate}
-                          disabled={isStartingGeneration}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          {isStartingGeneration ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Запускаем генерацию...
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-4 w-4 mr-2" />
-                              Запустить генерацию ссылок
-                            </>
-                          )}
-                        </Button>
-                      </div>
+                  <div className="flex justify-center">
+                    <Button variant="outline" onClick={() => navigateToStep(3, projectId!)}>
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Назад к SEO настройкам
+                    </Button>
+                  </div>
+                  
+                  {generationRunId && generationProgress ? (
+                    <GenerationProgress
+                      runId={generationRunId}
+                      status={generationProgress.status}
+                      phase={generationProgress.phase}
+                      percent={generationProgress.percent}
+                      generated={generationProgress.generated}
+                      rejected={generationProgress.rejected}
+                      taskProgress={generationProgress.taskProgress}
+                      counters={generationProgress.counters}
+                      startedAt={generationProgress.startedAt}
+                      finishedAt={generationProgress.finishedAt}
+                      errorMessage={generationProgress.errorMessage}
+                    />
+                  ) : generationProgressLoading ? (
+                    <div className="text-center space-y-4">
+                      <Loader2 className="h-12 w-12 text-blue-600 mx-auto animate-spin" />
+                      <h3 className="text-xl font-semibold text-gray-900">
+                        Загружаем прогресс генерации...
+                      </h3>
                     </div>
                   ) : (
-                    // Экран прогресса генерации
-                    <div className="space-y-6">
-                      <div className="flex justify-center">
-                        <Button variant="outline" onClick={() => navigateToStep(3, projectId!)}>
-                          <ArrowLeft className="h-4 w-4 mr-2" />
-                          Назад к SEO настройкам
-                        </Button>
-                      </div>
-                      
-                      <div className="text-center space-y-4">
-                        <Loader2 className="h-12 w-12 text-blue-600 mx-auto animate-spin" />
-                        <h3 className="text-xl font-semibold text-gray-900">
-                          Генерация ссылок в процессе
-                        </h3>
-                        <p className="text-gray-600">
-                          Обрабатываем страницы и создаем внутренние ссылки...
-                        </p>
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                          <p className="text-blue-700 text-sm">
-                            Генерация запущена успешно! Процесс выполняется в фоновом режиме.
-                          </p>
-                        </div>
-                      </div>
+                    <div className="text-center space-y-4">
+                      <AlertCircle className="h-12 w-12 text-orange-600 mx-auto" />
+                      <h3 className="text-xl font-semibold text-gray-900">
+                        Ошибка загрузки прогресса
+                      </h3>
+                      <p className="text-gray-600">
+                        Не удалось загрузить информацию о генерации
+                      </p>
                     </div>
                   )}
                 </div>
