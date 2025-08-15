@@ -142,6 +142,14 @@ export class LinkGenerator {
       // Phase 1: Load pages (0-20%)
       await this.updateProgress(runId, 'loading', 10, 0, 0);
       const pages = await this.loadPages();
+      
+      if (pages.length === 0) {
+        console.log('❌ [generateLinks] No pages found, cannot generate links');
+        await this.updateProgress(runId, 'failed', 20, 0, 0);
+        throw new Error('No pages found for generation. Please complete import first.');
+      }
+      
+      console.log('✅ [generateLinks] Loaded', pages.length, 'pages for generation');
       await this.updateProgress(runId, 'loading', 20, 0, 0);
 
       // Phase 2: Execute each scenario independently (20-80%)
@@ -581,8 +589,9 @@ export class LinkGenerator {
     console.log('🔍 [loadPages] Loading pages for project:', this.projectId);
     
     // Получаем последний завершенный импорт для проекта
+    console.log('🔍 [loadPages] Looking for completed imports...');
     const latestImport = await db
-      .select({ jobId: importJobs.jobId })
+      .select({ jobId: importJobs.jobId, status: importJobs.status, startedAt: importJobs.startedAt })
       .from(importJobs)
       .where(and(
         eq(importJobs.projectId, this.projectId),
@@ -591,13 +600,44 @@ export class LinkGenerator {
       .orderBy(desc(importJobs.startedAt))
       .limit(1);
 
+    console.log('🔍 [loadPages] Found imports:', latestImport.length);
+    if (latestImport.length > 0) {
+      console.log('🔍 [loadPages] Latest import:', latestImport[0]);
+    }
+
     if (!latestImport.length) {
       console.log('❌ [loadPages] No completed import found for project:', this.projectId);
+      
+      // Проверим какие импорты есть вообще
+      const allImports = await db
+        .select({ jobId: importJobs.jobId, status: importJobs.status, startedAt: importJobs.startedAt })
+        .from(importJobs)
+        .where(eq(importJobs.projectId, this.projectId))
+        .orderBy(desc(importJobs.startedAt))
+        .limit(5);
+      
+      console.log('🔍 [loadPages] All imports for project:', allImports);
       return [];
     }
 
     const jobId = latestImport[0].jobId;
     console.log('🔍 [loadPages] Using jobId from latest import:', jobId);
+    
+    // Проверим есть ли страницы для этого jobId
+    const pagesCount = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(pagesRaw)
+      .where(eq(pagesRaw.jobId, jobId));
+    
+    console.log('🔍 [loadPages] Raw pages count for jobId:', pagesCount[0].count);
+    
+    // Проверим есть ли graphMeta для этого jobId
+    const graphMetaCount = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(graphMeta)
+      .where(eq(graphMeta.jobId, jobId));
+    
+    console.log('🔍 [loadPages] GraphMeta count for jobId:', graphMetaCount[0].count);
     
     const pages = await db
       .select({
@@ -618,8 +658,36 @@ export class LinkGenerator {
       .where(eq(pagesRaw.jobId, jobId));
 
     console.log('🔍 [loadPages] Found pages:', pages.length);
-    console.log('🔍 [loadPages] Sample page:', pages[0]);
-    console.log('🔍 [loadPages] Orphan pages:', pages.filter((p: any) => p.isOrphan).length);
+    if (pages.length > 0) {
+      console.log('🔍 [loadPages] Sample page:', pages[0]);
+      console.log('🔍 [loadPages] Orphan pages:', pages.filter((p: any) => p.isOrphan).length);
+    } else {
+      console.log('❌ [loadPages] No pages found for jobId:', jobId);
+      
+      // Попробуем найти страницы без graphMeta
+      const simplePages = await db
+        .select({
+          id: pagesClean.id,
+          url: pagesRaw.url,
+          title: pagesRaw.meta,
+          wordCount: pagesClean.wordCount,
+          clickDepth: sql<number>`1`,
+          inDegree: sql<number>`0`,
+          outDegree: sql<number>`0`,
+          isOrphan: sql<boolean>`true`,
+          publishedAt: pagesRaw.createdAt,
+          createdAt: pagesClean.createdAt
+        })
+        .from(pagesClean)
+        .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
+        .where(eq(pagesRaw.jobId, jobId));
+      
+      console.log('🔍 [loadPages] Simple pages found:', simplePages.length);
+      if (simplePages.length > 0) {
+        console.log('🔍 [loadPages] Sample simple page:', simplePages[0]);
+        return simplePages;
+      }
+    }
 
     return pages;
   }
