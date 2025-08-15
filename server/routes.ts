@@ -2601,6 +2601,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get latest import job
+      console.log('🔍 [GENERATE API] Looking for import jobs for projectId:', projectId);
+      
       const importJob = await db
         .select()
         .from(importJobs)
@@ -2608,9 +2610,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(desc(importJobs.startedAt))
         .limit(1);
 
-      if (!importJob.length || importJob[0].status !== 'completed') {
-        return res.status(400).json({ error: "No completed import found. Please complete import first." });
+      console.log('🔍 [GENERATE API] Found import jobs:', importJob.length);
+      if (importJob.length > 0) {
+        console.log('🔍 [GENERATE API] Latest import job:', {
+          jobId: importJob[0].jobId,
+          status: importJob[0].status,
+          importId: importJob[0].importId,
+          startedAt: importJob[0].startedAt
+        });
       }
+
+      if (!importJob.length) {
+        console.log('❌ [GENERATE API] No import jobs found');
+        return res.status(400).json({ error: "No import jobs found. Please complete import first." });
+      }
+
+      if (importJob[0].status !== 'completed') {
+        console.log('❌ [GENERATE API] Import job status is not completed:', importJob[0].status);
+        return res.status(400).json({ error: `Import is not completed. Current status: ${importJob[0].status}` });
+      }
+
+      console.log('✅ [GENERATE API] Found completed import job');
 
       // Create new generation run
       const newRun = await db.insert(generationRuns).values({
