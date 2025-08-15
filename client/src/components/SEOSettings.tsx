@@ -24,7 +24,6 @@ import {
 export interface SEOProfile {
   // Лимиты
   maxLinks: number;           // 1-10
-  minGap: number;            // 50-400 слов
   exactAnchorPercent: number; // 0-50%
   
   // Стоп-лист и priority/hub URLs
@@ -32,8 +31,8 @@ export interface SEOProfile {
   priorityPages: string[];    // Money pages for Commercial Routing
   hubPages: string[];        // Hub pages for Head Consolidation
   
-  // Задачи ON/OFF + настройки
-  tasks: {
+  // Сценарии ON/OFF + настройки
+  scenarios: {
     orphanFix: boolean;
     headConsolidation: boolean;
     clusterCrossLink: boolean;
@@ -49,34 +48,38 @@ export interface SEOProfile {
     };
   };
   
+  // Каннибализация
+  cannibalization: {
+    enabled: boolean;
+    level: 'low' | 'medium' | 'high';
+  };
+  
   // Политики ссылок
   policies: {
     oldLinks: 'enrich' | 'regenerate' | 'audit';
     removeDuplicates: boolean;
-    brokenLinks: 'delete' | 'replace' | 'ignore';
+    brokenLinks: 'ignore' | 'delete' | 'replace';
   };
   
   // HTML атрибуты
   htmlAttributes: {
-    className: string;
+    cssClass: string;
+    targetBlank: boolean;
     rel: {
       noopener: boolean;
       noreferrer: boolean;
       nofollow: boolean;
     };
-    targetBlank: boolean;
-    classMode: 'append' | 'replace';
   };
 }
 
 const DEFAULT_PROFILE: SEOProfile = {
   maxLinks: 3,
-  minGap: 100,
   exactAnchorPercent: 20,
   stopAnchors: [],
   priorityPages: [],
   hubPages: [],
-  tasks: {
+  scenarios: {
     orphanFix: true,
     headConsolidation: true,
     clusterCrossLink: true,
@@ -84,16 +87,19 @@ const DEFAULT_PROFILE: SEOProfile = {
     depthLift: { enabled: true, minDepth: 5 },
     freshnessPush: { enabled: true, daysFresh: 30, linksPerDonor: 1 }
   },
+  cannibalization: {
+    enabled: false,
+    level: 'low'
+  },
   policies: {
     oldLinks: 'enrich',
     removeDuplicates: true,
-    brokenLinks: 'replace'
+    brokenLinks: 'ignore'
   },
   htmlAttributes: {
-    className: '',
-    rel: { noopener: false, noreferrer: false, nofollow: false },
+    cssClass: '',
     targetBlank: false,
-    classMode: 'append'
+    rel: { noopener: false, noreferrer: false, nofollow: false }
   }
 };
 
@@ -114,10 +120,10 @@ export function SEOSettings({
     onProfileChange({ ...seoProfile, ...updates });
   };
 
-  const updateTasks = (updates: Partial<SEOProfile['tasks']>) => {
+  const updateScenarios = (updates: Partial<SEOProfile['scenarios']>) => {
     onProfileChange({
       ...seoProfile,
-      tasks: { ...seoProfile.tasks, ...updates }
+      scenarios: { ...seoProfile.scenarios, ...updates }
     });
   };
 
@@ -188,14 +194,14 @@ export function SEOSettings({
                     </div>
                   </div>
                   <Switch
-                    checked={seoProfile.tasks[task.key as keyof typeof seoProfile.tasks] as boolean}
-                    onCheckedChange={(checked) => updateTasks({ [task.key]: checked })}
+                    checked={seoProfile.scenarios[task.key as keyof typeof seoProfile.scenarios] as boolean}
+                    onCheckedChange={(checked) => updateScenarios({ [task.key]: checked })}
                   />
                 </div>
                 <p className="text-xs text-gray-500">{task.details}</p>
                 
                 {/* Priority Pages - для Commercial Routing */}
-                {task.key === 'commercialRouting' && seoProfile.tasks.commercialRouting && (
+                {task.key === 'commercialRouting' && seoProfile.scenarios.commercialRouting && (
                   <div className="mt-4 pt-4 border-t">
                     <Label htmlFor="priorityPages">Priority Pages (Money Pages)</Label>
                     <Textarea
@@ -213,7 +219,7 @@ export function SEOSettings({
                 )}
                 
                 {/* Hub Pages - для Head Consolidation */}
-                {task.key === 'headConsolidation' && seoProfile.tasks.headConsolidation && (
+                {task.key === 'headConsolidation' && seoProfile.scenarios.headConsolidation && (
                   <div className="mt-4 pt-4 border-t">
                     <Label htmlFor="hubPages">Hub Pages</Label>
                     <Textarea
@@ -244,22 +250,22 @@ export function SEOSettings({
                   <p className="text-xs text-gray-500">URL с глубиной &gt;2–3 в структуре сайта, добавление ссылок на верхние уровни</p>
                 </div>
               </div>
-              <Switch
-                checked={seoProfile.tasks.depthLift.enabled}
-                onCheckedChange={(checked) => updateTasks({ 
-                  depthLift: { ...seoProfile.tasks.depthLift, enabled: checked }
-                })}
-              />
+                              <Switch
+                  checked={seoProfile.scenarios.depthLift.enabled}
+                  onCheckedChange={(checked) => updateScenarios({ 
+                    depthLift: { ...seoProfile.scenarios.depthLift, enabled: checked }
+                  })}
+                />
             </div>
-            {seoProfile.tasks.depthLift.enabled && (
+            {seoProfile.scenarios.depthLift.enabled && (
               <div className="ml-7">
                 <Label htmlFor="minDepth">Минимальная глубина</Label>
-                <Select 
-                  value={seoProfile.tasks.depthLift.minDepth.toString()} 
-                  onValueChange={(value) => updateTasks({
-                    depthLift: { ...seoProfile.tasks.depthLift, minDepth: parseInt(value) }
-                  })}
-                >
+                                  <Select 
+                    value={seoProfile.scenarios.depthLift.minDepth.toString()} 
+                    onValueChange={(value) => updateScenarios({
+                      depthLift: { ...seoProfile.scenarios.depthLift, minDepth: parseInt(value) }
+                    })}
+                  >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -284,40 +290,40 @@ export function SEOSettings({
                   <p className="text-xs text-gray-500">Страницы с датой обновления/публикации за последние N дней, приоритетные ссылки на них</p>
                 </div>
               </div>
-              <Switch
-                checked={seoProfile.tasks.freshnessPush.enabled}
-                onCheckedChange={(checked) => updateTasks({ 
-                  freshnessPush: { ...seoProfile.tasks.freshnessPush, enabled: checked }
-                })}
-              />
+                              <Switch
+                  checked={seoProfile.scenarios.freshnessPush.enabled}
+                  onCheckedChange={(checked) => updateScenarios({ 
+                    freshnessPush: { ...seoProfile.scenarios.freshnessPush, enabled: checked }
+                  })}
+                />
             </div>
-            {seoProfile.tasks.freshnessPush.enabled && (
+            {seoProfile.scenarios.freshnessPush.enabled && (
               <div className="ml-7 space-y-4">
                 <div>
-                  <Label>Свежесть: {seoProfile.tasks.freshnessPush.daysFresh} дней</Label>
-                  <Slider
-                    value={[seoProfile.tasks.freshnessPush.daysFresh]}
-                    onValueChange={([value]) => updateTasks({
-                      freshnessPush: { ...seoProfile.tasks.freshnessPush, daysFresh: value }
-                    })}
-                    min={7}
-                    max={60}
-                    step={1}
-                    className="mt-2"
-                  />
+                                      <Label>Свежесть: {seoProfile.scenarios.freshnessPush.daysFresh} дней</Label>
+                    <Slider
+                      value={[seoProfile.scenarios.freshnessPush.daysFresh]}
+                      onValueChange={([value]) => updateScenarios({
+                        freshnessPush: { ...seoProfile.scenarios.freshnessPush, daysFresh: value }
+                      })}
+                      min={7}
+                      max={60}
+                      step={1}
+                      className="mt-2"
+                    />
                 </div>
                 <div>
-                  <Label>Ссылок на донора: {seoProfile.tasks.freshnessPush.linksPerDonor}</Label>
-                  <Slider
-                    value={[seoProfile.tasks.freshnessPush.linksPerDonor]}
-                    onValueChange={([value]) => updateTasks({
-                      freshnessPush: { ...seoProfile.tasks.freshnessPush, linksPerDonor: value }
-                    })}
-                    min={0}
-                    max={3}
-                    step={1}
-                    className="mt-2"
-                  />
+                                      <Label>Ссылок на донора: {seoProfile.scenarios.freshnessPush.linksPerDonor}</Label>
+                    <Slider
+                      value={[seoProfile.scenarios.freshnessPush.linksPerDonor]}
+                      onValueChange={([value]) => updateScenarios({
+                        freshnessPush: { ...seoProfile.scenarios.freshnessPush, linksPerDonor: value }
+                      })}
+                      min={0}
+                      max={3}
+                      step={1}
+                      className="mt-2"
+                    />
                 </div>
               </div>
             )}
@@ -469,30 +475,14 @@ export function SEOSettings({
               <Label htmlFor="className">CSS класс</Label>
               <Input
                 id="className"
-                value={seoProfile.htmlAttributes.className}
-                onChange={(e) => updateHtmlAttributes({ className: e.target.value })}
+                value={seoProfile.htmlAttributes.cssClass}
+                onChange={(e) => updateHtmlAttributes({ cssClass: e.target.value })}
                 placeholder="my-link-class"
                 className="mt-1"
               />
             </div>
             
-            <div>
-              <Label>Режим класса</Label>
-              <Select
-                value={seoProfile.htmlAttributes.classMode}
-                onValueChange={(value: 'append' | 'replace') => 
-                  updateHtmlAttributes({ classMode: value })
-                }
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="append">Добавить</SelectItem>
-                  <SelectItem value="replace">Заменить</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+
           </div>
           
           <div className="space-y-4">

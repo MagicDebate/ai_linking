@@ -56,12 +56,11 @@ interface Project {
 // Используем SEOProfile из компонента SEOSettings
 const DEFAULT_PROFILE: SEOProfile = {
   maxLinks: 3,
-  minGap: 100,
   exactAnchorPercent: 20,
   stopAnchors: [],
   priorityPages: [],
   hubPages: [],
-  tasks: {
+  scenarios: {
     orphanFix: true,
     headConsolidation: true,
     clusterCrossLink: true,
@@ -69,16 +68,19 @@ const DEFAULT_PROFILE: SEOProfile = {
     depthLift: { enabled: true, minDepth: 5 },
     freshnessPush: { enabled: true, daysFresh: 30, linksPerDonor: 1 }
   },
+  cannibalization: {
+    enabled: false,
+    level: 'low'
+  },
   policies: {
     oldLinks: 'enrich',
     removeDuplicates: true,
-    brokenLinks: 'replace'
+    brokenLinks: 'ignore'
   },
   htmlAttributes: {
-    className: '',
-    rel: { noopener: false, noreferrer: false, nofollow: false },
+    cssClass: '',
     targetBlank: false,
-    classMode: 'append'
+    rel: { noopener: false, noreferrer: false, nofollow: false }
   }
 };
 
