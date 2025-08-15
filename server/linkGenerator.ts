@@ -511,7 +511,34 @@ export class LinkGenerator {
         return { created: false, reason: 'Anchor in stop list' };
       }
 
-      // 6. Создание ссылки в БД
+      // 6. Рерайт предложения с вставкой ссылки
+      let modifiedSentence = null;
+      try {
+        // Получаем исходный текст страницы-донора
+        const sourceBlock = await db
+          .select({ text: blocks.text })
+          .from(blocks)
+          .where(eq(blocks.pageId, sourcePage.id))
+          .limit(1);
+
+        if (sourceBlock.length > 0) {
+          const sourceText = sourceBlock[0].text;
+          const targetTitle = targetPage.title || '';
+          const targetDescription = targetPage.description || '';
+
+          // Рерайтим предложение с вставкой ссылки
+          modifiedSentence = await openaiService.rewriteSentenceWithLink(
+            sourceText.substring(0, 200), // Берем первые 200 символов
+            targetTitle,
+            targetDescription,
+            anchorText
+          );
+        }
+      } catch (error) {
+        console.log('⚠️ [tryCreateLink] Sentence rewrite failed, continuing without it');
+      }
+
+      // 7. Создание ссылки в БД
       await db.insert(linkCandidates).values({
         runId: runId,
         sourcePageId: sourcePage.id,
@@ -519,9 +546,13 @@ export class LinkGenerator {
         sourceUrl: sourcePage.url,
         targetUrl: targetPage.url,
         anchorText: anchorText,
-        scenario: scenario,
-        isRejected: false,
-        rejectionReason: null
+        type: scenario,
+        status: 'accepted',
+        anchorSource: 'ai', // или 'text' или 'generic' в зависимости от источника
+        confidence: 0.8, // Заглушка
+        positionHint: { pageId: sourcePage.id, blockId: 1, offset: 0 }, // Заглушка
+        similarity: 0.75, // Заглушка
+        modifiedSentence: modifiedSentence
       });
 
       return { created: true, anchor: anchorText };
