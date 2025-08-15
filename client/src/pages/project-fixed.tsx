@@ -164,6 +164,8 @@ export default function ProjectFixed() {
 
   // Обработчики
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('🔍 [handleFileSelect] File selected:', event.target.files?.[0]);
+    
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -176,6 +178,7 @@ export default function ProjectFixed() {
       return;
     }
 
+    console.log('🔍 [handleFileSelect] Starting upload for projectId:', projectId);
     setUploadedFile(file);
     setCsvPreview(null);
     setFieldMapping({});
@@ -198,11 +201,17 @@ export default function ProjectFixed() {
   };
 
   const handleMappingSubmit = async () => {
+    console.log('🔍 [handleMappingSubmit] Starting mapping submission');
+    console.log('🔍 [handleMappingSubmit] csvPreview:', csvPreview);
+    console.log('🔍 [handleMappingSubmit] fieldMapping:', fieldMapping);
+    
     if (!csvPreview?.uploadId) {
+      console.log('❌ [handleMappingSubmit] No uploadId found');
       toast({ title: "Ошибка", description: "Не найден ID загрузки", variant: "destructive" });
       return;
     }
 
+    console.log('🔍 [handleMappingSubmit] Saving mapping...');
     // Сохраняем маппинг
     await mappingMutation.mutateAsync({ 
       projectId: projectId!, 
@@ -213,11 +222,14 @@ export default function ProjectFixed() {
     // Сохраняем в чекпоинты
     await setStepData({ fieldMapping });
     
+    console.log('🔍 [handleMappingSubmit] Starting import...');
     // Запускаем импорт
     const result = await startImportMutation.mutateAsync({ 
       projectId: projectId!, 
       uploadId: csvPreview.uploadId 
     });
+    
+    console.log('✅ [handleMappingSubmit] Import started with result:', result);
     
     // Сохраняем importJobId
     await setImportJobId(result.jobId);

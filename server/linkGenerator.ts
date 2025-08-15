@@ -256,25 +256,35 @@ export class LinkGenerator {
 
   // ORPHAN FIX: поднимает сиротские страницы
   private async executeOrphanFixScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
+    console.log('🔍 [OrphanFix] Starting orphan fix scenario');
+    console.log('🔍 [OrphanFix] Total pages:', pages.length);
+    
     let generated = 0, rejected = 0;
 
     // Получаем сиротские страницы
     const orphanPages = pages.filter(page => page.isOrphan);
+    console.log('🔍 [OrphanFix] Orphan pages found:', orphanPages.length);
 
     for (const orphanPage of orphanPages) {
+      console.log('🔍 [OrphanFix] Processing orphan page:', orphanPage.url);
+      
       // Ищем похожие страницы через cosine similarity
       const similarPages = await this.findSimilarPagesByCosine(orphanPage, pages, 5, 0.70); // Пониженный порог для сирот
+      console.log('🔍 [OrphanFix] Similar pages found:', similarPages.length);
       
       for (const similarPage of similarPages) {
         const result = await this.tryCreateLink(runId, similarPage, orphanPage, 'orphan_fix', params);
         if (result.created) {
           generated++;
+          console.log('✅ [OrphanFix] Link created:', similarPage.url, '->', orphanPage.url);
         } else {
           rejected++;
+          console.log('❌ [OrphanFix] Link rejected:', similarPage.url, '->', orphanPage.url, 'Reason:', result.reason);
         }
       }
     }
 
+    console.log('🔍 [OrphanFix] Scenario completed - Generated:', generated, 'Rejected:', rejected);
     return { generated, rejected };
   }
 
@@ -532,6 +542,8 @@ export class LinkGenerator {
 
   // Загрузка страниц проекта
   private async loadPages(): Promise<any[]> {
+    console.log('🔍 [loadPages] Loading pages for project:', this.projectId);
+    
     const pages = await db
       .select({
         id: pagesClean.id,
@@ -549,6 +561,10 @@ export class LinkGenerator {
       .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
       .leftJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
       .where(eq(pagesRaw.jobId, 'default-job')); // Упрощенно
+
+    console.log('🔍 [loadPages] Found pages:', pages.length);
+    console.log('🔍 [loadPages] Sample page:', pages[0]);
+    console.log('🔍 [loadPages] Orphan pages:', pages.filter(p => p.isOrphan).length);
 
     return pages;
   }
