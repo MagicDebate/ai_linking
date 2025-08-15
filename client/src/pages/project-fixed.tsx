@@ -242,6 +242,9 @@ export default function ProjectFixed() {
       setGenerationRunId(result.runId);
       toast({ title: "Генерация запущена!", description: "Отслеживайте прогресс ниже" });
       console.log('✅ Generation started:', result);
+      
+      // Переходим к шагу 4 для отображения прогресса
+      await navigateToStep(4, projectId!);
     } catch (error) {
       console.error('❌ Generation error:', error);
       toast({ 
@@ -581,24 +584,69 @@ export default function ProjectFixed() {
               {/* Шаг 4: Генерация ссылок */}
               {currentStep === 4 && (
                 <div className="space-y-6">
-                  <div className="text-center space-y-6">
-                    <div className="space-y-4">
-                      <BarChart3 className="h-16 w-16 text-green-600 mx-auto" />
-                      <h3 className="text-xl font-semibold text-gray-900">
-                        Генерация ссылок
-                      </h3>
-                      <p className="text-gray-600">
-                        Создаем внутренние ссылки по настроенным сценариям и параметрам.
-                      </p>
-                    </div>
+                  {!generationRunId ? (
+                    // Начальный экран - кнопка запуска
+                    <div className="text-center space-y-6">
+                      <div className="space-y-4">
+                        <BarChart3 className="h-16 w-16 text-green-600 mx-auto" />
+                        <h3 className="text-xl font-semibold text-gray-900">
+                          Генерация ссылок
+                        </h3>
+                        <p className="text-gray-600">
+                          Создаем внутренние ссылки по настроенным сценариям и параметрам.
+                        </p>
+                      </div>
 
-                    <div className="flex justify-center gap-4">
-                      <Button variant="outline" onClick={() => navigateToStep(3, projectId!)}>
-                        <ArrowLeft className="h-4 w-4 mr-2" />
-                        Назад к SEO настройкам
-                      </Button>
+                      <div className="flex justify-center gap-4">
+                        <Button variant="outline" onClick={() => navigateToStep(3, projectId!)}>
+                          <ArrowLeft className="h-4 w-4 mr-2" />
+                          Назад к SEO настройкам
+                        </Button>
+                        <Button 
+                          onClick={handleGenerate}
+                          disabled={isStartingGeneration}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          {isStartingGeneration ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Запускаем генерацию...
+                            </>
+                          ) : (
+                            <>
+                              <Play className="h-4 w-4 mr-2" />
+                              Запустить генерацию ссылок
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    // Экран прогресса генерации
+                    <div className="space-y-6">
+                      <div className="flex justify-center">
+                        <Button variant="outline" onClick={() => navigateToStep(3, projectId!)}>
+                          <ArrowLeft className="h-4 w-4 mr-2" />
+                          Назад к SEO настройкам
+                        </Button>
+                      </div>
+                      
+                      <div className="text-center space-y-4">
+                        <Loader2 className="h-12 w-12 text-blue-600 mx-auto animate-spin" />
+                        <h3 className="text-xl font-semibold text-gray-900">
+                          Генерация ссылок в процессе
+                        </h3>
+                        <p className="text-gray-600">
+                          Обрабатываем страницы и создаем внутренние ссылки...
+                        </p>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <p className="text-blue-700 text-sm">
+                            Генерация запущена успешно! Процесс выполняется в фоновом режиме.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
