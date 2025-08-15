@@ -3,6 +3,7 @@ import { linkCandidates, generationRuns, pageEmbeddings, pagesClean, graphMeta, 
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { embeddingService } from './embeddingService';
 import { linkGenerationQueue } from './queue';
+import { openaiService } from './openaiService';
 
 // Интерфейс параметров генерации (точно по UI)
 interface GenerationParams {
@@ -628,10 +629,146 @@ export class LinkGenerator {
     return false;
   }
 
-  // Генерация текста анкора
+  // Генерация текста анкора (3-шаговый алгоритм)
   private async generateAnchorText(sourcePage: any, targetPage: any, params: GenerationParams): Promise<string> {
-    // PLACEHOLDER: Реализация генерации анкора
-    return `Ссылка на ${targetPage.title || targetPage.url}`;
+    console.log('🔗 [generateAnchorText] Starting anchor generation for:', targetPage.url);
+    
+    try {
+      // Шаг A: Естественный анкор из текста
+      const naturalAnchor = await this.findNaturalAnchor(sourcePage, targetPage, params);
+      if (naturalAnchor) {
+        console.log('✅ [generateAnchorText] Found natural anchor:', naturalAnchor);
+        return naturalAnchor;
+      }
+
+      // Шаг B: Анкор через ИИ
+      try {
+        const aiAnchor = await this.generateAIAnchor(sourcePage, targetPage, params);
+        if (aiAnchor && openaiService.validateAnchorText(aiAnchor, params.stopAnchors)) {
+          console.log('✅ [generateAnchorText] Generated AI anchor:', aiAnchor);
+          return aiAnchor;
+        }
+      } catch (error) {
+        console.log('⚠️ [generateAnchorText] AI anchor generation failed, using fallback');
+      }
+
+      // Шаг C: Fallback generic/partial
+      const fallbackAnchor = this.generateFallbackAnchor(targetPage, params);
+      console.log('✅ [generateAnchorText] Using fallback anchor:', fallbackAnchor);
+      return fallbackAnchor;
+      
+    } catch (error) {
+      console.error('❌ [generateAnchorText] Error:', error);
+      return `Ссылка на ${targetPage.title || targetPage.url}`;
+    }
+  }
+
+  // Шаг A: Поиск естественного анкора в тексте
+  private async findNaturalAnchor(sourcePage: any, targetPage: any, params: GenerationParams): Promise<string | null> {
+    try {
+      // Получаем блоки страницы-донора
+      const sourceBlocks = await db
+        .select({ text: blocks.text })
+        .from(blocks)
+        .where(eq(blocks.pageId, sourcePage.id));
+
+      if (!sourceBlocks.length) {
+        return null;
+      }
+
+      // Ищем н-граммы 2-6 слов в тексте
+      const targetKeywords = this.extractKeywords(targetPage.title || '', targetPage.description || '');
+      
+      for (const block of sourceBlocks) {
+        const text = block.text.toLowerCase();
+        
+        // Ищем точные совпадения ключевых слов
+        for (const keyword of targetKeywords) {
+          const words = keyword.split(' ');
+          if (words.length >= 2 && words.length <= 6) {
+            const phrase = words.join(' ');
+            if (text.includes(phrase) && !this.isStopAnchor(phrase, params.stopAnchors)) {
+              return phrase;
+            }
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ [findNaturalAnchor] Error:', error);
+      return null;
+    }
+  }
+
+  // Шаг B: Генерация анкора через ИИ
+  private async generateAIAnchor(sourcePage: any, targetPage: any, params: GenerationParams): Promise<string | null> {
+    try {
+      // Берем первый блок страницы-донора для контекста
+      const sourceBlock = await db
+        .select({ text: blocks.text })
+        .from(blocks)
+        .where(eq(blocks.pageId, sourcePage.id))
+        .limit(1);
+
+      if (!sourceBlock.length) {
+        return null;
+      }
+
+      const sourceText = sourceBlock[0].text.substring(0, 500); // Ограничиваем длину
+      const targetTitle = targetPage.title || '';
+      const targetDescription = targetPage.description || '';
+
+      const aiAnchor = await openaiService.generateAnchorText(
+        sourceText,
+        targetTitle,
+        targetDescription,
+        8 // maxWords
+      );
+
+      return aiAnchor;
+    } catch (error) {
+      console.error('❌ [generateAIAnchor] Error:', error);
+      return null;
+    }
+  }
+
+  // Шаг C: Fallback анкор
+  private generateFallbackAnchor(targetPage: any, params: GenerationParams): string {
+    const title = targetPage.title || '';
+    
+    // Извлекаем ключевые слова из заголовка
+    const words = title.split(/\s+/).filter(word => word.length > 3).slice(0, 4);
+    
+    if (words.length >= 2) {
+      return words.join(' ');
+    }
+    
+    // Если не получилось - используем заголовок целиком
+    return title.length > 50 ? title.substring(0, 50) + '...' : title;
+  }
+
+  // Извлечение ключевых слов
+  private extractKeywords(title: string, description: string): string[] {
+    const text = `${title} ${description}`.toLowerCase();
+    
+    // Удаляем HTML теги и специальные символы
+    const cleanText = text.replace(/<[^>]*>/g, ' ')
+                         .replace(/[^\w\s]/g, ' ')
+                         .replace(/\s+/g, ' ')
+                         .trim();
+    
+    // Разбиваем на слова и фильтруем стоп-слова
+    const stopWords = new Set([
+      'и', 'в', 'на', 'с', 'по', 'для', 'от', 'до', 'из', 'к', 'о', 'об', 'при', 'за', 'под', 'над',
+      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were'
+    ]);
+    
+    const words = cleanText.split(' ')
+      .filter(word => word.length > 3 && !stopWords.has(word))
+      .slice(0, 20); // Берем топ 20 ключевых слов
+    
+    return words;
   }
 
   // Проверка стоп-листа анкоров
