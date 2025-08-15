@@ -2756,12 +2756,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get generation progress
   app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
-    console.log('🔍 [PROGRESS API] Request received for runId:', runId);
-    console.log('🔍 [PROGRESS API] User:', req.user?.id);
-    console.log('🔍 [PROGRESS API] Headers:', req.headers);
-    
     try {
       const { runId } = req.params;
+      console.log('🔍 [PROGRESS API] Request received for runId:', runId);
+      console.log('🔍 [PROGRESS API] User:', req.user?.id);
+      console.log('🔍 [PROGRESS API] Headers:', req.headers);
       console.log('🔍 [PROGRESS API] Extracted runId:', runId);
       
       console.log('🔍 [PROGRESS API] Querying database for runId:', runId);
