@@ -101,8 +101,7 @@ export default function ProjectFixed() {
     isLoading: stateLoading, 
     setCurrentStep, 
     setImportJobId, 
-    setSeoProfile, 
-    setStepData 
+    setSeoProfile
   } = useProjectState(projectId);
   
   const { navigateToStep, getCurrentStep } = useProjectNavigation();
@@ -191,11 +190,7 @@ export default function ProjectFixed() {
     const newCsvPreview = { ...data.preview, uploadId: data.uploadId };
     setCsvPreview(newCsvPreview);
     
-    // Сохраняем состояние
-    await setStepData({
-      csvPreview: newCsvPreview,
-      uploadedFile: uploadedFile ? { name: uploadedFile.name, size: uploadedFile.size } : null
-    });
+
     
     toast({ title: "Файл загружен! Настройте маппинг полей." });
   };
@@ -219,8 +214,7 @@ export default function ProjectFixed() {
       uploadId: csvPreview.uploadId 
     });
 
-    // Сохраняем в чекпоинты
-    await setStepData({ fieldMapping });
+
     
     console.log('🔍 [handleMappingSubmit] Starting import...');
     // Запускаем импорт
@@ -266,8 +260,7 @@ export default function ProjectFixed() {
       if (result && result.runId) {
         setGenerationRunId(result.runId);
         
-        // Сохраняем generationRunId в состоянии проекта
-        await setStepData({ generationRunId: result.runId });
+
         
         toast({ title: "Генерация запущена!", description: "Отслеживайте прогресс ниже" });
         
@@ -318,32 +311,7 @@ export default function ProjectFixed() {
 
 
 
-  // Восстановление состояния
-  useEffect(() => {
-    if (projectState && !stateLoading) {
-      console.log('🔄 Restoring state from checkpoints:', projectState);
-      
-      if (projectState.stepData?.csvPreview && !csvPreview) {
-        setCsvPreview(projectState.stepData.csvPreview);
-      }
-      
-      if (projectState.stepData?.fieldMapping && Object.keys(projectState.stepData.fieldMapping).length > 0 && Object.keys(fieldMapping).length === 0) {
-        setFieldMapping(projectState.stepData.fieldMapping);
-      }
-      
-      if (projectState.importJobId && !importJobId) {
-        console.log('🔄 Restoring importJobId:', projectState.importJobId);
-        setImportJobId(projectState.importJobId);
-      }
-      
-      if (projectState.stepData?.generationRunId && !generationRunId) {
-        console.log('🔄 Restoring generationRunId:', projectState.stepData.generationRunId);
-        setGenerationRunId(projectState.stepData.generationRunId);
-      }
-      
-      console.log('✅ State restored successfully');
-    }
-  }, [projectState, stateLoading, csvPreview, fieldMapping, importJobId, setImportJobId]);
+
 
   // Обработка успешной загрузки
   useEffect(() => {
