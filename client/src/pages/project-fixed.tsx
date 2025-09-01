@@ -288,13 +288,9 @@ export default function ProjectFixed() {
 
 
 
-  // Автоматический переход после завершения импорта
+  // Обработка ошибки импорта
   useEffect(() => {
-    if (importStatus?.status === 'completed' && currentStep === 2) {
-      console.log('✅ Import completed, navigating to step 3');
-      toast({ title: "Импорт завершен успешно!" });
-      handleImportComplete();
-    } else if (importStatus?.status === 'failed' && currentStep === 2) {
+    if (importStatus?.status === 'failed' && currentStep === 2) {
       console.log('❌ Import failed:', importStatus.errorMessage);
       toast({ 
         title: "Ошибка импорта", 
@@ -303,14 +299,6 @@ export default function ProjectFixed() {
       });
     }
   }, [importStatus, currentStep]);
-
-  // Автоматический переход к шагу импорта, если есть активный импорт
-  useEffect(() => {
-    if (importStatus && importStatus.status === 'running' && currentStep !== 2) {
-      console.log('🔄 Active import detected, navigating to step 2');
-      navigateToStep(2, projectId!);
-    }
-  }, [importStatus, currentStep, projectId]);
 
   // Автоматический переход после завершения генерации
   useEffect(() => {
