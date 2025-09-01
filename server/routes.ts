@@ -3437,11 +3437,19 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
 
 // Background import processing function - now uses ContentProcessor
 async function processImportJob(jobId: string, projectId: string, uploadId: string) {
+  console.log(`🚨 [PROCESS IMPORT] ===== НАЧАЛО ОБРАБОТКИ ИМПОРТА =====`);
+  console.log(`🚨 [PROCESS IMPORT] Job ID: ${jobId}`);
+  console.log(`🚨 [PROCESS IMPORT] Project ID: ${projectId}`);
+  console.log(`🚨 [PROCESS IMPORT] Upload ID: ${uploadId}`);
+  
   try {
     console.log(`🚀 Starting import job ${jobId} for project ${projectId}`);
 
     // Get import record to find importId
+    console.log(`🔍 [PROCESS IMPORT] Getting import record for uploadId: ${uploadId}`);
     const importRecord = await storage.getImportByUploadId(uploadId);
+    console.log(`🔍 [PROCESS IMPORT] Import record found:`, importRecord ? 'YES' : 'NO');
+    
     if (!importRecord) {
       throw new Error('Import record not found');
     }
@@ -3453,12 +3461,18 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
     console.log(`📦 Creating ContentProcessor instance...`);
     const processor = new ContentProcessor(storage);
     console.log(`🎯 Starting processContent...`);
+    
+    const startTime = Date.now();
     await processor.processContent(jobId, projectId, importId);
-    console.log(`✅ processContent completed successfully`);
+    const endTime = Date.now();
+    
+    console.log(`✅ processContent completed successfully in ${endTime - startTime}ms`);
+    console.log(`🚨 [PROCESS IMPORT] ===== ИМПОРТ ЗАВЕРШЕН УСПЕШНО =====`);
     
   } catch (error) {
     console.error(`❌ Import job ${jobId} failed:`, error);
     console.error(`❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+    console.log(`🚨 [PROCESS IMPORT] ===== ИМПОРТ ЗАВЕРШЕН С ОШИБКОЙ =====`);
     
     await db.update(importJobs).set({
       status: 'failed',

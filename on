@@ -1,0 +1,18 @@
+warning: in the working copy of 'package-lock.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/routes.ts', LF will be replaced by CRLF the next time Git touches it
+CHECKPOINT_SYSTEM.md
+FIXES_SUMMARY.md
+client/src/components/ImportProgress.tsx
+client/src/components/LinkPreview.tsx
+client/src/hooks/use-toast-simple.ts
+client/src/hooks/useImportStatus.ts
+client/src/hooks/useProjectMutations.ts
+client/src/hooks/useProjectNavigation.ts
+client/src/pages/project-fixed-simple.tsx
+fix-schema.sql
+package-lock.json
+package.json
+server/openaiService.ts
+server/routes.ts
+update-schema.sql

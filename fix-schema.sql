@@ -39,3 +39,8 @@ END $$;
 
 -- 7. Проверяем что таблицы существуют и имеют правильную структуру
 SELECT 'Schema updated successfully!' as status;
+
+
+
+
+

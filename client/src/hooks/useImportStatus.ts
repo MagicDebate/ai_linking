@@ -1,54 +1,56 @@
 import { useQuery } from '@tanstack/react-query';
 
-export interface ImportStatus {
-  status: 'running' | 'completed' | 'failed' | 'canceled';
-  phase: string;
-  percent: number;
-  currentItem?: string;
-  error?: string;
-  stats?: {
-    totalPages: number;
-    totalBlocks: number;
-    totalWords: number;
-  };
-  errors?: string[];
-  pagesTotal?: number;
-  pagesDone?: number;
-  blocksDone?: number;
-  orphanCount?: number;
-  avgWordCount?: number;
-  deepPages?: number;
-  avgClickDepth?: number;
-  logs?: string[];
+interface ImportStatus {
+  jobId: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress?: number;
+  message?: string;
+  totalRows?: number;
+  processedRows?: number;
   errorMessage?: string;
-  startedAt?: string;
-  finishedAt?: string;
+  completedAt?: string;
 }
 
-export function useImportStatus(jobId: string | null, currentStep: number) {
-  return useQuery<ImportStatus>({
-    queryKey: ['/api/import/status', jobId],
-    queryFn: async () => {
-      if (!jobId) return null;
+export function useImportStatus(jobId: string | null, enabled: boolean = true) {
+  console.log('🔍 [useImportStatus] Hook called with jobId:', jobId, 'enabled:', enabled);
+  
+  return useQuery({
+    queryKey: ['import-status', jobId],
+    queryFn: async (): Promise<ImportStatus> => {
+      console.log('🔍 [useImportStatus] QueryFn called with jobId:', jobId);
       
-      console.log(`🔍 Fetching import status for jobId: ${jobId}`);
-      const response = await fetch(`/api/import/status/${jobId}`, {
-        credentials: 'include'
-      });
+      if (!jobId) {
+        console.log('❌ [useImportStatus] No jobId provided');
+        throw new Error('No job ID provided');
+      }
+      
+      console.log('🔍 [useImportStatus] Fetching from:', `/api/import/status/${jobId}`);
+      const response = await fetch(`/api/import/status/${jobId}`);
+      
+      console.log('🔍 [useImportStatus] Response status:', response.status);
       
       if (!response.ok) {
-        throw new Error('Failed to get import status');
+        const error = await response.json();
+        console.log('❌ [useImportStatus] Response error:', error);
+        throw new Error(error.error || 'Failed to get import status');
       }
       
       const data = await response.json();
-      console.log(`📊 Import status response:`, data);
+      console.log('✅ [useImportStatus] Response data:', data);
       return data;
     },
-    enabled: !!jobId && currentStep === 2,
-    refetchInterval: 1000, // Обновляем каждую секунду на шаге 2
-    staleTime: 0, // Данные всегда считаются устаревшими
-    cacheTime: 0, // Отключаем кэширование
-    retry: 3,
-    retryDelay: 1000
+    enabled: !!jobId && enabled,
+    refetchInterval: (data) => {
+      // Stop polling when import is complete or failed
+      if (data?.status === 'completed' || data?.status === 'failed') {
+        return false;
+      }
+      return 2000; // Poll every 2 seconds while running
+    },
+    staleTime: 0,
+    cacheTime: 0,
   });
 }
+
+
+

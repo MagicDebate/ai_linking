@@ -239,3 +239,8 @@ export function LinkPreview({ candidate, onApprove, onReject }: LinkPreviewProps
     </Card>
   );
 }
+
+
+
+
+
