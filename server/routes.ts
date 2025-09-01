@@ -1238,7 +1238,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Start link generation with full SEO profile parameters
+  app.post("/api/generate/start", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId, seoProfile } = req.body;
+      
+      console.log('🚀 Starting generation with full SEO profile:', {
+        projectId,
+        preset: seoProfile?.preset,
+        scenarios: seoProfile?.scenarios,
+        policies: seoProfile?.policies
+      });
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
 
+      // Validate SEO profile structure
+      if (!seoProfile || !seoProfile.scenarios || !seoProfile.policies) {
+        return res.status(400).json({ error: "Invalid SEO profile structure" });
+      }
+
+      // Create link generator
+      const generator = new LinkGenerator(projectId);
+
+      // Map UI data directly to generation parameters (full synchronization)
+      const generationParams = {
+        // Basic limits
+        maxLinks: seoProfile.maxLinks || 3,
+        minGap: seoProfile.minGap || 100,
+        exactAnchorPercent: seoProfile.exactAnchorPercent || 20,
+        
+        // Lists
+        stopAnchors: seoProfile.stopAnchors || [],
+        priorityPages: seoProfile.priorityPages || [], // Now using priorityPages instead of moneyPages
+        hubPages: seoProfile.hubPages || [],
+        
+        // Scenarios (exact match with UI)
+        scenarios: {
+          orphanFix: seoProfile.scenarios.orphanFix || false,
+          headConsolidation: seoProfile.scenarios.headConsolidation || false,
+          clusterCrossLink: seoProfile.scenarios.clusterCrossLink || false,
+          commercialRouting: seoProfile.scenarios.commercialRouting || false,
+          depthLift: {
+            enabled: seoProfile.scenarios.depthLift?.enabled || false,
+            minDepth: seoProfile.scenarios.depthLift?.minDepth || 5
+          },
+          freshnessPush: {
+            enabled: seoProfile.scenarios.freshnessPush?.enabled || false,
+            daysFresh: seoProfile.scenarios.freshnessPush?.daysFresh || 30,
+            linksPerDonor: seoProfile.scenarios.freshnessPush?.linksPerDonor || 1
+          }
+        },
+        
+        // Cannibalization (full support)
+        cannibalization: {
+          enabled: seoProfile.cannibalization?.enabled !== false,
+          level: (seoProfile.cannibalization?.level || 'medium') as 'low' | 'medium' | 'high'
+        },
+        
+        // Policies (full support)
+        policies: {
+          oldLinks: seoProfile.policies?.oldLinks || 'enrich',
+          removeDuplicates: seoProfile.policies?.removeDuplicates || true,
+          brokenLinks: seoProfile.policies?.brokenLinks || 'replace'
+        },
+        
+        // HTML attributes (full support)
+        htmlAttributes: {
+          cssClass: seoProfile.htmlAttributes?.className || '',
+          targetBlank: seoProfile.htmlAttributes?.targetBlank || false,
+          rel: {
+            noopener: seoProfile.htmlAttributes?.rel?.noopener || false,
+            noreferrer: seoProfile.htmlAttributes?.rel?.noreferrer || false,
+            nofollow: seoProfile.htmlAttributes?.rel?.nofollow || false
+          }
+        }
+      };
+
+      console.log('📋 Mapped generation parameters:', {
+        maxLinks: generationParams.maxLinks,
+        stopAnchors: generationParams.stopAnchors.length,
+        priorityPages: generationParams.priorityPages.length,
+        hubPages: generationParams.hubPages.length,
+        activeScenarios: Object.keys(generationParams.scenarios).filter(k => 
+          typeof generationParams.scenarios[k as keyof typeof generationParams.scenarios] === 'boolean' ? 
+          generationParams.scenarios[k as keyof typeof generationParams.scenarios] : 
+          generationParams.scenarios[k as keyof typeof generationParams.scenarios].enabled
+        ),
+        policies: generationParams.policies
+      });
+
+      // Start generation in background
+      generator.generateLinks(generationParams).then((runId: string) => {
+        console.log(`✅ Generation completed with runId: ${runId}`);
+      }).catch((error: any) => {
+        console.error("Generation failed:", error);
+      });
+
+      res.json({ success: true, message: "Generation started" });
+    } catch (error) {
+      console.error("Generation start error:", error);
+      res.status(500).json({ error: "Failed to start generation" });
+    }
+  });
 
   // Get all generated links for a project
   app.get("/api/projects/:id/links", authenticateToken, async (req: any, res) => {
@@ -1598,7 +1703,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Stream generation progress (Server-Sent Events)
+  app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
+    const { runId } = req.params;
+    
+    try {
+      // Validate run belongs to user's project
+      const run = await db
+        .select({ projectId: generationRuns.projectId })
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
 
+      if (!run.length) {
+        return res.status(404).json({ error: "Generation run not found" });
+      }
+
+      const project = await storage.getProjectById(run[0].projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Add client to progress stream
+      progressStreamManager.addClient(runId, res);
+      
+    } catch (error) {
+      console.error("Progress stream error:", error);
+      res.status(500).json({ error: "Failed to setup progress stream" });
+    }
+  });
 
   // Get generation runs for project
   app.get("/api/generate/runs/:projectId", authenticateToken, async (req: any, res) => {
@@ -1979,7 +2112,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate links endpoint (LEGACY - keeping for backwards compatibility)
+  // Start import job for Step 4
+  app.post("/api/import/start", authenticateToken, async (req: any, res) => {
+    try {
+      console.log('🚀 /api/import/start called with body:', req.body);
+      const { projectId, importId, scenarios, scope, rules } = req.body;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
 
+      // Create import job
+      const jobId = crypto.randomUUID();
+      
+      console.log(`Starting import for project: ${projectId}`);
+      console.log(`Generated jobId: ${jobId}`);
+      
+      const importJob = await storage.createImportJob({
+        jobId,
+        projectId,
+        importId,
+        status: "running",
+        phase: "loading",
+        percent: 0,
+        pagesTotal: 0, // Will be updated when CSV data is processed
+        pagesDone: 0,
+        blocksDone: 0,
+        orphanCount: 0
+      });
+
+      console.log(`Job created:`, importJob);
+      console.log(`Global jobs after create:`, global.importJobs ? Array.from(global.importJobs.keys()) : 'undefined');
+      
+      // CLEAR OLD GLOBAL DATA TO FORCE FRESH PROCESSING
+      console.log(`🧨 Clearing global import jobs to prevent data corruption...`);
+      if ((global as any).importJobs) {
+        (global as any).importJobs.clear();
+        console.log(`✓ Cleared global import jobs`);
+      }
+      
+      // Recreate the job after clearing
+      await storage.createImportJob({
+        jobId,
+        projectId,
+        importId,
+        status: "running",
+        phase: "loading",
+        percent: 0,
+        pagesTotal: 0,
+        pagesDone: 0,
+        blocksDone: 0,
+        orphanCount: 0
+      });
+
+      // CRITICAL: Immediately start processing with CSV validation
+      console.log(`🆘 FORCE CALLING processImportJobAsync for jobId: ${jobId}`);
+      console.log(`🆘 Parameters: projectId=${projectId}, importId=${importId}, scenarios=${JSON.stringify(scenarios)}`);
+      
+      processImportJobAsync(jobId, importId, scenarios, scope, rules, projectId).catch(err => {
+        console.error(`💥 Import job ${jobId} failed:`, err);
+        storage.updateImportJob(jobId, {
+          status: "failed",
+          errorMessage: err.message,
+          finishedAt: new Date()
+        });
+      });
+
+      const responseData = { 
+        success: true, 
+        jobId: jobId,
+        message: "Import job started successfully"
+      };
+      
+      console.log(`✓ Sending response:`, responseData);
+      res.json(responseData);
+    } catch (error) {
+      console.error("Import start error:", error);
+      res.status(500).json({ error: "Failed to start import" });
+    }
+  });
 
   // Test endpoint to debug import job creation
   app.post("/api/import/test-create", async (req, res) => {
@@ -2502,10 +2716,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Start link generation
   app.post("/api/generate/start", authenticateToken, async (req: any, res) => {
-    console.log('🚨 [GENERATE API] ===== ENDPOINT ВЫЗВАН =====');
-    console.log('🚨 [GENERATE API] Request body:', req.body);
-    console.log('🚨 [GENERATE API] User ID:', req.user?.id);
-    
     try {
       const { projectId, seoProfile } = req.body;
       
@@ -2520,8 +2730,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get latest import job
-      console.log('🔍 [GENERATE API] Looking for import jobs for projectId:', projectId);
-      
       const importJob = await db
         .select()
         .from(importJobs)
@@ -2529,27 +2737,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(desc(importJobs.startedAt))
         .limit(1);
 
-      console.log('🔍 [GENERATE API] Found import jobs:', importJob.length);
-      if (importJob.length > 0) {
-        console.log('🔍 [GENERATE API] Latest import job:', {
-          jobId: importJob[0].jobId,
-          status: importJob[0].status,
-          importId: importJob[0].importId,
-          startedAt: importJob[0].startedAt
-        });
+      if (!importJob.length || importJob[0].status !== 'completed') {
+        return res.status(400).json({ error: "No completed import found. Please complete import first." });
       }
-
-      if (!importJob.length) {
-        console.log('❌ [GENERATE API] No import jobs found');
-        return res.status(400).json({ error: "No import jobs found. Please complete import first." });
-      }
-
-      if (importJob[0].status !== 'completed') {
-        console.log('❌ [GENERATE API] Import job status is not completed:', importJob[0].status);
-        return res.status(400).json({ error: `Import is not completed. Current status: ${importJob[0].status}` });
-      }
-
-      console.log('✅ [GENERATE API] Found completed import job');
 
       // Create new generation run
       const newRun = await db.insert(generationRuns).values({
@@ -2575,32 +2765,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('✅ New generation run created:', newRun[0]);
 
       // Start background generation process
-      console.log('🚨 [GENERATE API] ===== НАЧАЛО ЗАПУСКА ГЕНЕРАЦИИ =====');
-      console.log('🚀 Starting background generation process...');
-      console.log('🚨 [GENERATE API] Run ID:', newRun[0].runId);
-      console.log('🚨 [GENERATE API] Project ID:', projectId);
-      
-      // Import and use LinkGenerationWorker
-      console.log('🚨 [GENERATE API] Importing LinkGenerationWorker...');
-      const { LinkGenerationWorker } = await import('./linkGenerator');
-      console.log('🚨 [GENERATE API] LinkGenerationWorker imported successfully');
-      
-      const worker = new LinkGenerationWorker();
-      console.log('🚨 [GENERATE API] Worker created, starting generation...');
-      
-      // Start generation in background
-      worker.generateLinks(seoProfile, newRun[0].runId).catch(err => {
-        console.error('❌ [GENERATE API] Generation failed:', err);
-        console.error('❌ [GENERATE API] Error stack:', err instanceof Error ? err.stack : 'No stack trace');
-        // Update run status to failed
-        db.update(generationRuns).set({
-          status: 'failed',
-          errorMessage: err.message,
-          finishedAt: new Date()
-        }).where(eq(generationRuns.runId, newRun[0].runId));
-      });
-      
-      console.log('🚨 [GENERATE API] ===== ГЕНЕРАЦИЯ ЗАПУЩЕНА В ФОНЕ =====');
+      // TODO: Implement LinkGenerationWorker
+      // await linkGenerationQueue.add('generate', { runId: newRun[0].runId, seoProfile });
 
       res.json({ 
         success: true, 
@@ -2613,79 +2779,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Cancel generation run
-  app.post("/api/generate/cancel/:runId", authenticateToken, async (req: any, res) => {
-    try {
-      const { runId } = req.params;
-      
-      // Validate run belongs to user's project
-      const run = await db
-        .select({ projectId: generationRuns.projectId, status: generationRuns.status })
-        .from(generationRuns)
-        .where(eq(generationRuns.runId, runId))
-        .limit(1);
-
-      if (!run.length) {
-        return res.status(404).json({ error: "Generation run not found" });
-      }
-
-      const project = await storage.getProjectById(run[0].projectId);
-      if (!project || project.userId !== req.user.id) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-
-      // Update run status to canceled
-      await db.update(generationRuns).set({
-        status: 'canceled',
-        finishedAt: new Date()
-      }).where(eq(generationRuns.runId, runId));
-
-      res.json({ success: true, message: "Generation canceled" });
-    } catch (error) {
-      console.error('❌ Error canceling generation:', error);
-      res.status(500).json({ error: "Failed to cancel generation" });
-    }
-  });
-
-  // Cancel all running generations for a project
-  app.post("/api/generate/cancel-all/:projectId", authenticateToken, async (req: any, res) => {
-    try {
-      const { projectId } = req.params;
-      
-      // Verify project ownership
-      const project = await storage.getProjectById(projectId);
-      if (!project || project.userId !== req.user.id) {
-        return res.status(404).json({ error: "Project not found" });
-      }
-
-      // Cancel all running generations for this project
-      const result = await db.update(generationRuns).set({
-        status: 'canceled',
-        finishedAt: new Date()
-      }).where(and(
-        eq(generationRuns.projectId, projectId),
-        eq(generationRuns.status, 'running')
-      ));
-
-      console.log('✅ Canceled all running generations for project:', projectId);
-
-      res.json({ success: true, message: "All running generations canceled" });
-    } catch (error) {
-      console.error('❌ Error canceling all generations:', error);
-      res.status(500).json({ error: "Failed to cancel generations" });
-    }
-  });
-
   // Get generation progress
   app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
     try {
       const { runId } = req.params;
-      console.log('🔍 [PROGRESS API] Request received for runId:', runId);
-      console.log('🔍 [PROGRESS API] User:', req.user?.id);
-      console.log('🔍 [PROGRESS API] Headers:', req.headers);
-      console.log('🔍 [PROGRESS API] Extracted runId:', runId);
-      
-      console.log('🔍 [PROGRESS API] Querying database for runId:', runId);
       
       // Validate run belongs to user's project
       const run = await db
@@ -2706,26 +2803,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(generationRuns.runId, runId))
         .limit(1);
 
-      console.log('🔍 [PROGRESS API] Database query result:', run);
-
       if (!run.length) {
-        console.log('❌ [PROGRESS API] No run found for runId:', runId);
         return res.status(404).json({ error: "Generation run not found" });
       }
 
-      console.log('🔍 [PROGRESS API] Validating project access for projectId:', run[0].projectId);
-      
       const project = await storage.getProjectById(run[0].projectId);
-      console.log('🔍 [PROGRESS API] Project found:', project);
-      console.log('🔍 [PROGRESS API] User ID from request:', req.user.id);
-      console.log('🔍 [PROGRESS API] Project user ID:', project?.userId);
-      
       if (!project || project.userId !== req.user.id) {
-        console.log('❌ [PROGRESS API] Access denied - project not found or user mismatch');
         return res.status(403).json({ error: "Access denied" });
       }
 
-      const responseData = {
+      res.json({
         runId: runId,
         status: run[0].status,
         phase: run[0].phase,
@@ -2737,10 +2824,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startedAt: run[0].startedAt,
         finishedAt: run[0].finishedAt,
         errorMessage: run[0].errorMessage
-      };
-
-      console.log('✅ [PROGRESS API] Sending response:', JSON.stringify(responseData, null, 2));
-      res.json(responseData);
+      });
     } catch (error) {
       console.error('❌ Error getting generation progress:', error);
       res.status(500).json({ error: "Failed to get progress" });
@@ -2888,6 +2972,20 @@ class ContentProcessor {
     console.log(`📋 Input parameters: jobId=${jobId}, projectId=${projectId}, importId=${importId}`);
     
     try {
+      // Проверяем существующие данные
+      console.log(`🔍 Checking for existing data...`);
+      const existingPagesRaw = await db.select().from(pagesRaw).where(eq(pagesRaw.jobId, jobId));
+      const existingPagesClean = await db.select().from(pagesClean).where(eq(pagesClean.pageRawId, existingPagesRaw[0]?.id));
+      const existingBlocks = await db.select().from(blocks).where(eq(blocks.pageId, existingPagesClean[0]?.id));
+      const existingEmbeddings = await db.select().from(embeddings).where(eq(embeddings.blockId, existingBlocks[0]?.id));
+      
+      console.log(`🔍 Existing data check:`, {
+        pagesRaw: existingPagesRaw.length,
+        pagesClean: existingPagesClean.length,
+        blocks: existingBlocks.length,
+        embeddings: existingEmbeddings.length
+      });
+      
       // Phase 1: Load CSV data (0-15%)
     console.log(`📥 Phase 1: Loading CSV data...`);
       await this.updateProgress(jobId, "loading", 0, "Инициализация импорта...");
@@ -3437,19 +3535,11 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
 
 // Background import processing function - now uses ContentProcessor
 async function processImportJob(jobId: string, projectId: string, uploadId: string) {
-  console.log(`🚨 [PROCESS IMPORT] ===== НАЧАЛО ОБРАБОТКИ ИМПОРТА =====`);
-  console.log(`🚨 [PROCESS IMPORT] Job ID: ${jobId}`);
-  console.log(`🚨 [PROCESS IMPORT] Project ID: ${projectId}`);
-  console.log(`🚨 [PROCESS IMPORT] Upload ID: ${uploadId}`);
-  
   try {
     console.log(`🚀 Starting import job ${jobId} for project ${projectId}`);
 
     // Get import record to find importId
-    console.log(`🔍 [PROCESS IMPORT] Getting import record for uploadId: ${uploadId}`);
     const importRecord = await storage.getImportByUploadId(uploadId);
-    console.log(`🔍 [PROCESS IMPORT] Import record found:`, importRecord ? 'YES' : 'NO');
-    
     if (!importRecord) {
       throw new Error('Import record not found');
     }
@@ -3461,18 +3551,12 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
     console.log(`📦 Creating ContentProcessor instance...`);
     const processor = new ContentProcessor(storage);
     console.log(`🎯 Starting processContent...`);
-    
-    const startTime = Date.now();
     await processor.processContent(jobId, projectId, importId);
-    const endTime = Date.now();
-    
-    console.log(`✅ processContent completed successfully in ${endTime - startTime}ms`);
-    console.log(`🚨 [PROCESS IMPORT] ===== ИМПОРТ ЗАВЕРШЕН УСПЕШНО =====`);
+    console.log(`✅ processContent completed successfully`);
     
   } catch (error) {
     console.error(`❌ Import job ${jobId} failed:`, error);
     console.error(`❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
-    console.log(`🚨 [PROCESS IMPORT] ===== ИМПОРТ ЗАВЕРШЕН С ОШИБКОЙ =====`);
     
     await db.update(importJobs).set({
       status: 'failed',
