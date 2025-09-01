@@ -116,7 +116,7 @@ export default function ProjectFixed() {
   
   // Состояние импорта
   const importJobId = projectState?.importJobId || null;
-  const { data: importStatus, isLoading: importStatusLoading } = useImportStatus(importJobId, currentStep);
+  const { data: importStatus, isLoading: importStatusLoading } = useImportStatus(importJobId, true);
   
   // Локальное состояние
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
