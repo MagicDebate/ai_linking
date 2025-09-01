@@ -115,6 +115,7 @@ export default function ProjectFixed() {
   
   // Состояние импорта
   const importJobId = projectState?.importJobId || null;
+  console.log('🔍 [ProjectFixed] Current importJobId from projectState:', importJobId);
   const { data: importStatus, isLoading: importStatusLoading } = useImportStatus(importJobId, true);
   
   // Локальное состояние
@@ -224,9 +225,11 @@ export default function ProjectFixed() {
     });
     
     console.log('✅ [handleMappingSubmit] Import started with result:', result);
+    console.log('🔍 [handleMappingSubmit] New jobId from server:', result.jobId);
     
     // Сохраняем importJobId
     await setImportJobId(result.jobId);
+    console.log('🔍 [handleMappingSubmit] setImportJobId called with:', result.jobId);
     
     // Переходим к шагу 2
     await navigateToStep(2, projectId!);
