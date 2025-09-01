@@ -43,10 +43,12 @@ export function useImportStatus(jobId: string | null, enabled: boolean = true) {
     refetchInterval: (data) => {
       // Stop polling when import is complete or failed
       if (data?.status === 'completed' || data?.status === 'failed') {
+        console.log('🛑 [useImportStatus] Stopping polling - import is', data?.status);
         return false;
       }
       return 2000; // Poll every 2 seconds while running
     },
+    refetchIntervalInBackground: false, // Don't poll in background
     staleTime: 0,
     cacheTime: 0,
   });
