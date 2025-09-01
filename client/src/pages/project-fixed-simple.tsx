@@ -158,7 +158,7 @@ export default function ProjectFixedSimple() {
     }
   }, [projectState?.importJobId]);
 
-  const { importStatus, isLoading: importLoading } = useImportStatus(activeJobId);
+  const { importStatus, isLoading: importLoading } = useImportStatus(activeJobId, true);
   const { 
     uploadFile, 
     mapFields, 
@@ -173,14 +173,14 @@ export default function ProjectFixedSimple() {
     isStartingGeneration,
   } = useGeneration();
 
-  const { data: generationProgress, isLoading: generationLoading } = useGenerationProgress(generationRunId);
-
   // Local state
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [fieldMapping, setFieldMapping] = useState<FieldMapping>({});
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
   const [seoProfile, setSeoProfileLocal] = useState<SEOProfile>(DEFAULT_PROFILE);
   const [generationRunId, setGenerationRunId] = useState<string | null>(null);
+
+  const { data: generationProgress, isLoading: generationLoading } = useGenerationProgress(generationRunId);
 
   // Get current step from URL or state
   const getCurrentStep = () => {
