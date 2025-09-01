@@ -14,6 +14,8 @@ import {
   edges,
   graphMeta,
   generationRuns,
+  linkCandidates,
+  projectImportConfigs,
   type User, 
   type InsertUser,
   type Project,
@@ -30,7 +32,7 @@ import {
   type InsertImport
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
 
 // Global type declaration for import jobs
@@ -166,9 +168,89 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteProject(id: string, userId: string): Promise<void> {
-    await db
-      .delete(projects)
-      .where(eq(projects.id, id));
+    // Проверяем, что проект принадлежит пользователю
+    const project = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, id), eq(projects.userId, userId)))
+      .limit(1);
+
+    if (!project.length) {
+      throw new Error('Project not found or access denied');
+    }
+
+    // Удаляем связанные данные в правильном порядке (из-за foreign key constraints)
+    
+    // 1. Удаляем API ключи проекта
+    await db.delete(projectApiKeys).where(eq(projectApiKeys.projectId, id));
+    
+    // 2. Удаляем конфигурации импорта
+    await db.delete(projectImportConfigs).where(eq(projectImportConfigs.projectId, id));
+    
+    // 3. Удаляем запуски генерации
+    await db.delete(generationRuns).where(eq(generationRuns.projectId, id));
+    
+    // 4. Удаляем кандидаты ссылок (через runId)
+    const runs = await db.select({ runId: generationRuns.runId }).from(generationRuns).where(eq(generationRuns.projectId, id));
+    for (const run of runs) {
+      await db.delete(linkCandidates).where(eq(linkCandidates.runId, run.runId));
+    }
+    
+    // 5. Удаляем импорты
+    await db.delete(imports).where(eq(imports.projectId, id));
+    
+    // 6. Удаляем импорт джобы
+    await db.delete(importJobs).where(eq(importJobs.projectId, id));
+    
+    // 7. Удаляем эмбеддинги (через blockId)
+    const blocksToDelete = await db
+      .select({ id: blocks.id })
+      .from(blocks)
+      .innerJoin(pagesClean, eq(blocks.pageId, pagesClean.id))
+      .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
+      .where(eq(pagesRaw.projectId, id));
+    
+    for (const block of blocksToDelete) {
+      await db.delete(embeddings).where(eq(embeddings.blockId, block.id));
+    }
+    
+    // 8. Удаляем блоки
+    await db.delete(blocks).where(
+      inArray(blocks.pageId, 
+        db.select({ id: pagesClean.id })
+          .from(pagesClean)
+          .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
+          .where(eq(pagesRaw.projectId, id))
+      )
+    );
+    
+    // 9. Удаляем метаданные графа
+    await db.delete(graphMeta).where(
+      inArray(graphMeta.pageId,
+        db.select({ id: pagesClean.id })
+          .from(pagesClean)
+          .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
+          .where(eq(pagesRaw.projectId, id))
+      )
+    );
+    
+    // 10. Удаляем очищенные страницы
+    await db.delete(pagesClean).where(
+      inArray(pagesClean.pageRawId,
+        db.select({ id: pagesRaw.id })
+          .from(pagesRaw)
+          .where(eq(pagesRaw.projectId, id))
+      )
+    );
+    
+    // 11. Удаляем сырые страницы
+    await db.delete(pagesRaw).where(eq(pagesRaw.projectId, id));
+    
+    // 12. Удаляем состояния проекта
+    await db.delete(projectStates).where(eq(projectStates.projectId, id));
+    
+    // 13. Наконец удаляем сам проект
+    await db.delete(projects).where(eq(projects.id, id));
   }
 
   // User Progress
