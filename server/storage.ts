@@ -185,7 +185,22 @@ export class DatabaseStorage implements IStorage {
 
       console.log(`✅ [DELETE PROJECT] Project found, starting deletion...`);
 
-      // Простое удаление - база данных должна сама удалить связанные данные через CASCADE
+      // Временное решение: ручное удаление связанных данных
+      // TODO: После выполнения SQL скрипта можно будет убрать это
+      
+      console.log(`🗑️ [DELETE PROJECT] Deleting related data...`);
+      
+      // Удаляем в правильном порядке
+      await db.delete(projectApiKeys).where(eq(projectApiKeys.projectId, id));
+      await db.delete(projectImportConfigs).where(eq(projectImportConfigs.projectId, id));
+      await db.delete(generationRuns).where(eq(generationRuns.projectId, id));
+      await db.delete(imports).where(eq(imports.projectId, id));
+      await db.delete(importJobs).where(eq(importJobs.projectId, id));
+      await db.delete(embeddings).where(eq(embeddings.projectId, id));
+      await db.delete(embeddingCache).where(eq(embeddingCache.projectId, id));
+      await db.delete(projectStates).where(eq(projectStates.projectId, id));
+      
+      // Удаляем сам проект
       const result = await db.delete(projects).where(eq(projects.id, id));
       
       console.log(`✅ [DELETE PROJECT] Project deleted successfully`);
