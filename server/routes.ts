@@ -26,7 +26,8 @@ import { fileURLToPath } from "url";
 import crypto from "crypto";
 import type { AuthRequest } from "./auth";
 import { importQueue, embeddingQueue, linkGenerationQueue } from "./queue";
-import { embeddingService } from "./embeddingService";
+// Импортируем EmbeddingService класс вместо экземпляра
+import { EmbeddingService } from "./embeddingService";
 
 // Rate limiting for auth endpoints
 const authLimiter = rateLimit({
@@ -38,6 +39,9 @@ const authLimiter = rateLimit({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Создаем экземпляр EmbeddingService
+  const embeddingService = new EmbeddingService();
+  
   app.use(cookieParser());
   app.use(passport.initialize());
   

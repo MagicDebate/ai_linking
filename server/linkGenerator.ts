@@ -1,7 +1,7 @@
 import { db } from './db';
 import { linkCandidates, generationRuns, pageEmbeddings, pagesClean, graphMeta, importJobs, embeddings, blocks, pagesRaw, imports } from '@shared/schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
-import { embeddingService } from './embeddingService';
+import { EmbeddingService } from './embeddingService';
 import { linkGenerationQueue } from './queue';
 import { openaiService } from './openaiService';
 
@@ -70,6 +70,7 @@ interface GenerationStats {
 
 export class LinkGenerator {
   private projectId: string;
+  private embeddingService: EmbeddingService;
   private stats: GenerationStats = {
     totalGenerated: 0,
     totalRejected: 0,
@@ -81,6 +82,7 @@ export class LinkGenerator {
 
   constructor(projectId: string) {
     this.projectId = projectId;
+    this.embeddingService = new EmbeddingService();
   }
 
   // Создание записи о запуске генерации
@@ -450,7 +452,7 @@ export class LinkGenerator {
     // Для каждого блока исходной страницы ищем похожие блоки
     for (const sourceBlock of sourceBlocks) {
       try {
-        const similarBlocks = await embeddingService.findSimilarBlocks(
+        const similarBlocks = await this.embeddingService.findSimilarBlocks(
           sourceBlock.id,
           this.projectId,
           10, // topK
