@@ -46,14 +46,9 @@ node scripts/init-db.js
 # 3.5. Применяем исправления CASCADE
 echo "🔧 Applying CASCADE fixes..."
 if [ -f "fix-cascade-deletes.sql" ]; then
-    if command -v psql >/dev/null 2>&1; then
-        echo "📝 Executing fix-cascade-deletes.sql..."
-        psql "$DATABASE_URL" -f fix-cascade-deletes.sql
-        echo "✅ CASCADE fixes applied successfully"
-    else
-        echo "⚠️  psql not found, skipping CASCADE fixes"
-        echo "   Install PostgreSQL client: sudo apt-get install postgresql-client"
-    fi
+    echo "📝 Executing CASCADE fixes via Node.js..."
+    node scripts/apply-cascade-fixes.js
+    echo "✅ CASCADE fixes completed"
 else
     echo "⚠️  fix-cascade-deletes.sql not found, skipping CASCADE fixes"
 fi
