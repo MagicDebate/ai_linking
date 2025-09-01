@@ -346,11 +346,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete project
   app.delete("/api/projects/:id", authenticateToken, async (req: any, res) => {
     try {
+      console.log(`🗑️ [DELETE PROJECT API] Request to delete project ${req.params.id} by user ${req.user.id}`);
+      
       await storage.deleteProject(req.params.id, req.user.id);
+      
+      console.log(`✅ [DELETE PROJECT API] Project ${req.params.id} deleted successfully`);
       res.status(204).send();
     } catch (error) {
-      console.error("Delete project error:", error);
-      res.status(500).json({ message: "Internal server error" });
+      console.error("❌ [DELETE PROJECT API] Error:", error);
+      
+      // Возвращаем более информативную ошибку
+      if (error instanceof Error) {
+        if (error.message.includes('Project not found')) {
+          res.status(404).json({ message: "Project not found or access denied" });
+        } else if (error.message.includes('foreign key')) {
+          res.status(409).json({ message: "Cannot delete project - it has associated data" });
+        } else {
+          res.status(500).json({ message: "Internal server error", details: error.message });
+        }
+      } else {
+        res.status(500).json({ message: "Internal server error" });
+      }
     }
   });
 
