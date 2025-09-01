@@ -47,7 +47,7 @@ node scripts/init-db.js
 echo "🔧 Applying CASCADE fixes..."
 if [ -f "fix-cascade-deletes.sql" ]; then
     echo "📝 Executing CASCADE fixes via Node.js..."
-    node scripts/apply-cascade-fixes.js
+    node scripts/apply-cascade-fixes.cjs
     echo "✅ CASCADE fixes completed"
 else
     echo "⚠️  fix-cascade-deletes.sql not found, skipping CASCADE fixes"
