@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 
-const { Client } = require('pg');
-const fs = require('fs');
-const path = require('path');
+import { Client } from 'pg';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+
+// Получаем __dirname для ES модулей
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function applyCascadeFixes() {
   const client = new Client(process.env.DATABASE_URL);
@@ -35,6 +41,6 @@ async function applyCascadeFixes() {
 }
 
 // Загружаем переменные окружения
-require('dotenv').config();
+dotenv.config();
 
 applyCascadeFixes();
