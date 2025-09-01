@@ -101,7 +101,64 @@ export default function ProjectFixedSimple() {
   } = useProjectState(projectId);
 
   const { navigateToStep } = useProjectNavigation(projectId, setCurrentStep);
-  const { importStatus, isLoading: importLoading } = useImportStatus(projectState?.importJobId);
+  // Функция для поиска последнего активного импорта
+  const findLatestActiveImport = async () => {
+    if (!projectId) return null;
+    
+    try {
+      console.log('🔍 Searching for latest active import for project:', projectId);
+      const response = await fetch(`/api/import/jobs/${projectId}`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const jobs = await response.json();
+        if (jobs && jobs.length > 0) {
+          // Ищем активный импорт (running или pending)
+          const activeJob = jobs.find((job: any) => 
+            job.status === 'running' || job.status === 'pending'
+          );
+          if (activeJob) {
+            console.log('✅ Found active import job:', activeJob.jobId);
+            return activeJob.jobId;
+          } else {
+            console.log('⚠️ No active imports found for project');
+          }
+        } else {
+          console.log('⚠️ No jobs found for project');
+        }
+      } else {
+        console.log('❌ Failed to fetch jobs for project');
+      }
+    } catch (error) {
+      console.error('❌ Error finding latest active import:', error);
+    }
+    return null;
+  };
+
+  // Определяем jobId: либо из состояния, либо ищем активный импорт
+  const [activeJobId, setActiveJobId] = useState<string | null>(projectState?.importJobId || null);
+  
+  // Ищем активный импорт при загрузке, если нет в состоянии
+  useEffect(() => {
+    if (!projectState?.importJobId && projectId) {
+      findLatestActiveImport().then(jobId => {
+        if (jobId) {
+          setActiveJobId(jobId);
+          setImportJobId(jobId); // Сохраняем в состояние проекта
+        }
+      });
+    }
+  }, [projectId, projectState?.importJobId]);
+
+  // Обновляем activeJobId при изменении projectState.importJobId
+  useEffect(() => {
+    if (projectState?.importJobId) {
+      setActiveJobId(projectState.importJobId);
+    }
+  }, [projectState?.importJobId]);
+
+  const { importStatus, isLoading: importLoading } = useImportStatus(activeJobId);
   const { 
     uploadFile, 
     mapFields, 
