@@ -766,9 +766,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start import process
   app.post("/api/import/start", authenticateToken, async (req: any, res) => {
     try {
+      console.log('🚨 [IMPORT START] Request received:', {
+        body: req.body,
+        user: req.user?.id,
+        headers: req.headers
+      });
+      
       const { projectId, uploadId } = req.body;
       
       if (!projectId || !uploadId) {
+        console.log('❌ [IMPORT START] Missing projectId or uploadId');
         return res.status(400).json({ error: "Missing projectId or uploadId" });
       }
 
