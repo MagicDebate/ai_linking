@@ -1,6 +1,5 @@
 import { db } from './db';
-import { embeddingCache } from '@shared/embeddings-schema';
-import { blocks, pagesClean } from '@shared/schema';
+import { embeddingCache, blocks, pagesClean } from '@shared/tables';
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import { embeddingQueue } from './queue';

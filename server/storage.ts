@@ -28,9 +28,9 @@ import {
   type ProjectApiKey,
   type InsertApiKey,
   type Import,
-  type InsertImport
-} from "@shared/schema";
-import { embeddings } from "@shared/embeddings-schema";
+  type InsertImport,
+  embeddings
+} from "@shared/tables";
 import { db } from "./db";
 import { eq, desc, sql, and, inArray } from "drizzle-orm";
 import crypto from "crypto";

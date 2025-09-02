@@ -1,6 +1,5 @@
 import { db } from './db';
-import { linkCandidates, generationRuns, pageEmbeddings, pagesClean, graphMeta, importJobs, blocks, pagesRaw, imports } from '@shared/schema';
-import { embeddings } from '@shared/embeddings-schema';
+import { linkCandidates, generationRuns, pageEmbeddings, pagesClean, graphMeta, importJobs, blocks, pagesRaw, imports, embeddings } from '@shared/tables';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { EmbeddingService } from './embeddingService';
 import { linkGenerationQueue } from './queue';
