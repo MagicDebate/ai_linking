@@ -230,7 +230,7 @@ export class EmbeddingService {
       let vector: number[] | null = null;
       let cached = false;
       
-      if (projectId) {
+      if (projectId && typeof projectId === 'string') {
         vector = await this.getCachedEmbedding(textHash, projectId);
         cached = !!vector;
       }
@@ -241,7 +241,7 @@ export class EmbeddingService {
         cached = false;
         
         // Сохраняем в кэш только если projectId не null
-        if (projectId) {
+        if (projectId && typeof projectId === 'string') {
           await this.saveToCache(textHash, vector, projectId);
           this.addToMemoryCache(textHash, vector);
         }
@@ -466,8 +466,6 @@ export class EmbeddingService {
     console.log('🧹 Cleaned up old embeddings from cache');
   }
 }
-
-export const embeddingService = new EmbeddingService();
 
 
 
