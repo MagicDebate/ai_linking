@@ -308,8 +308,9 @@ export class EmbeddingService {
       }
     }
 
-    // Сохраняем эмбеддинги в БД
-    await this.saveEmbeddingsToDB(results, projectId);
+    // Сохраняем эмбеддинги в БД (пропускаем из-за циклических зависимостей)
+    // await this.saveEmbeddingsToDB(results, projectId);
+    console.log(`📝 Would save ${results.length} embeddings to DB (skipped due to circular dependency)`);
     
     console.log(`✅ Generated ${results.length} embeddings (${results.filter(r => !r.cached).length} new, ${results.filter(r => r.cached).length} cached)`);
     return results;
@@ -318,7 +319,7 @@ export class EmbeddingService {
   /**
    * Сохранение эмбеддингов в БД
    */
-  private async saveEmbeddingsToDB(results: EmbeddingResult[], projectId: string): Promise<void> {
+  private async saveEmbeddingsToDB(results: EmbeddingResult[], projectId: string, embeddingsTable?: any): Promise<void> {
     const embeddingsToInsert = results.map(result => ({
       blockId: result.blockId,
       vector: result.vector,
@@ -326,9 +327,13 @@ export class EmbeddingService {
       projectId
     }));
 
-    // Временное решение - пропускаем вставку эмбеддингов
-    // await db.insert(embeddings).values(embeddingsToInsert).onConflictDoNothing();
-    console.log(`📝 Would insert ${embeddingsToInsert.length} embeddings (skipped due to circular dependency)`);
+    // Передаем embeddings как параметр для избежания циклических зависимостей
+    if (embeddingsTable) {
+      await db.insert(embeddingsTable).values(embeddingsToInsert).onConflictDoNothing();
+      console.log(`✅ Inserted ${embeddingsToInsert.length} embeddings`);
+    } else {
+      console.log(`⚠️ Skipped inserting ${embeddingsToInsert.length} embeddings - no table provided`);
+    }
   }
 
   /**
