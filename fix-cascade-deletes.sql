@@ -1,5 +1,25 @@
 -- Исправление CASCADE ограничений для корректного удаления проектов
 
+-- Сначала создаем таблицы embeddings если их нет
+CREATE TABLE IF NOT EXISTS embeddings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  block_id UUID NOT NULL,
+  vector vector(384) NOT NULL,
+  text_hash TEXT NOT NULL,
+  project_id VARCHAR NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS embedding_cache (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id VARCHAR NOT NULL,
+  text_hash TEXT NOT NULL,
+  vector vector(384) NOT NULL,
+  language VARCHAR(10) NOT NULL DEFAULT 'ru',
+  created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+  last_used TIMESTAMP DEFAULT NOW() NOT NULL
+);
+
 -- 1. Исправляем import_jobs
 ALTER TABLE import_jobs 
 DROP CONSTRAINT IF EXISTS import_jobs_project_id_fkey;
