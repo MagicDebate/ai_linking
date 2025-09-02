@@ -3044,8 +3044,8 @@ class ContentProcessor {
     
       // Phase 4: Generate embeddings (55-75%)
       await this.updateProgress(jobId, "vectorizing", 55, "Начинаем векторизацию...");
-    const embeddings = await this.generateEmbeddings(blocksData, jobId);
-      await this.updateProgress(jobId, "vectorizing", 75, `Векторизация завершена: ${embeddings.length} векторов`);
+    const embeddingsResult = await this.generateEmbeddings(blocksData, jobId);
+      await this.updateProgress(jobId, "vectorizing", 75, `Векторизация завершена: ${embeddingsResult.length} векторов`);
     
       // Phase 5: Build link graph (75-95%)
       await this.updateProgress(jobId, "graphing", 75, "Начинаем построение графа ссылок...");
