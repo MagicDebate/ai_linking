@@ -13,7 +13,7 @@ import {
   clearTokenCookies, 
   authenticateToken 
 } from "./auth";
-import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, embeddings, edges, graphMeta, pagesRaw, generationRuns, linkCandidates, projectImportConfigs, insertProjectImportConfigSchema, importJobs, imports } from "@shared/schema";
+import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, edges, graphMeta, pagesRaw, generationRuns, linkCandidates, projectImportConfigs, insertProjectImportConfigSchema, importJobs, imports, embeddings } from "@shared/schema";
 import { LinkGenerator } from "./linkGenerator.js";
 import { progressStreamManager } from "./progressStream";
 import { sql, eq, and, desc } from "drizzle-orm";
