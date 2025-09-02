@@ -3435,8 +3435,8 @@ class ContentProcessor {
     const projectId = job[0].projectId;
     const blockIds = blocksData.map(block => block.id);
     
-    // Используем новый сервис эмбеддингов
-    const results = await embeddingService.generateEmbeddings(blockIds, projectId);
+    // Используем новый сервис эмбеддингов с передачей таблицы embeddings
+    const results = await embeddingService.generateEmbeddings(blockIds, projectId, embeddings);
     
     await this.updateProgress(jobId, "vectorizing", 100, 
       `Векторизация завершена: ${results.length} векторов (${results.filter(r => !r.cached).length} новых, ${results.filter(r => r.cached).length} из кэша)`);

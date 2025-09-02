@@ -261,7 +261,7 @@ export class EmbeddingService {
   /**
    * Основной метод для генерации эмбеддингов
    */
-  async generateEmbeddings(blockIds: string[], projectId: string): Promise<EmbeddingResult[]> {
+  async generateEmbeddings(blockIds: string[], projectId: string, embeddingsTable?: any): Promise<EmbeddingResult[]> {
     console.log(`🔢 Generating embeddings for ${blockIds.length} blocks`);
     
     // Получаем данные блоков
@@ -308,9 +308,12 @@ export class EmbeddingService {
       }
     }
 
-    // Сохраняем эмбеддинги в БД (пропускаем из-за циклических зависимостей)
-    // await this.saveEmbeddingsToDB(results, projectId);
-    console.log(`📝 Would save ${results.length} embeddings to DB (skipped due to circular dependency)`);
+    // Сохраняем эмбеддинги в БД
+    if (embeddingsTable) {
+      await this.saveEmbeddingsToDB(results, projectId, embeddingsTable);
+    } else {
+      console.log(`⚠️ Skipped saving embeddings - no table provided`);
+    }
     
     console.log(`✅ Generated ${results.length} embeddings (${results.filter(r => !r.cached).length} new, ${results.filter(r => r.cached).length} cached)`);
     return results;
