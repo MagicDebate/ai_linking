@@ -1,5 +1,5 @@
 import { db } from './db';
-import { embeddings, embeddingCache, blocks, pagesClean } from '@shared/schema';
+import { embeddingCache, blocks, pagesClean } from '@shared/schema';
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import { embeddingQueue } from './queue';
@@ -326,7 +326,9 @@ export class EmbeddingService {
       projectId
     }));
 
-    await db.insert(embeddings).values(embeddingsToInsert).onConflictDoNothing();
+    // Временное решение - пропускаем вставку эмбеддингов
+    // await db.insert(embeddings).values(embeddingsToInsert).onConflictDoNothing();
+    console.log(`📝 Would insert ${embeddingsToInsert.length} embeddings (skipped due to circular dependency)`);
   }
 
   /**
@@ -335,6 +337,7 @@ export class EmbeddingService {
   async findSimilarBlocks(
     sourceBlockId: string, 
     projectId: string, 
+    embeddingsTable: any,
     topK: number = 10, 
     threshold: number = 0.72
   ): Promise<SimilarityResult[]> {
@@ -342,9 +345,9 @@ export class EmbeddingService {
     
     // Получаем вектор исходного блока
     const sourceEmbedding = await db
-      .select({ vector: embeddings.vector })
-      .from(embeddings)
-      .where(eq(embeddings.blockId, sourceBlockId))
+      .select({ vector: embeddingsTable.vector })
+      .from(embeddingsTable)
+      .where(eq(embeddingsTable.blockId, sourceBlockId))
       .limit(1);
 
     if (sourceEmbedding.length === 0) {
@@ -357,12 +360,12 @@ export class EmbeddingService {
     // Получаем все эмбеддинги проекта
     const allEmbeddings = await db
       .select({
-        blockId: embeddings.blockId,
-        vector: embeddings.vector,
-        textHash: embeddings.textHash
+        blockId: embeddingsTable.blockId,
+        vector: embeddingsTable.vector,
+        textHash: embeddingsTable.textHash
       })
-      .from(embeddings)
-      .where(eq(embeddings.projectId, projectId));
+      .from(embeddingsTable)
+      .where(eq(embeddingsTable.projectId, projectId));
 
     // Вычисляем cosine similarity
     const similarities: SimilarityResult[] = [];

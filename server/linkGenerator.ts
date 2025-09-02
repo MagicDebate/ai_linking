@@ -455,6 +455,7 @@ export class LinkGenerator {
         const similarBlocks = await this.embeddingService.findSimilarBlocks(
           sourceBlock.id,
           this.projectId,
+          embeddings,
           10, // topK
           threshold
         );
