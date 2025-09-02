@@ -10,7 +10,6 @@ import {
   pagesRaw,
   pagesClean,
   blocks,
-  embeddings,
   edges,
   graphMeta,
   generationRuns,
@@ -31,6 +30,7 @@ import {
   type Import,
   type InsertImport
 } from "@shared/schema";
+import { embeddings } from "@shared/embeddings-schema";
 import { db } from "./db";
 import { eq, desc, sql, and, inArray } from "drizzle-orm";
 import crypto from "crypto";
