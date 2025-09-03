@@ -29,13 +29,14 @@ import { importQueue, embeddingQueue, linkGenerationQueue } from "./queue";
 // Импортируем EmbeddingService класс вместо экземпляра
 import { EmbeddingService } from "./embeddingService";
 
-// Rate limiting for auth endpoints
+// Rate limiting for auth endpoints - более мягкий для разработки
 const authLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 20, // limit each IP to 20 requests per windowMs
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // limit each IP to 100 requests per windowMs
   message: { message: "Too many authentication attempts, please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true, // Не учитываем успешные запросы
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -113,8 +114,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Registration endpoint
   app.post("/auth/register", async (req, res) => {
     try {
+      console.log('🔐 [REGISTER] Starting registration...');
+      console.log('📝 [REGISTER] Request body:', req.body);
+      
       const validation = registerUserSchema.safeParse(req.body);
       if (!validation.success) {
+        console.log('❌ [REGISTER] Validation failed:', validation.error.errors);
         return res.status(400).json({ 
           message: "Validation error", 
           errors: validation.error.errors 
@@ -122,13 +127,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { email, password } = validation.data;
+      console.log('✅ [REGISTER] Validation successful for email:', email);
 
       // Check if user already exists
       const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
+        console.log('❌ [REGISTER] User already exists:', email);
         return res.status(409).json({ message: "User already exists" });
       }
 
+      console.log('🔐 [REGISTER] Creating new user...');
       // Hash password and create user
       const passwordHash = await hashPassword(password);
       const user = await storage.createUser({
@@ -137,9 +145,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         provider: "LOCAL",
       });
 
+      console.log('✅ [REGISTER] User created successfully:', user.id);
+
       // Generate tokens and set cookies
       const { accessToken, refreshToken } = generateTokens(user.id, user.email);
       setTokenCookies(res, accessToken, refreshToken);
+
+      console.log('🍪 [REGISTER] Cookies set successfully');
 
       res.status(200).json({
         message: "Registration successful",
@@ -151,7 +163,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
     } catch (error) {
-      console.error("Registration error:", error);
+      console.error("💥 [REGISTER] Registration error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -159,8 +171,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Login endpoint
   app.post("/auth/login", async (req, res) => {
     try {
+      console.log('🔐 [LOGIN] Starting login...');
+      console.log('📝 [LOGIN] Request body:', req.body);
+      
       const validation = loginUserSchema.safeParse(req.body);
       if (!validation.success) {
+        console.log('❌ [LOGIN] Validation failed:', validation.error.errors);
         return res.status(400).json({ 
           message: "Validation error", 
           errors: validation.error.errors 
@@ -168,22 +184,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { email, password } = validation.data;
+      console.log('✅ [LOGIN] Validation successful for email:', email);
 
       // Find user by email
       const user = await storage.getUserByEmail(email);
       if (!user || !user.passwordHash) {
+        console.log('❌ [LOGIN] User not found or no password hash:', email);
         return res.status(401).json({ message: "Invalid email or password" });
       }
+
+      console.log('✅ [LOGIN] User found:', user.id);
 
       // Verify password
       const isValidPassword = await comparePassword(password, user.passwordHash);
       if (!isValidPassword) {
+        console.log('❌ [LOGIN] Invalid password for user:', email);
         return res.status(401).json({ message: "Invalid email or password" });
       }
+
+      console.log('✅ [LOGIN] Password verified successfully');
 
       // Generate tokens and set cookies
       const { accessToken, refreshToken } = generateTokens(user.id, user.email);
       setTokenCookies(res, accessToken, refreshToken);
+
+      console.log('🍪 [LOGIN] Cookies set successfully');
 
       res.status(200).json({
         message: "Login successful",
@@ -195,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("💥 [LOGIN] Login error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -222,10 +247,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get current user endpoint
   app.get("/auth/me", authenticateToken, async (req: any, res) => {
     try {
-      const user = await storage.getUser(req.user!.id);
+      console.log('🔍 [AUTH/ME] Getting current user...');
+      console.log('👤 [AUTH/ME] User from token:', req.user);
+      
+      if (!req.user || !req.user.id) {
+        console.log('❌ [AUTH/ME] No user in request');
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      const user = await storage.getUser(req.user.id);
       if (!user) {
+        console.log('❌ [AUTH/ME] User not found in database:', req.user.id);
         return res.status(404).json({ message: "User not found" });
       }
+
+      console.log('✅ [AUTH/ME] User found:', user.email);
 
       res.json({
         id: user.id,
@@ -234,7 +270,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdAt: user.createdAt,
       });
     } catch (error) {
-      console.error("Get user error:", error);
+      console.error("💥 [AUTH/ME] Get user error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });

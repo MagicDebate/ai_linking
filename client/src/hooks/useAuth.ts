@@ -33,17 +33,26 @@ export function useLogin() {
       const response = await apiRequest("POST", "/auth/login", data);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('✅ [LOGIN] Login successful:', data);
+      
       // Небольшая задержка для установки cookies
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
+        
+        // Редирект на дашборд после успешного логина
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 200);
       }, 100);
+      
       toast({
         title: "Success",
-        description: "Login successful!",
+        description: "Login successful! Redirecting to dashboard...",
       });
     },
     onError: (error: Error) => {
+      console.error('❌ [LOGIN] Login failed:', error);
       toast({
         title: "Login Failed",
         description: error.message,
@@ -62,17 +71,26 @@ export function useRegister() {
       const response = await apiRequest("POST", "/auth/register", data);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('✅ [REGISTER] Registration successful:', data);
+      
       // Небольшая задержка для установки cookies
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
+        
+        // Редирект на дашборд после успешной регистрации
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 200);
       }, 100);
+      
       toast({
         title: "Success",
-        description: "Registration successful!",
+        description: "Registration successful! Redirecting to dashboard...",
       });
     },
     onError: (error: Error) => {
+      console.error('❌ [REGISTER] Registration failed:', error);
       toast({
         title: "Registration Failed",
         description: error.message,
