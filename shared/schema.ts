@@ -1,7 +1,11 @@
+console.log('🔄 [SCHEMA] Loading schema.ts...');
+
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, pgEnum, uuid, integer, jsonb, real, boolean, vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+console.log('✅ [SCHEMA] Drizzle imports successful');
 
 export const providerEnum = pgEnum("provider", ["LOCAL", "GOOGLE"]);
 export const projectStatusEnum = pgEnum("project_status", ["QUEUED", "READY"]);
@@ -397,3 +401,11 @@ export const insertImportJobSchema = createInsertSchema(importJobs).omit({
 });
 export type ImportJob = typeof importJobs.$inferSelect;
 export type InsertImportJob = z.infer<typeof insertImportJobSchema>;
+
+console.log('✅ [SCHEMA] All tables and types created successfully');
+console.log('🔍 [SCHEMA] Available exports:', Object.keys({
+  users, projects, userProgress, projectStates, notifications, projectApiKeys,
+  imports, importJobs, pagesRaw, pagesClean, blocks, edges, graphMeta,
+  generationRuns, linkCandidates, projectImportConfigs, pageEmbeddings
+}));
+console.log('✅ [SCHEMA] schema.ts loaded completely');

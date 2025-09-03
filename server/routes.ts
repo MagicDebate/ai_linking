@@ -39,8 +39,28 @@ const authLimiter = rateLimit({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  console.log('🚀 [ROUTES] Starting registerRoutes...');
+  console.log('🔍 [ROUTES] Checking imports...');
+  
+  try {
+    console.log('📦 [ROUTES] Importing from @shared/tables...');
+    const tables = await import("@shared/tables");
+    console.log('✅ [ROUTES] @shared/tables imported successfully');
+    console.log('🔍 [ROUTES] Available tables:', Object.keys(tables));
+    
+    if (tables.embeddings) {
+      console.log('✅ [ROUTES] embeddings table found');
+    } else {
+      console.log('❌ [ROUTES] embeddings table NOT found!');
+    }
+  } catch (error) {
+    console.error('💥 [ROUTES] Error importing @shared/tables:', error);
+  }
+  
   // Создаем экземпляр EmbeddingService
+  console.log('🔧 [ROUTES] Creating EmbeddingService...');
   const embeddingService = new EmbeddingService();
+  console.log('✅ [ROUTES] EmbeddingService created');
   
   app.use(cookieParser());
   app.use(passport.initialize());
@@ -2995,18 +3015,31 @@ class ContentProcessor {
   constructor(private storage: DatabaseStorage) {}
 
   async processContent(jobId: string, projectId: string, importId: string) {
-    console.log(`🚀 Starting real content processing for job ${jobId}`);
-    console.log(`📋 Input parameters: jobId=${jobId}, projectId=${projectId}, importId=${importId}`);
+    console.log(`🚀 [PROCESS] Starting real content processing for job ${jobId}`);
+    console.log(`📋 [PROCESS] Input parameters: jobId=${jobId}, projectId=${projectId}, importId=${importId}`);
     
     try {
+      console.log('🔍 [PROCESS] About to import @shared/tables...');
+      
       // Динамический импорт embeddings для избежания циклических зависимостей
-      const { embeddings } = await import("@shared/tables");
+      const tables = await import("@shared/tables");
+      console.log('✅ [PROCESS] @shared/tables imported successfully');
+      console.log('🔍 [PROCESS] Available tables:', Object.keys(tables));
+      
+      const { embeddings } = tables;
+      console.log('🔍 [PROCESS] Destructured embeddings:', embeddings ? 'FOUND' : 'NOT FOUND');
+      
+      if (!embeddings) {
+        console.error('💥 [PROCESS] embeddings is undefined!');
+        throw new Error('embeddings table not found in @shared/tables');
+      }
       
       // Проверяем существующие данные
-      console.log(`🔍 Checking for existing data...`);
+      console.log(`🔍 [PROCESS] Checking for existing data...`);
       const existingPagesRaw = await db.select().from(pagesRaw).where(eq(pagesRaw.jobId, jobId));
       const existingPagesClean = await db.select().from(pagesClean).where(eq(pagesClean.pageRawId, existingPagesRaw[0]?.id));
       const existingBlocks = await db.select().from(blocks).where(eq(blocks.pageId, existingPagesClean[0]?.id));
+      console.log('🔍 [PROCESS] About to query embeddings table...');
       const existingEmbeddings = await db.select().from(embeddings).where(eq(embeddings.blockId, existingBlocks[0]?.id));
       
       console.log(`🔍 Existing data check:`, {
@@ -3422,17 +3455,30 @@ class ContentProcessor {
   }
 
   private async generateEmbeddings(blocksData: any[], jobId: string) {
-    console.log(`🔢 Starting vectorization of ${blocksData.length} blocks...`);
+    console.log(`🔢 [EMBEDDINGS] Starting vectorization of ${blocksData.length} blocks...`);
     
-    // Динамический импорт embeddings для избежания циклических зависимостей
-    const { embeddings } = await import("@shared/tables");
-    
-    // Получаем projectId из jobId
-    const job = await db
-      .select({ projectId: importJobs.projectId })
-      .from(importJobs)
-      .where(eq(importJobs.jobId, jobId))
-      .limit(1);
+    try {
+      console.log('🔍 [EMBEDDINGS] About to import @shared/tables...');
+      
+      // Динамический импорт embeddings для избежания циклических зависимостей
+      const tables = await import("@shared/tables");
+      console.log('✅ [EMBEDDINGS] @shared/tables imported successfully');
+      console.log('🔍 [EMBEDDINGS] Available tables:', Object.keys(tables));
+      
+      const { embeddings } = tables;
+      console.log('🔍 [EMBEDDINGS] Destructured embeddings:', embeddings ? 'FOUND' : 'NOT FOUND');
+      
+      if (!embeddings) {
+        console.error('💥 [EMBEDDINGS] embeddings is undefined!');
+        throw new Error('embeddings table not found in @shared/tables');
+      }
+      
+      // Получаем projectId из jobId
+      const job = await db
+        .select({ projectId: importJobs.projectId })
+        .from(importJobs)
+        .where(eq(importJobs.jobId, jobId))
+        .limit(1);
     
     if (job.length === 0) {
       throw new Error(`Job ${jobId} not found`);
@@ -3446,8 +3492,13 @@ class ContentProcessor {
     
     await this.updateProgress(jobId, "vectorizing", 100, 
       `Векторизация завершена: ${results.length} векторов (${results.filter(r => !r.cached).length} новых, ${results.filter(r => r.cached).length} из кэша)`);
-    console.log(`🔢 Generated ${results.length} embeddings`);
+    console.log(`🔢 [EMBEDDINGS] Generated ${results.length} embeddings`);
     return results;
+    
+    } catch (error) {
+      console.error('💥 [EMBEDDINGS] Error in generateEmbeddings:', error);
+      throw error;
+    }
   }
 
   private async buildLinkGraph(cleanPages: any[], jobId: string) {

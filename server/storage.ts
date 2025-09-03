@@ -184,8 +184,21 @@ export class DatabaseStorage implements IStorage {
 
       console.log(`✅ [DELETE PROJECT] Project found, starting deletion...`);
 
+      console.log('🔍 [DELETE PROJECT] About to import @shared/tables...');
+      
       // Динамический импорт embeddings для избежания циклических зависимостей
-      const { embeddings, embeddingCache } = await import("@shared/tables");
+      const tables = await import("@shared/tables");
+      console.log('✅ [DELETE PROJECT] @shared/tables imported successfully');
+      console.log('🔍 [DELETE PROJECT] Available tables:', Object.keys(tables));
+      
+      const { embeddings, embeddingCache } = tables;
+      console.log('🔍 [DELETE PROJECT] Destructured embeddings:', embeddings ? 'FOUND' : 'NOT FOUND');
+      console.log('🔍 [DELETE PROJECT] Destructured embeddingCache:', embeddingCache ? 'FOUND' : 'NOT FOUND');
+      
+      if (!embeddings || !embeddingCache) {
+        console.error('💥 [DELETE PROJECT] embeddings or embeddingCache is undefined!');
+        throw new Error('embeddings or embeddingCache table not found in @shared/tables');
+      }
 
       // Временное решение: ручное удаление связанных данных
       // TODO: После выполнения SQL скрипта можно будет убрать это
