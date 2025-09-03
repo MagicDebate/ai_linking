@@ -27,6 +27,20 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Разделяем vendor библиотеки
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-router': ['wouter'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-ui': ['@radix-ui/react-slot', '@radix-ui/react-toast', '@radix-ui/react-dialog'],
+          'vendor-forms': ['react-hook-form', 'zod', '@hookform/resolvers'],
+          'vendor-utils': ['clsx', 'tailwind-merge', 'lucide-react']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 1000, // Увеличиваем лимит предупреждения
   },
   server: {
     fs: {
