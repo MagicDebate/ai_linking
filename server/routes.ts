@@ -58,10 +58,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error('💥 [ROUTES] Error importing @shared/tables:', error);
   }
   
-  // Создаем экземпляр EmbeddingService
+  // Создаем экземпляр EmbeddingService для использования в функциях
   console.log('🔧 [ROUTES] Creating EmbeddingService...');
   const embeddingService = new EmbeddingService();
   console.log('✅ [ROUTES] EmbeddingService created');
+  
+  // Делаем embeddingService доступным для всех функций через замыкание
   
   app.use(cookieParser());
   app.use(passport.initialize());
@@ -2351,7 +2353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'HTML content required' });
       }
 
-      const processor = new ContentProcessor(storage);
+      const processor = new ContentProcessor(storage, embeddingService);
       const blocks = processor.extractBlocks(html);
       
       res.json({
@@ -3076,7 +3078,7 @@ function calculateRelevanceScore(sourcePage: any, targetPage: any): number {
 
 // Content processing pipeline
 class ContentProcessor {
-  constructor(private storage: DatabaseStorage) {}
+  constructor(private storage: DatabaseStorage, private embeddingService: EmbeddingService) {}
 
   async processContent(jobId: string, projectId: string, importId: string) {
     console.log(`🚀 [PROCESS] Starting real content processing for job ${jobId}`);
@@ -3666,7 +3668,7 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
   
   try {
     console.log(`📦 Creating ContentProcessor instance...`);
-    const processor = new ContentProcessor(storage);
+    const processor = new ContentProcessor(storage, embeddingService);
     console.log(`🎯 Starting processContent...`);
     await processor.processContent(jobId, projectId, importId);
     console.log(`✅ processContent completed successfully`);
@@ -3697,7 +3699,7 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
     
     // Use the new ContentProcessor
     console.log(`📦 Creating ContentProcessor instance...`);
-    const processor = new ContentProcessor(storage);
+    const processor = new ContentProcessor(storage, embeddingService);
     console.log(`🎯 Starting processContent...`);
     await processor.processContent(jobId, projectId, importId);
     console.log(`✅ processContent completed successfully`);
