@@ -28,8 +28,7 @@ import {
   type ProjectApiKey,
   type InsertApiKey,
   type Import,
-  type InsertImport,
-  embeddings
+  type InsertImport
 } from "@shared/tables";
 import { db } from "./db";
 import { eq, desc, sql, and, inArray } from "drizzle-orm";
@@ -184,6 +183,9 @@ export class DatabaseStorage implements IStorage {
       }
 
       console.log(`✅ [DELETE PROJECT] Project found, starting deletion...`);
+
+      // Динамический импорт embeddings для избежания циклических зависимостей
+      const { embeddings, embeddingCache } = await import("@shared/tables");
 
       // Временное решение: ручное удаление связанных данных
       // TODO: После выполнения SQL скрипта можно будет убрать это

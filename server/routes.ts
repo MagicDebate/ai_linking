@@ -13,7 +13,7 @@ import {
   clearTokenCookies, 
   authenticateToken 
 } from "./auth";
-import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, edges, graphMeta, pagesRaw, generationRuns, linkCandidates, projectImportConfigs, insertProjectImportConfigSchema, importJobs, imports, embeddings } from "@shared/tables";
+import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, edges, graphMeta, pagesRaw, generationRuns, linkCandidates, projectImportConfigs, insertProjectImportConfigSchema, importJobs, imports } from "@shared/tables";
 import { LinkGenerator } from "./linkGenerator.js";
 import { progressStreamManager } from "./progressStream";
 import { sql, eq, and, desc } from "drizzle-orm";
@@ -2999,6 +2999,9 @@ class ContentProcessor {
     console.log(`📋 Input parameters: jobId=${jobId}, projectId=${projectId}, importId=${importId}`);
     
     try {
+      // Динамический импорт embeddings для избежания циклических зависимостей
+      const { embeddings } = await import("@shared/tables");
+      
       // Проверяем существующие данные
       console.log(`🔍 Checking for existing data...`);
       const existingPagesRaw = await db.select().from(pagesRaw).where(eq(pagesRaw.jobId, jobId));
@@ -3420,6 +3423,9 @@ class ContentProcessor {
 
   private async generateEmbeddings(blocksData: any[], jobId: string) {
     console.log(`🔢 Starting vectorization of ${blocksData.length} blocks...`);
+    
+    // Динамический импорт embeddings для избежания циклических зависимостей
+    const { embeddings } = await import("@shared/tables");
     
     // Получаем projectId из jobId
     const job = await db
