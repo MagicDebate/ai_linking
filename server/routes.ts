@@ -321,6 +321,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get active import for project
+  app.get("/api/projects/:id/imports/active", authenticateToken, async (req: any, res) => {
+    try {
+      console.log('🔍 [ACTIVE-IMPORT] Fetching active import for project:', req.params.id);
+      console.log('👤 [ACTIVE-IMPORT] User ID:', req.user.id);
+      
+      const project = await storage.getProjectById(req.params.id);
+      if (!project || project.userId !== req.user.id) {
+        console.log('❌ [ACTIVE-IMPORT] Project not found or unauthorized');
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      // Ищем активный импорт для проекта
+      const activeImport = await storage.getActiveImportForProject(req.params.id);
+      
+      if (!activeImport) {
+        console.log('ℹ️ [ACTIVE-IMPORT] No active import found');
+        return res.status(404).json({ message: "No active import found" });
+      }
+      
+      console.log('✅ [ACTIVE-IMPORT] Active import found:', activeImport.jobId);
+      res.json(activeImport);
+    } catch (error) {
+      console.error("💥 [ACTIVE-IMPORT] Get active import error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Get project metrics
   app.get("/api/projects/:id/metrics", authenticateToken, async (req: any, res) => {
     try {

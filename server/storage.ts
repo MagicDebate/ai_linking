@@ -475,6 +475,36 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getActiveImportForProject(projectId: string): Promise<any> {
+    console.log('🔍 [STORAGE] Getting active import for project:', projectId);
+    
+    try {
+      // Ищем активные импорты (pending или running) для проекта
+      const activeImports = await db
+        .select()
+        .from(importJobs)
+        .where(
+          and(
+            eq(importJobs.projectId, projectId),
+            sql`${importJobs.status} IN ('pending', 'running')`
+          )
+        )
+        .orderBy(desc(importJobs.createdAt))
+        .limit(1);
+      
+      if (activeImports.length > 0) {
+        console.log('✅ [STORAGE] Active import found:', activeImports[0].jobId);
+        return activeImports[0];
+      }
+      
+      console.log('ℹ️ [STORAGE] No active import found for project:', projectId);
+      return null;
+    } catch (error) {
+      console.error('💥 [STORAGE] Error getting active import:', error);
+      return null;
+    }
+  }
+
   async updateImportJob(jobId: string, updates: any): Promise<any> {
     try {
       // Initialize global.importJobs if not exists

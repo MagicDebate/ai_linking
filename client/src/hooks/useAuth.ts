@@ -53,9 +53,15 @@ export function useLogin() {
     },
     onError: (error: Error) => {
       console.error('❌ [LOGIN] Login failed:', error);
+      console.error('❌ [LOGIN] Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      
       toast({
         title: "Login Failed",
-        description: error.message,
+        description: error.message || "Unknown error occurred",
         variant: "destructive",
       });
     },
@@ -91,9 +97,15 @@ export function useRegister() {
     },
     onError: (error: Error) => {
       console.error('❌ [REGISTER] Registration failed:', error);
+      console.error('❌ [REGISTER] Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      
       toast({
         title: "Registration Failed",
-        description: error.message,
+        description: error.message || "Unknown error occurred",
         variant: "destructive",
       });
     },
