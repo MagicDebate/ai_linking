@@ -1477,14 +1477,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         policies: generationParams.policies
       });
 
+      // Create generation run and start generation
+      const runId = await generator.createGenerationRun(generationParams);
+      console.log(`✅ Created generation run: ${runId}`);
+      
       // Start generation in background
-      generator.generateLinks(generationParams).then((runId: string) => {
+      generator.generateLinks(generationParams, runId).then(() => {
         console.log(`✅ Generation completed with runId: ${runId}`);
       }).catch((error: any) => {
         console.error("Generation failed:", error);
       });
 
-      res.json({ success: true, message: "Generation started" });
+      res.json({ success: true, message: "Generation started", runId });
     } catch (error) {
       console.error("Generation start error:", error);
       res.status(500).json({ error: "Failed to start generation" });
@@ -2860,70 +2864,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ========== LINK GENERATION API ==========
   
-  // Start link generation
-  app.post("/api/generate/start", authenticateToken, async (req: any, res) => {
-    try {
-      const { projectId, seoProfile } = req.body;
-      
-      if (!projectId || !seoProfile) {
-        return res.status(400).json({ error: "Missing required parameters" });
-      }
-
-      // Verify project ownership
-      const project = await storage.getProjectById(projectId);
-      if (!project || project.userId !== req.user.id) {
-        return res.status(404).json({ error: "Project not found" });
-      }
-
-      // Get latest import job
-      const importJob = await db
-        .select()
-        .from(importJobs)
-        .where(eq(importJobs.projectId, projectId))
-        .orderBy(desc(importJobs.startedAt))
-        .limit(1);
-
-      if (!importJob.length || importJob[0].status !== 'completed') {
-        return res.status(400).json({ error: "No completed import found. Please complete import first." });
-      }
-
-      // Create new generation run
-      const newRun = await db.insert(generationRuns).values({
-        projectId: projectId,
-        importId: importJob[0].importId,
-        status: 'running',
-        phase: 'starting',
-        percent: 0,
-        generated: 0,
-        rejected: 0,
-        taskProgress: {
-          orphanFix: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 },
-          headConsolidation: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 },
-          clusterCrossLink: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 },
-          commercialRouting: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 },
-          depthLift: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 },
-          freshnessPush: { percent: 0, scanned: 0, candidates: 0, accepted: 0, rejected: 0 }
-        },
-        counters: { scanned: 0, candidates: 0, accepted: 0, rejected: 0 },
-        seoProfile: seoProfile
-      }).returning();
-
-      console.log('✅ New generation run created:', newRun[0]);
-
-      // Start background generation process
-      // TODO: Implement LinkGenerationWorker
-      // await linkGenerationQueue.add('generate', { runId: newRun[0].runId, seoProfile });
-
-      res.json({ 
-        success: true, 
-        runId: newRun[0].runId,
-        run: newRun[0]
-      });
-    } catch (error) {
-      console.error('❌ Error starting generation:', error);
-      res.status(500).json({ error: "Failed to start generation" });
-    }
-  });
+  // Start link generation endpoint moved to line 1387
 
   // Get generation progress
   app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
