@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Settings, User, Lock, Mail, Calendar } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import Layout from '@/components/Layout';
 
 interface ChangePasswordData {
   currentPassword: string;
@@ -80,11 +81,12 @@ export default function UserSettings() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Настройки пользователя</h1>
-        <p className="text-gray-600 mt-2">Управляйте своим аккаунтом и безопасностью</p>
-      </div>
+    <Layout title="Настройки пользователя">
+      <div className="max-w-4xl mx-auto py-8 px-4">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Настройки пользователя</h1>
+          <p className="text-gray-600 mt-2">Управляйте своим аккаунтом и безопасностью</p>
+        </div>
 
       <div className="grid gap-6">
         {/* Информация о пользователе */}
@@ -216,8 +218,9 @@ export default function UserSettings() {
               Для изменения пароля используйте настройки вашего Google аккаунта.
             </AlertDescription>
           </Alert>
-        )}
-      </div>
-    </div>
+                 )}
+       </div>
+     </div>
+    </Layout>
   );
 }
