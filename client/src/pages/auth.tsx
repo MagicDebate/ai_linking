@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { useLogin, useRegister } from "@/hooks/useAuth";
 import { handleGoogleAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -36,7 +35,6 @@ export default function AuthPage() {
   const registerMutation = useRegister();
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
-    resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",
       password: "",
@@ -44,7 +42,6 @@ export default function AuthPage() {
   });
 
   const registerForm = useForm<z.infer<typeof registerSchema>>({
-    resolver: zodResolver(registerSchema),
     defaultValues: {
       email: "",
       password: "",
@@ -140,7 +137,6 @@ export default function AuthPage() {
                                 {...field} 
                               />
                             </FormControl>
-                            <FormMessage />
                           </FormItem>
                         )}
                       />
@@ -172,7 +168,6 @@ export default function AuthPage() {
                                 </Button>
                               </div>
                             </FormControl>
-                            <FormMessage />
                           </FormItem>
                         )}
                       />
@@ -316,7 +311,6 @@ export default function AuthPage() {
                                 {...field} 
                               />
                             </FormControl>
-                            <FormMessage />
                           </FormItem>
                         )}
                       />
@@ -336,7 +330,6 @@ export default function AuthPage() {
                               <FormLabel className="text-sm text-gray-700">
                                 I agree to the <a href="#" className="text-blue-600 hover:text-blue-500">Terms of Service</a> and <a href="#" className="text-blue-600 hover:text-blue-500">Privacy Policy</a>
                               </FormLabel>
-                              <FormMessage />
                             </div>
                           </FormItem>
                         )}
