@@ -59,9 +59,26 @@ export function useLogin() {
         stack: error.stack
       });
       
+      // Улучшенный вывод ошибок авторизации
+      let errorMessage = "Произошла ошибка при входе";
+      
+      if (error.message.includes("Invalid email or password")) {
+        errorMessage = "Неверный email или пароль";
+      } else if (error.message.includes("User not found")) {
+        errorMessage = "Пользователь не найден";
+      } else if (error.message.includes("Too many authentication attempts")) {
+        errorMessage = "Слишком много попыток входа. Попробуйте позже";
+      } else if (error.message.includes("Validation error")) {
+        errorMessage = "Ошибка валидации данных";
+      } else if (error.message.includes("Internal server error")) {
+        errorMessage = "Ошибка сервера. Попробуйте позже";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: "Login Failed",
-        description: error.message || "Unknown error occurred",
+        title: "Ошибка входа",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -103,9 +120,28 @@ export function useRegister() {
         stack: error.stack
       });
       
+      // Улучшенный вывод ошибок регистрации
+      let errorMessage = "Произошла ошибка при регистрации";
+      
+      if (error.message.includes("User already exists")) {
+        errorMessage = "Пользователь с таким email уже существует";
+      } else if (error.message.includes("Invalid email format")) {
+        errorMessage = "Неверный формат email";
+      } else if (error.message.includes("Password too short")) {
+        errorMessage = "Пароль должен содержать минимум 8 символов";
+      } else if (error.message.includes("Validation error")) {
+        errorMessage = "Ошибка валидации данных";
+      } else if (error.message.includes("Too many authentication attempts")) {
+        errorMessage = "Слишком много попыток регистрации. Попробуйте позже";
+      } else if (error.message.includes("Internal server error")) {
+        errorMessage = "Ошибка сервера. Попробуйте позже";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: "Registration Failed",
-        description: error.message || "Unknown error occurred",
+        title: "Ошибка регистрации",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -127,11 +163,33 @@ export function useLogout() {
         title: "Success",
         description: "Logged out successfully!",
       });
+      
+      // Редирект на страницу авторизации после выхода
+      setTimeout(() => {
+        window.location.href = '/auth';
+      }, 500);
     },
     onError: (error: Error) => {
+      console.error('❌ [LOGOUT] Logout failed:', error);
+      
+      // Улучшенный вывод ошибок выхода
+      let errorMessage = "Произошла ошибка при выходе";
+      
+      if (error.message.includes("Unauthorized")) {
+        errorMessage = "Сессия истекла. Перенаправляем на страницу входа";
+        // При ошибке авторизации все равно перенаправляем на страницу входа
+        setTimeout(() => {
+          window.location.href = '/auth';
+        }, 1000);
+      } else if (error.message.includes("Network")) {
+        errorMessage = "Ошибка сети. Попробуйте еще раз";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: "Logout Failed",
-        description: error.message,
+        title: "Ошибка выхода",
+        description: errorMessage,
         variant: "destructive",
       });
     },
