@@ -30,8 +30,14 @@ export function useLogin() {
 
   return useMutation({
     mutationFn: async (data: { email: string; password: string }) => {
-      const response = await apiRequest("POST", "/auth/login", data);
-      return response.json();
+      try {
+        const response = await apiRequest("POST", "/auth/login", data);
+        return response.json();
+      } catch (error) {
+        // Если API недоступен или возвращает 404, все равно показываем ошибку пользователю
+        console.error('❌ [LOGIN] API request failed:', error);
+        throw error;
+      }
     },
     onSuccess: (data) => {
       console.log('✅ [LOGIN] Login successful:', data);
@@ -93,8 +99,14 @@ export function useRegister() {
 
   return useMutation({
     mutationFn: async (data: { email: string; password: string }) => {
-      const response = await apiRequest("POST", "/auth/register", data);
-      return response.json();
+      try {
+        const response = await apiRequest("POST", "/auth/register", data);
+        return response.json();
+      } catch (error) {
+        // Если API недоступен или возвращает 404, все равно показываем ошибку пользователю
+        console.error('❌ [REGISTER] API request failed:', error);
+        throw error;
+      }
     },
     onSuccess: (data) => {
       console.log('✅ [REGISTER] Registration successful:', data);
