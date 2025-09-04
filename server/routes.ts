@@ -1478,14 +1478,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Create generation run and start generation
+      console.log('🚀 [API] Creating generation run...');
       const runId = await generator.createGenerationRun(generationParams);
-      console.log(`✅ Created generation run: ${runId}`);
+      console.log(`✅ [API] Created generation run: ${runId}`);
       
       // Start generation in background
+      console.log('🚀 [API] Starting generation in background...');
       generator.generateLinks(generationParams, runId).then(() => {
-        console.log(`✅ Generation completed with runId: ${runId}`);
+        console.log(`✅ [API] Generation completed with runId: ${runId}`);
       }).catch((error: any) => {
-        console.error("Generation failed:", error);
+        console.error("❌ [API] Generation failed:", error);
+        // Обновляем статус на failed
+        db.update(generationRuns)
+          .set({ status: 'failed', errorMessage: error.message, finishedAt: new Date() })
+          .where(eq(generationRuns.runId, runId))
+          .catch(updateError => console.error("Failed to update run status:", updateError));
       });
 
       res.json({ success: true, message: "Generation started", runId });
@@ -1853,35 +1860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Stream generation progress (Server-Sent Events)
-  app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
-    const { runId } = req.params;
-    
-    try {
-      // Validate run belongs to user's project
-      const run = await db
-        .select({ projectId: generationRuns.projectId })
-        .from(generationRuns)
-        .where(eq(generationRuns.runId, runId))
-        .limit(1);
-
-      if (!run.length) {
-        return res.status(404).json({ error: "Generation run not found" });
-      }
-
-      const project = await storage.getProjectById(run[0].projectId);
-      if (!project || project.userId !== req.user.id) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-
-      // Add client to progress stream
-      progressStreamManager.addClient(runId, res);
-      
-    } catch (error) {
-      console.error("Progress stream error:", error);
-      res.status(500).json({ error: "Failed to setup progress stream" });
-    }
-  });
+  // Stream generation progress endpoint moved to line 2869 (JSON format)
 
   // Get generation runs for project
   app.get("/api/generate/runs/:projectId", authenticateToken, async (req: any, res) => {
