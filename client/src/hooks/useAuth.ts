@@ -76,6 +76,8 @@ export function useLogin() {
         errorMessage = error.message;
       }
       
+      console.log('🔍 [LOGIN] Final error message for user:', errorMessage);
+      
       toast({
         title: "Ошибка входа",
         description: errorMessage,
