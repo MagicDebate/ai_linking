@@ -1479,8 +1479,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create generation run and start generation
       console.log('🚀 [API] Creating generation run...');
-      const runId = await generator.createGenerationRun(generationParams);
-      console.log(`✅ [API] Created generation run: ${runId}`);
+      let runId: string;
+      let createError: any;
+      
+      try {
+        runId = await generator.createGenerationRun(generationParams);
+        console.log(`✅ [API] Created generation run: ${runId}`);
+      } catch (error) {
+        console.error("❌ [API] Failed to create generation run:", error);
+        createError = error;
+        return res.status(500).json({ 
+          success: false, 
+          error: "Failed to create generation run", 
+          details: error instanceof Error ? error.message : "Unknown error",
+          step: "createGenerationRun"
+        });
+      }
       
       // Start generation in background
       console.log('🚀 [API] Starting generation in background...');
@@ -1495,7 +1509,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .catch(updateError => console.error("Failed to update run status:", updateError));
       });
 
-      res.json({ success: true, message: "Generation started", runId });
+      res.json({ 
+        success: true, 
+        message: "Generation started", 
+        runId,
+        debug: {
+          step: "generationStarted",
+          timestamp: new Date().toISOString(),
+          projectId,
+          seoProfile: {
+            preset: seoProfile?.preset,
+            scenarios: Object.keys(seoProfile?.scenarios || {}).filter(k => seoProfile?.scenarios?.[k]),
+            policies: Object.keys(seoProfile?.policies || {})
+          }
+        }
+      });
     } catch (error) {
       console.error("Generation start error:", error);
       res.status(500).json({ error: "Failed to start generation" });
@@ -2849,6 +2877,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
     try {
       const { runId } = req.params;
+      console.log(`🔍 [Progress API] Getting progress for runId: ${runId}`);
       
       // Validate run belongs to user's project
       const run = await db
@@ -2869,16 +2898,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(generationRuns.runId, runId))
         .limit(1);
 
+      console.log(`🔍 [Progress API] Database query result:`, run.length > 0 ? {
+        status: run[0].status,
+        phase: run[0].phase,
+        percent: run[0].percent,
+        errorMessage: run[0].errorMessage
+      } : 'No run found');
+
       if (!run.length) {
+        console.log(`❌ [Progress API] Run not found: ${runId}`);
         return res.status(404).json({ error: "Generation run not found" });
       }
 
       const project = await storage.getProjectById(run[0].projectId);
       if (!project || project.userId !== req.user.id) {
+        console.log(`❌ [Progress API] Access denied for project: ${run[0].projectId}`);
         return res.status(403).json({ error: "Access denied" });
       }
 
-      res.json({
+      const response = {
         runId: runId,
         status: run[0].status,
         phase: run[0].phase,
@@ -2889,11 +2927,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         counters: run[0].counters,
         startedAt: run[0].startedAt,
         finishedAt: run[0].finishedAt,
-        errorMessage: run[0].errorMessage
+        errorMessage: run[0].errorMessage,
+        debug: {
+          timestamp: new Date().toISOString(),
+          runId,
+          projectId: run[0].projectId
+        }
+      };
+
+      console.log(`✅ [Progress API] Returning progress:`, {
+        status: response.status,
+        phase: response.phase,
+        percent: response.percent,
+        errorMessage: response.errorMessage
       });
+
+      res.json(response);
     } catch (error) {
-      console.error('❌ Error getting generation progress:', error);
-      res.status(500).json({ error: "Failed to get progress" });
+      console.error('❌ [Progress API] Error getting generation progress:', error);
+      res.status(500).json({ 
+        error: "Failed to get progress",
+        details: error instanceof Error ? error.message : "Unknown error",
+        debug: {
+          timestamp: new Date().toISOString(),
+          runId: req.params.runId
+        }
+      });
     }
   });
 
