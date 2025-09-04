@@ -155,8 +155,13 @@ export function useLogout() {
 
   return useMutation({
     mutationFn: async () => {
-      // Не делаем API запрос - только локальный logout
-      return Promise.resolve();
+      // Делаем API запрос, но игнорируем ошибки
+      try {
+        await apiRequest("POST", "/auth/logout");
+      } catch (error) {
+        // Игнорируем все ошибки - делаем локальный logout
+        console.log('⚠️ [LOGOUT] Server logout failed, continuing with local logout');
+      }
     },
     onSuccess: () => {
       // Очищаем локальное состояние
