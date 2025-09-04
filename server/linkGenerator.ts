@@ -87,37 +87,56 @@ export class LinkGenerator {
 
   // Создание записи о запуске генерации
   async createGenerationRun(params: GenerationParams): Promise<string> {
+    console.log('🚀 [createGenerationRun] Starting...');
+    console.log('🔍 [createGenerationRun] Project ID:', this.projectId);
+    
     const runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log('🔍 [createGenerationRun] Generated runId:', runId);
 
-    // Получаем последний импорт для проекта
-    const latestImport = await db
-      .select({ id: imports.id })
-      .from(imports)
-      .where(eq(imports.projectId, this.projectId))
-      .orderBy(desc(imports.createdAt))
-      .limit(1);
+    try {
+      // Получаем последний импорт для проекта
+      console.log('🔍 [createGenerationRun] Looking for latest import...');
+      const latestImport = await db
+        .select({ id: imports.id })
+        .from(imports)
+        .where(eq(imports.projectId, this.projectId))
+        .orderBy(desc(imports.createdAt))
+        .limit(1);
 
-    if (!latestImport.length) {
-      throw new Error('No imports found for this project');
+      console.log('🔍 [createGenerationRun] Found imports:', latestImport.length);
+      if (latestImport.length > 0) {
+        console.log('🔍 [createGenerationRun] Latest import ID:', latestImport[0].id);
+      }
+
+      if (!latestImport.length) {
+        console.log('❌ [createGenerationRun] No imports found for project:', this.projectId);
+        throw new Error('No imports found for this project');
+      }
+
+      const importId = latestImport[0].id;
+      console.log('🔍 [createGenerationRun] Using import ID:', importId);
+
+      // Создаем запись о запуске
+      console.log('🔍 [createGenerationRun] Inserting into generationRuns...');
+      await db
+        .insert(generationRuns)
+        .values({
+          runId,
+          projectId: this.projectId,
+          importId: importId,
+          status: 'running',
+          phase: 'initialization',
+          percent: 0,
+          generated: 0,
+          rejected: 0
+        });
+
+      console.log('✅ [createGenerationRun] Successfully created generation run:', runId);
+      return runId;
+    } catch (error) {
+      console.error('❌ [createGenerationRun] Error:', error);
+      throw error;
     }
-
-    const importId = latestImport[0].id;
-
-    // Создаем запись о запуске
-    await db
-      .insert(generationRuns)
-      .values({
-        runId,
-        projectId: this.projectId,
-        importId: importId,
-        status: 'running',
-        phase: 'initialization',
-        percent: 0,
-        generated: 0,
-        rejected: 0
-      });
-
-    return runId;
   }
 
   // ГЛАВНАЯ ФУНКЦИЯ ГЕНЕРАЦИИ ПО СЦЕНАРИЯМ
@@ -129,9 +148,8 @@ export class LinkGenerator {
     console.log('🚨 [LinkGenerator] ===== ПРОЕКТ ID:', this.projectId, '=====');
     
     try {
-
-      console.log('🚀 Starting SPEC-COMPLIANT scenario-based link generation...');
-      console.log('📋 Active scenarios:', {
+      console.log('🚀 [generateLinks] Starting SPEC-COMPLIANT scenario-based link generation...');
+      console.log('📋 [generateLinks] Active scenarios:', {
         orphanFix: params.scenarios.orphanFix,
         headConsolidation: params.scenarios.headConsolidation,
         clusterCrossLink: params.scenarios.clusterCrossLink,
@@ -141,11 +159,16 @@ export class LinkGenerator {
       });
       
       // Apply old links policy before generation
+      console.log('🔍 [generateLinks] Applying old links policy...');
       await this.handleOldLinksPolicy(params.policies.oldLinks, runId);
+      console.log('✅ [generateLinks] Old links policy applied');
       
       // Phase 1: Load pages (0-20%)
+      console.log('🔍 [generateLinks] Phase 1: Loading pages...');
       await this.updateProgress(runId, 'loading', 10, 0, 0);
+      console.log('🔍 [generateLinks] Calling loadPages()...');
       const pages = await this.loadPages();
+      console.log('🔍 [generateLinks] loadPages() completed, result:', pages.length, 'pages');
       
       if (pages.length === 0) {
         console.log('❌ [generateLinks] No pages found, cannot generate links');
@@ -601,15 +624,24 @@ export class LinkGenerator {
 
   // Обновление прогресса генерации
   private async updateProgress(runId: string, phase: string, percent: number, generated: number, rejected: number) {
-    await db
-      .update(generationRuns)
-      .set({
-        phase,
-        percent,
-        generated,
-        rejected
-      })
-      .where(eq(generationRuns.runId, runId));
+    try {
+      console.log(`🔍 [updateProgress] Updating run ${runId}: phase=${phase}, percent=${percent}, generated=${generated}, rejected=${rejected}`);
+      
+      await db
+        .update(generationRuns)
+        .set({
+          phase,
+          percent,
+          generated,
+          rejected
+        })
+        .where(eq(generationRuns.runId, runId));
+      
+      console.log(`✅ [updateProgress] Successfully updated run ${runId}`);
+    } catch (error) {
+      console.error(`❌ [updateProgress] Error updating run ${runId}:`, error);
+      throw error;
+    }
   }
 
   // Загрузка страниц проекта
@@ -724,8 +756,19 @@ export class LinkGenerator {
 
   // Обработка политики старых ссылок
   private async handleOldLinksPolicy(policy: string, runId: string): Promise<void> {
-    // PLACEHOLDER: Реализация политики старых ссылок
-    console.log(`📋 Applying old links policy: ${policy}`);
+    console.log(`🔍 [handleOldLinksPolicy] Starting with policy: ${policy}`);
+    console.log(`🔍 [handleOldLinksPolicy] Run ID: ${runId}`);
+    
+    try {
+      // PLACEHOLDER: Реализация политики старых ссылок
+      console.log(`📋 [handleOldLinksPolicy] Applying old links policy: ${policy}`);
+      
+      // Простая заглушка - ничего не делаем
+      console.log(`✅ [handleOldLinksPolicy] Policy ${policy} applied successfully (placeholder)`);
+    } catch (error) {
+      console.error(`❌ [handleOldLinksPolicy] Error applying policy ${policy}:`, error);
+      throw error;
+    }
   }
 
   // Проверка дубликатов ссылок
