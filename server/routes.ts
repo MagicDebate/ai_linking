@@ -58,12 +58,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error('💥 [ROUTES] Error importing @shared/tables:', error);
   }
   
-  // Создаем экземпляр EmbeddingService для использования в функциях
-  console.log('🔧 [ROUTES] Creating EmbeddingService...');
-  const embeddingService = new EmbeddingService();
-  console.log('✅ [ROUTES] EmbeddingService created');
-  
-  // Делаем embeddingService доступным для всех функций через замыкание
+  // EmbeddingService будет создаваться локально в каждом месте использования
   
   app.use(cookieParser());
   app.use(passport.initialize());
@@ -2353,7 +2348,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'HTML content required' });
       }
 
-      const processor = new ContentProcessor(storage, embeddingService);
+      const processor = new ContentProcessor(storage);
       const blocks = processor.extractBlocks(html);
       
       res.json({
@@ -3078,7 +3073,11 @@ function calculateRelevanceScore(sourcePage: any, targetPage: any): number {
 
 // Content processing pipeline
 class ContentProcessor {
-  constructor(private storage: DatabaseStorage, private embeddingService: EmbeddingService) {}
+  private embeddingService: EmbeddingService;
+
+  constructor(private storage: DatabaseStorage) {
+    this.embeddingService = new EmbeddingService();
+  }
 
   async processContent(jobId: string, projectId: string, importId: string) {
     console.log(`🚀 [PROCESS] Starting real content processing for job ${jobId}`);
@@ -3554,7 +3553,7 @@ class ContentProcessor {
     const blockIds = blocksData.map(block => block.id);
     
     // Используем новый сервис эмбеддингов с передачей таблицы embeddings
-    const results = await embeddingService.generateEmbeddings(blockIds, projectId, embeddings);
+    const results = await this.embeddingService.generateEmbeddings(blockIds, projectId, embeddings);
     
     await this.updateProgress(jobId, "vectorizing", 100, 
       `Векторизация завершена: ${results.length} векторов (${results.filter(r => !r.cached).length} новых, ${results.filter(r => r.cached).length} из кэша)`);
@@ -3668,7 +3667,7 @@ async function processImportJobAsync(jobId: string, importId: string, scenarios:
   
   try {
     console.log(`📦 Creating ContentProcessor instance...`);
-    const processor = new ContentProcessor(storage, embeddingService);
+    const processor = new ContentProcessor(storage);
     console.log(`🎯 Starting processContent...`);
     await processor.processContent(jobId, projectId, importId);
     console.log(`✅ processContent completed successfully`);
@@ -3699,7 +3698,7 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
     
     // Use the new ContentProcessor
     console.log(`📦 Creating ContentProcessor instance...`);
-    const processor = new ContentProcessor(storage, embeddingService);
+    const processor = new ContentProcessor(storage);
     console.log(`🎯 Starting processContent...`);
     await processor.processContent(jobId, projectId, importId);
     console.log(`✅ processContent completed successfully`);
