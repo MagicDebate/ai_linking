@@ -156,44 +156,31 @@ export function useLogout() {
 
   return useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/auth/logout");
+      // Пытаемся сделать logout на сервере, но не критично если не получится
+      try {
+        await apiRequest("POST", "/auth/logout");
+      } catch (error) {
+        // Игнорируем ошибки logout - все равно разлогиниваемся локально
+        console.log('⚠️ [LOGOUT] Server logout failed, continuing with local logout');
+      }
     },
     onSuccess: () => {
+      // Очищаем локальное состояние
       queryClient.setQueryData(["/auth/me"], null);
       queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
-      toast({
-        title: "Success",
-        description: "Logged out successfully!",
-      });
       
-      // Редирект на страницу авторизации после выхода
-      setTimeout(() => {
-        window.location.href = '/auth';
-      }, 500);
+      // Сразу делаем редирект на страницу авторизации
+      window.location.href = '/auth';
     },
     onError: (error: Error) => {
       console.error('❌ [LOGOUT] Logout failed:', error);
       
-      // Улучшенный вывод ошибок выхода
-      let errorMessage = "Произошла ошибка при выходе";
+      // Даже при ошибке очищаем состояние и делаем редирект
+      queryClient.setQueryData(["/auth/me"], null);
+      queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
       
-      if (error.message.includes("Unauthorized")) {
-        errorMessage = "Сессия истекла. Перенаправляем на страницу входа";
-        // При ошибке авторизации все равно перенаправляем на страницу входа
-        setTimeout(() => {
-          window.location.href = '/auth';
-        }, 1000);
-      } else if (error.message.includes("Network")) {
-        errorMessage = "Ошибка сети. Попробуйте еще раз";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      toast({
-        title: "Ошибка выхода",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      // Редирект на страницу авторизации
+      window.location.href = '/auth';
     },
   });
 }

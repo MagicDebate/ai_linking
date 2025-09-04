@@ -13,8 +13,8 @@ import { handleGoogleAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
-  email: z.string().email("Invalid email format"),
-  password: z.string().min(1, "Password is required"),
+  email: z.string(),
+  password: z.string(),
 });
 
 const registerSchema = z.object({
