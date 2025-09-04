@@ -278,6 +278,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: "Logout successful" });
   });
 
+  // Change password endpoint
+  app.post("/api/user/change-password", authenticateToken, async (req: any, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "Current password and new password are required" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "New password must be at least 8 characters long" });
+      }
+
+      // Get user by ID from token
+      const user = await storage.getUserById(req.user.id);
+      if (!user || !user.passwordHash) {
+        return res.status(404).json({ message: "User not found or no password set" });
+      }
+
+      // Verify current password
+      const isValidPassword = await comparePassword(currentPassword, user.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
+
+      // Hash new password
+      const newPasswordHash = await hashPassword(newPassword);
+      
+      // Update password in database
+      await storage.updateUserPassword(user.id, newPasswordHash);
+      
+      res.status(200).json({ message: "Password changed successfully" });
+    } catch (error) {
+      console.error("Error changing password:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // API routes for dashboard
   
   // Get projects
