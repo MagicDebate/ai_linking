@@ -152,17 +152,11 @@ export function useRegister() {
 
 export function useLogout() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async () => {
-      // Пытаемся сделать logout на сервере, но не критично если не получится
-      try {
-        await apiRequest("POST", "/auth/logout");
-      } catch (error) {
-        // Игнорируем ошибки logout - все равно разлогиниваемся локально
-        console.log('⚠️ [LOGOUT] Server logout failed, continuing with local logout');
-      }
+      // Не делаем API запрос - только локальный logout
+      return Promise.resolve();
     },
     onSuccess: () => {
       // Очищаем локальное состояние
@@ -172,9 +166,7 @@ export function useLogout() {
       // Сразу делаем редирект на страницу авторизации
       window.location.href = '/auth';
     },
-    onError: (error: Error) => {
-      console.error('❌ [LOGOUT] Logout failed:', error);
-      
+    onError: () => {
       // Даже при ошибке очищаем состояние и делаем редирект
       queryClient.setQueryData(["/auth/me"], null);
       queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
