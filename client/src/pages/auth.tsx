@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useLogin, useRegister } from "@/hooks/useAuth";
 import { handleGoogleAuth } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email format"),
@@ -29,6 +30,7 @@ const registerSchema = z.object({
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const { toast } = useToast();
   
   const loginMutation = useLogin();
   const registerMutation = useRegister();
@@ -174,6 +176,18 @@ export default function AuthPage() {
                           </FormItem>
                         )}
                       />
+
+                      {/* Отображение ошибок авторизации */}
+                      {loginMutation.isError && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="flex items-center">
+                            <AlertCircle className="h-4 w-4 text-red-500 mr-2" />
+                            <p className="text-sm text-red-700">
+                              {loginMutation.error?.message || "Произошла ошибка при входе"}
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
@@ -327,6 +341,18 @@ export default function AuthPage() {
                           </FormItem>
                         )}
                       />
+
+                      {/* Отображение ошибок регистрации */}
+                      {registerMutation.isError && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="flex items-center">
+                            <AlertCircle className="h-4 w-4 text-red-500 mr-2" />
+                            <p className="text-sm text-red-700">
+                              {registerMutation.error?.message || "Произошла ошибка при регистрации"}
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
                       <Button 
                         type="submit" 
