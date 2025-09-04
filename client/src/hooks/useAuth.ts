@@ -42,20 +42,17 @@ export function useLogin() {
     onSuccess: (data) => {
       console.log('✅ [LOGIN] Login successful:', data);
       
-      // Небольшая задержка для установки cookies
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
-        
-        // Редирект на дашборд после успешного логина
-        setTimeout(() => {
-          window.location.href = '/dashboard';
-        }, 200);
-      }, 100);
+      // Сначала обновляем состояние
+      queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
       
+      // Показываем уведомление
       toast({
         title: "Success",
         description: "Login successful! Redirecting to dashboard...",
       });
+      
+      // Сразу делаем редирект
+      window.location.href = '/dashboard';
     },
     onError: (error: Error) => {
       console.error('❌ [LOGIN] Login failed:', error);
@@ -111,20 +108,17 @@ export function useRegister() {
     onSuccess: (data) => {
       console.log('✅ [REGISTER] Registration successful:', data);
       
-      // Небольшая задержка для установки cookies
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
-        
-        // Редирект на дашборд после успешной регистрации
-        setTimeout(() => {
-          window.location.href = '/dashboard';
-        }, 200);
-      }, 100);
+      // Сначала обновляем состояние
+      queryClient.invalidateQueries({ queryKey: ["/auth/me"] });
       
+      // Показываем уведомление
       toast({
         title: "Success",
         description: "Registration successful! Redirecting to dashboard...",
       });
+      
+      // Сразу делаем редирект
+      window.location.href = '/dashboard';
     },
     onError: (error: Error) => {
       console.error('❌ [REGISTER] Registration failed:', error);
