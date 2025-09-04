@@ -163,11 +163,18 @@ export class LinkGenerator {
       await this.handleOldLinksPolicy(params.policies.oldLinks, runId);
       console.log('✅ [generateLinks] Old links policy applied');
       
-      // Phase 1: Load pages (0-20%)
+      // Phase 1: Load pages (0-20%) with timeout
       console.log('🔍 [generateLinks] Phase 1: Loading pages...');
       await this.updateProgress(runId, 'loading', 10, 0, 0);
-      console.log('🔍 [generateLinks] Calling loadPages()...');
-      const pages = await this.loadPages();
+      console.log('🔍 [generateLinks] Calling loadPages() with 30 second timeout...');
+      
+      const pages = await Promise.race([
+        this.loadPages(),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('loadPages() timeout after 30 seconds')), 30000)
+        )
+      ]) as any[];
+      
       console.log('🔍 [generateLinks] loadPages() completed, result:', pages.length, 'pages');
       
       if (pages.length === 0) {
@@ -650,37 +657,38 @@ export class LinkGenerator {
     console.log('🔍 [loadPages] Loading pages for project:', this.projectId);
     console.log('🚨 [loadPages] ===== ПРОЕКТ ID:', this.projectId, '=====');
     
-    // Получаем последний завершенный импорт для проекта
-    console.log('🔍 [loadPages] Looking for completed imports...');
-    const latestImport = await db
-      .select({ jobId: importJobs.jobId, status: importJobs.status, startedAt: importJobs.startedAt })
-      .from(importJobs)
-      .where(and(
-        eq(importJobs.projectId, this.projectId),
-        eq(importJobs.status, 'completed')
-      ))
-      .orderBy(desc(importJobs.startedAt))
-      .limit(1);
-
-    console.log('🔍 [loadPages] Found imports:', latestImport.length);
-    if (latestImport.length > 0) {
-      console.log('🔍 [loadPages] Latest import:', latestImport[0]);
-    }
-
-    if (!latestImport.length) {
-      console.log('❌ [loadPages] No completed import found for project:', this.projectId);
-      
-      // Проверим какие импорты есть вообще
-      const allImports = await db
+    try {
+      // Получаем последний завершенный импорт для проекта
+      console.log('🔍 [loadPages] Looking for completed imports...');
+      const latestImport = await db
         .select({ jobId: importJobs.jobId, status: importJobs.status, startedAt: importJobs.startedAt })
         .from(importJobs)
-        .where(eq(importJobs.projectId, this.projectId))
+        .where(and(
+          eq(importJobs.projectId, this.projectId),
+          eq(importJobs.status, 'completed')
+        ))
         .orderBy(desc(importJobs.startedAt))
-        .limit(5);
-      
-      console.log('🔍 [loadPages] All imports for project:', allImports);
-      return [];
-    }
+        .limit(1);
+
+      console.log('🔍 [loadPages] Found imports:', latestImport.length);
+      if (latestImport.length > 0) {
+        console.log('🔍 [loadPages] Latest import:', latestImport[0]);
+      }
+
+      if (!latestImport.length) {
+        console.log('❌ [loadPages] No completed import found for project:', this.projectId);
+        
+        // Проверим какие импорты есть вообще
+        const allImports = await db
+          .select({ jobId: importJobs.jobId, status: importJobs.status, startedAt: importJobs.startedAt })
+          .from(importJobs)
+          .where(eq(importJobs.projectId, this.projectId))
+          .orderBy(desc(importJobs.startedAt))
+          .limit(5);
+        
+        console.log('🔍 [loadPages] All imports for project:', allImports);
+        return [];
+      }
 
     const jobId = latestImport[0].jobId;
     console.log('🔍 [loadPages] Using jobId from latest import:', jobId);
@@ -752,6 +760,10 @@ export class LinkGenerator {
     }
 
     return pages;
+    } catch (error) {
+      console.error('❌ [loadPages] Error loading pages:', error);
+      throw error;
+    }
   }
 
   // Обработка политики старых ссылок
