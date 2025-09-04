@@ -46,7 +46,11 @@ export function useImportStatus(jobId: string | null, enabled: boolean = true) {
         console.log('🛑 [useImportStatus] Stopping polling - import is', data?.status);
         return false;
       }
-      return 2000; // Poll every 2 seconds while running
+      // Only poll if status is pending or running
+      if (data?.status === 'pending' || data?.status === 'running') {
+        return 2000; // Poll every 2 seconds while running
+      }
+      return false; // Don't poll for unknown statuses
     },
     refetchIntervalInBackground: false, // Don't poll in background
     staleTime: 0,

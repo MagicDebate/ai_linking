@@ -116,7 +116,10 @@ export default function ProjectFixed() {
   // Состояние импорта
   const importJobId = projectState?.importJobId || null;
   console.log('🔍 [ProjectFixed] Current importJobId from projectState:', importJobId);
-  const { data: importStatus, isLoading: importStatusLoading } = useImportStatus(importJobId, true);
+  const { data: importStatus, isLoading: importStatusLoading } = useImportStatus(
+    importJobId, 
+    !!importJobId
+  );
   
   // Локальное состояние
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -133,8 +136,19 @@ export default function ProjectFixed() {
 
   const fileRef = useRef<HTMLInputElement>(null);
   
-  // SEO профиль
-  const seoProfile = projectState?.seoProfile ? { ...DEFAULT_PROFILE, ...projectState.seoProfile } : DEFAULT_PROFILE;
+  // SEO профиль - используем локальное состояние для немедленных изменений
+  const [localSeoProfile, setLocalSeoProfile] = useState<SEOProfile>(() => 
+    projectState?.seoProfile ? { ...DEFAULT_PROFILE, ...projectState.seoProfile } : DEFAULT_PROFILE
+  );
+  
+  // Обновляем локальное состояние при изменении projectState
+  useEffect(() => {
+    if (projectState?.seoProfile) {
+      setLocalSeoProfile({ ...DEFAULT_PROFILE, ...projectState.seoProfile });
+    }
+  }, [projectState?.seoProfile]);
+  
+  const seoProfile = localSeoProfile;
   
   // Загрузка проекта
   const { data: project, isLoading: projectLoading, error: projectError } = useQuery({
@@ -585,6 +599,9 @@ export default function ProjectFixed() {
                   <SEOSettings
                     seoProfile={seoProfile}
                     onProfileChange={(newProfile) => {
+                      // Обновляем локальное состояние для немедленного отображения
+                      setLocalSeoProfile(newProfile);
+                      // Сохраняем в projectState
                       setSeoProfile(newProfile);
                     }}
                     onGenerate={handleGenerate}
