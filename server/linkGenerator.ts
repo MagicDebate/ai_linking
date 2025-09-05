@@ -325,7 +325,17 @@ export class LinkGenerator {
     let generated = 0, rejected = 0;
 
     // Получаем сиротские страницы
-    const orphanPages = pages.filter(page => page.isOrphan);
+    // Проверяем по нескольким критериям, так как isOrphan может быть null
+    const orphanPages = pages.filter(page => {
+      const isOrphan = page.isOrphan === true || page.isOrphan === 1 || page.inDegree === 0;
+      console.log('🔍 [OrphanFix] Page check:', {
+        url: page.url,
+        isOrphan: page.isOrphan,
+        inDegree: page.inDegree,
+        result: isOrphan
+      });
+      return isOrphan;
+    });
     console.log('🔍 [OrphanFix] Orphan pages found:', orphanPages.length);
 
     for (const orphanPage of orphanPages) {
