@@ -377,101 +377,174 @@ export class LinkGenerator {
 
   // HEAD CONSOLIDATION: консолидирует головные страницы
   private async executeHeadConsolidationScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
+    console.log('🔍 [HeadConsolidation] Starting head consolidation scenario');
+    console.log('🔍 [HeadConsolidation] Total pages:', pages.length);
+    console.log('🔍 [HeadConsolidation] Hub pages configured:', params.hubPages.length);
+    
     let generated = 0, rejected = 0;
 
     // Получаем hub страницы
     const hubPages = pages.filter(page => params.hubPages.includes(page.url));
+    console.log('🔍 [HeadConsolidation] Hub pages found in data:', hubPages.length);
 
     for (const hubPage of hubPages) {
+      console.log('🔍 [HeadConsolidation] Processing hub page:', hubPage.url);
+      
       // Ищем похожие страницы через cosine similarity
       const similarPages = await this.findSimilarPagesByCosine(hubPage, pages, 3, 0.78);
+      console.log('🔍 [HeadConsolidation] Similar pages found:', similarPages.length);
       
       for (const similarPage of similarPages) {
+        if (!similarPage.id || !hubPage.id) {
+          console.log('❌ [HeadConsolidation] Skipping link - missing page IDs');
+          rejected++;
+          continue;
+        }
+        
         const result = await this.tryCreateLink(runId, similarPage, hubPage, 'head_consolidation', params);
         if (result.created) {
           generated++;
+          console.log('✅ [HeadConsolidation] Link created:', similarPage.url, '->', hubPage.url);
         } else {
           rejected++;
+          console.log('❌ [HeadConsolidation] Link rejected:', similarPage.url, '->', hubPage.url, 'Reason:', result.reason);
         }
       }
     }
 
+    console.log('🔍 [HeadConsolidation] Scenario completed - Generated:', generated, 'Rejected:', rejected);
     return { generated, rejected };
   }
 
   // CLUSTER CROSS-LINK: создает взаимные ссылки внутри тематических кластеров
   private async executeClusterCrossLinkScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
+    console.log('🔍 [ClusterCrossLink] Starting cluster cross-link scenario');
+    console.log('🔍 [ClusterCrossLink] Total pages:', pages.length);
+    
     let generated = 0, rejected = 0;
 
     // Группируем страницы по семантической близости
     for (let i = 0; i < pages.length; i++) {
       const page1 = pages[i];
+      console.log('🔍 [ClusterCrossLink] Processing page:', page1.url, `(${i+1}/${pages.length})`);
+      
       const similarPages = await this.findSimilarPagesByCosine(page1, pages, 3, 0.78);
+      console.log('🔍 [ClusterCrossLink] Similar pages found:', similarPages.length);
       
       for (const page2 of similarPages) {
+        if (!page1.id || !page2.id) {
+          console.log('❌ [ClusterCrossLink] Skipping link - missing page IDs');
+          rejected++;
+          continue;
+        }
+        
         const result = await this.tryCreateLink(runId, page1, page2, 'cluster_cross_link', params);
         if (result.created) {
           generated++;
+          console.log('✅ [ClusterCrossLink] Link created:', page1.url, '->', page2.url);
         } else {
           rejected++;
+          console.log('❌ [ClusterCrossLink] Link rejected:', page1.url, '->', page2.url, 'Reason:', result.reason);
         }
       }
     }
 
+    console.log('🔍 [ClusterCrossLink] Scenario completed - Generated:', generated, 'Rejected:', rejected);
     return { generated, rejected };
   }
 
   // COMMERCIAL ROUTING: направляет трафик на коммерческие страницы
   private async executeCommercialRoutingScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
+    console.log('🔍 [CommercialRouting] Starting commercial routing scenario');
+    console.log('🔍 [CommercialRouting] Total pages:', pages.length);
+    console.log('🔍 [CommercialRouting] Priority pages configured:', params.priorityPages.length);
+    
     let generated = 0, rejected = 0;
 
     // Получаем money страницы
     const moneyPages = pages.filter(page => params.priorityPages.includes(page.url));
+    console.log('🔍 [CommercialRouting] Money pages found in data:', moneyPages.length);
 
     for (const moneyPage of moneyPages) {
+      console.log('🔍 [CommercialRouting] Processing money page:', moneyPage.url);
+      
       // Ищем страницы, которые могут ссылаться на коммерческие
       const potentialDonors = pages.filter(page => !params.priorityPages.includes(page.url));
+      console.log('🔍 [CommercialRouting] Potential donor pages:', potentialDonors.length);
       
       for (const donorPage of potentialDonors) {
+        if (!donorPage.id || !moneyPage.id) {
+          console.log('❌ [CommercialRouting] Skipping link - missing page IDs');
+          rejected++;
+          continue;
+        }
+        
         const result = await this.tryCreateLink(runId, donorPage, moneyPage, 'commercial_routing', params);
-      if (result.created) {
-        generated++;
-      } else {
-        rejected++;
+        if (result.created) {
+          generated++;
+          console.log('✅ [CommercialRouting] Link created:', donorPage.url, '->', moneyPage.url);
+        } else {
+          rejected++;
+          console.log('❌ [CommercialRouting] Link rejected:', donorPage.url, '->', moneyPage.url, 'Reason:', result.reason);
         }
       }
     }
 
+    console.log('🔍 [CommercialRouting] Scenario completed - Generated:', generated, 'Rejected:', rejected);
     return { generated, rejected };
   }
 
   // DEPTH LIFT: поднимает глубокие страницы
   private async executeDepthLiftScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
+    console.log('🔍 [DepthLift] Starting depth lift scenario');
+    console.log('🔍 [DepthLift] Total pages:', pages.length);
+    console.log('🔍 [DepthLift] Min depth configured:', params.scenarios.depthLift.minDepth);
+    
     let generated = 0, rejected = 0;
 
     // Получаем глубокие страницы
     const deepPages = pages.filter(page => page.clickDepth >= params.scenarios.depthLift.minDepth);
+    console.log('🔍 [DepthLift] Deep pages found:', deepPages.length);
 
     for (const deepPage of deepPages) {
+      console.log('🔍 [DepthLift] Processing deep page:', deepPage.url, 'depth:', deepPage.clickDepth);
+      
       // Ищем похожие страницы с меньшей глубиной
       const shallowPages = pages.filter(page => page.clickDepth < params.scenarios.depthLift.minDepth);
+      console.log('🔍 [DepthLift] Shallow pages available:', shallowPages.length);
+      
       const similarPages = await this.findSimilarPagesByCosine(deepPage, shallowPages, 3, 0.70);
+      console.log('🔍 [DepthLift] Similar shallow pages found:', similarPages.length);
       
       for (const similarPage of similarPages) {
+        if (!similarPage.id || !deepPage.id) {
+          console.log('❌ [DepthLift] Skipping link - missing page IDs');
+          rejected++;
+          continue;
+        }
+        
         const result = await this.tryCreateLink(runId, similarPage, deepPage, 'depth_lift', params);
         if (result.created) {
           generated++;
+          console.log('✅ [DepthLift] Link created:', similarPage.url, '->', deepPage.url);
         } else {
           rejected++;
+          console.log('❌ [DepthLift] Link rejected:', similarPage.url, '->', deepPage.url, 'Reason:', result.reason);
         }
       }
     }
 
+    console.log('🔍 [DepthLift] Scenario completed - Generated:', generated, 'Rejected:', rejected);
     return { generated, rejected };
   }
 
   // FRESHNESS PUSH: продвигает свежие страницы
   private async executeFreshnessPushScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
+    console.log('🔍 [FreshnessPush] Starting freshness push scenario');
+    console.log('🔍 [FreshnessPush] Total pages:', pages.length);
+    console.log('🔍 [FreshnessPush] Days fresh configured:', params.scenarios.freshnessPush.daysFresh);
+    console.log('🔍 [FreshnessPush] Links per donor configured:', params.scenarios.freshnessPush.linksPerDonor);
+    
     let generated = 0, rejected = 0;
 
     const daysFresh = params.scenarios.freshnessPush.daysFresh;
@@ -483,28 +556,43 @@ export class LinkGenerator {
       const daysSincePublished = (Date.now() - publishedAt.getTime()) / (1000 * 60 * 60 * 24);
       return daysSincePublished <= daysFresh;
     });
+    console.log('🔍 [FreshnessPush] Fresh pages found:', freshPages.length);
       
-      for (const freshPage of freshPages) {
+    for (const freshPage of freshPages) {
+      console.log('🔍 [FreshnessPush] Processing fresh page:', freshPage.url);
+      
       // Ищем доноров для свежих страниц
       const potentialDonors = pages.filter(page => page.id !== freshPage.id);
       const selectedDonors = potentialDonors.slice(0, linksPerDonor);
+      console.log('🔍 [FreshnessPush] Selected donor pages:', selectedDonors.length);
         
       for (const donorPage of selectedDonors) {
+        if (!donorPage.id || !freshPage.id) {
+          console.log('❌ [FreshnessPush] Skipping link - missing page IDs');
+          rejected++;
+          continue;
+        }
+        
         const result = await this.tryCreateLink(runId, donorPage, freshPage, 'freshness_push', params);
         if (result.created) {
           generated++;
+          console.log('✅ [FreshnessPush] Link created:', donorPage.url, '->', freshPage.url);
         } else {
           rejected++;
+          console.log('❌ [FreshnessPush] Link rejected:', donorPage.url, '->', freshPage.url, 'Reason:', result.reason);
         }
       }
     }
 
+    console.log('🔍 [FreshnessPush] Scenario completed - Generated:', generated, 'Rejected:', rejected);
     return { generated, rejected };
   }
 
   // НОВЫЙ МЕТОД: Поиск похожих страниц через cosine similarity
   private async findSimilarPagesByCosine(sourcePage: any, allPages: any[], limit: number, threshold: number): Promise<any[]> {
-    console.log(`🔍 Finding similar pages for ${sourcePage.url} (threshold: ${threshold})`);
+    console.log(`🔍 [findSimilarPagesByCosine] Finding similar pages for ${sourcePage.url} (threshold: ${threshold}, limit: ${limit})`);
+    console.log(`🔍 [findSimilarPagesByCosine] Source page ID: ${sourcePage.id}`);
+    console.log(`🔍 [findSimilarPagesByCosine] Total pages to search: ${allPages.length}`);
     
     // Получаем блоки исходной страницы
     const sourceBlocks = await db
@@ -512,8 +600,10 @@ export class LinkGenerator {
       .from(blocks)
       .where(eq(blocks.pageId, sourcePage.id));
 
+    console.log(`🔍 [findSimilarPagesByCosine] Source blocks found: ${sourceBlocks.length}`);
+    
     if (sourceBlocks.length === 0) {
-      console.log('⚠️ No blocks found for source page');
+      console.log('⚠️ [findSimilarPagesByCosine] No blocks found for source page');
       return [];
     }
 
@@ -588,14 +678,19 @@ export class LinkGenerator {
       .filter(page => page && page.id); // Фильтруем страницы без ID
     
     console.log(`🔍 [findSimilarPagesByCosine] Returning ${result.length} similar pages with valid IDs`);
+    console.log(`🔍 [findSimilarPagesByCosine] Result pages:`, result.map(p => ({ url: p.url, id: p.id })));
     return result;
   }
 
   // Попытка создать ссылку с проверкой всех политик
   private async tryCreateLink(runId: string, sourcePage: any, targetPage: any, scenario: string, params: GenerationParams): Promise<{ created: boolean, reason?: string, anchor?: string }> {
+    console.log(`🔍 [tryCreateLink] Attempting to create link: ${sourcePage.url} -> ${targetPage.url} (scenario: ${scenario})`);
+    console.log(`🔍 [tryCreateLink] Source ID: ${sourcePage.id}, Target ID: ${targetPage.id}`);
+    
     try {
       // 1. Базовые проверки
       if (sourcePage.id === targetPage.id) {
+        console.log('❌ [tryCreateLink] Self-link not allowed');
         return { created: false, reason: 'Self-link not allowed' };
       }
 
@@ -686,6 +781,7 @@ export class LinkGenerator {
         modifiedSentence: modifiedSentence
       });
 
+      console.log('✅ [tryCreateLink] Link created successfully with anchor:', anchorText);
       return { created: true, anchor: anchorText };
 
     } catch (error) {
