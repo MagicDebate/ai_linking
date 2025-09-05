@@ -785,7 +785,17 @@ export class LinkGenerator {
       return { created: true, anchor: anchorText };
 
     } catch (error) {
-      console.error('Error creating link:', error);
+      console.error('❌ [tryCreateLink] Database error creating link:', error);
+      console.error('❌ [tryCreateLink] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+        runId,
+        sourceUrl: sourcePage.url,
+        targetUrl: targetPage.url,
+        sourceId: sourcePage.id,
+        targetId: targetPage.id,
+        scenario
+      });
       return { created: false, reason: 'Database error' };
     }
   }
