@@ -71,6 +71,7 @@ interface GenerationStats {
 export class LinkGenerator {
   private projectId: string;
   private embeddingService: EmbeddingService;
+  private startTime: number = 0;
   private stats: GenerationStats = {
     totalGenerated: 0,
     totalRejected: 0,
@@ -147,6 +148,9 @@ export class LinkGenerator {
     console.log('🚀 [LinkGenerator] projectId:', this.projectId);
     console.log('🚨 [LinkGenerator] ===== ПРОЕКТ ID:', this.projectId, '=====');
     
+    // Инициализируем время начала
+    this.startTime = Date.now();
+    
     // Глобальный timeout для всей генерации (15 минут)
     const globalTimeout = setTimeout(() => {
       console.error('❌ [generateLinks] GLOBAL TIMEOUT: Generation taking too long, forcing failure');
@@ -201,6 +205,9 @@ export class LinkGenerator {
         typeof s === 'boolean' ? s : s.enabled
       ).length;
       const progressPerScenario = 60 / Math.max(scenarioCount, 1);
+      
+      // Статистика сценариев
+      const scenarioStats: any = {};
 
       // ORPHAN FIX SCENARIO
       if (params.scenarios.orphanFix) {
@@ -209,7 +216,12 @@ export class LinkGenerator {
         totalGenerated += result.generated;
         totalRejected += result.rejected;
         progressBase += progressPerScenario;
-        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
+        scenarioStats.orphanFix = {
+          generated: result.generated,
+          rejected: result.rejected,
+          status: 'completed'
+        };
+        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected, undefined, undefined, scenarioStats);
       }
 
       // HEAD CONSOLIDATION SCENARIO
@@ -339,8 +351,14 @@ export class LinkGenerator {
     });
     console.log('🔍 [OrphanFix] Orphan pages found:', orphanPages.length);
 
-    for (const orphanPage of orphanPages) {
-      console.log('🔍 [OrphanFix] Processing orphan page:', orphanPage.url);
+    for (let i = 0; i < orphanPages.length; i++) {
+      const orphanPage = orphanPages[i];
+      console.log('🔍 [OrphanFix] Processing orphan page:', orphanPage.url, `(${i + 1}/${orphanPages.length})`);
+      
+      // Обновляем прогресс каждые 10 страниц
+      if ((i + 1) % 10 === 0 || i === orphanPages.length - 1) {
+        await this.updateProgress(runId, 'generating', 30 + Math.round((i / orphanPages.length) * 20), generated, rejected, i + 1, orphanPages.length);
+      }
       
       // Ищем похожие страницы через cosine similarity
       const similarPages = await this.findSimilarPagesByCosine(orphanPage, pages, 10, 0.50); // Еще более пониженный порог для сирот
@@ -801,9 +819,29 @@ export class LinkGenerator {
   }
 
   // Обновление прогресса генерации
-  private async updateProgress(runId: string, phase: string, percent: number, generated: number, rejected: number) {
+  private async updateProgress(runId: string, phase: string, percent: number, generated: number, rejected: number, processedPages?: number, totalPages?: number, scenarioStats?: any) {
     try {
-      console.log(`🔍 [updateProgress] Updating run ${runId}: phase=${phase}, percent=${percent}, generated=${generated}, rejected=${rejected}`);
+      console.log(`🔍 [updateProgress] Updating run ${runId}: phase=${phase}, percent=${percent}, generated=${generated}, rejected=${rejected}, processed=${processedPages}/${totalPages}`);
+      
+      // Собираем детальную статистику
+      const detailedStats = {
+        pages: processedPages && totalPages ? {
+          processed: processedPages,
+          total: totalPages,
+          percent: Math.round((processedPages / totalPages) * 100)
+        } : undefined,
+        links: {
+          generated,
+          rejected,
+          total: generated + rejected
+        },
+        scenarios: scenarioStats || {},
+        timing: {
+          startedAt: new Date().toISOString(),
+          estimatedRemaining: processedPages && totalPages ? 
+            Math.round(((totalPages - processedPages) / processedPages) * (Date.now() - this.startTime) / 1000) : undefined
+        }
+      };
       
       await db
         .update(generationRuns)
@@ -812,7 +850,8 @@ export class LinkGenerator {
           phase,
           percent,
           generated,
-          rejected
+          rejected,
+          taskProgress: detailedStats
         })
         .where(eq(generationRuns.runId, runId));
       

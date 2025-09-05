@@ -1510,7 +1510,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
           .where(eq(generationRuns.runId, runId))
           .catch(updateError => console.error("Failed to update run status:", updateError));
-      }, 600000); // 10 минут
+      }, 1800000); // 30 минут - увеличили таймаут
       
       generator.generateLinks(generationParams, runId).then(() => {
         console.log(`✅ [API] Generation completed with runId: ${runId}`);
