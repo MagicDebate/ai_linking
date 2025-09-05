@@ -147,11 +147,11 @@ export class LinkGenerator {
     console.log('🚀 [LinkGenerator] projectId:', this.projectId);
     console.log('🚨 [LinkGenerator] ===== ПРОЕКТ ID:', this.projectId, '=====');
     
-    // Глобальный timeout для всей генерации (5 минут)
+    // Глобальный timeout для всей генерации (15 минут)
     const globalTimeout = setTimeout(() => {
       console.error('❌ [generateLinks] GLOBAL TIMEOUT: Generation taking too long, forcing failure');
       this.updateProgress(runId, 'failed', 0, 0, 0).catch(console.error);
-    }, 300000); // 5 минут
+    }, 900000); // 15 минут
     
     try {
       console.log('🚀 [generateLinks] Starting SPEC-COMPLIANT scenario-based link generation...');

@@ -2889,6 +2889,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Start link generation endpoint moved to line 1387
 
+  // Get database diagnostics for project
+  app.get("/api/projects/:projectId/diagnostics", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      console.log(`🔍 [Diagnostics API] Getting diagnostics for project: ${projectId}`);
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get latest import job
+      const latestImport = await db
+        .select({ jobId: importJobs.jobId, status: importJobs.status, startedAt: importJobs.startedAt })
+        .from(importJobs)
+        .where(and(
+          eq(importJobs.projectId, projectId),
+          eq(importJobs.status, 'completed')
+        ))
+        .orderBy(desc(importJobs.startedAt))
+        .limit(1);
+
+      if (!latestImport.length) {
+        return res.json({
+          projectId,
+          hasCompletedImport: false,
+          message: "No completed import found"
+        });
+      }
+
+      const jobId = latestImport[0].jobId;
+
+      // Get counts
+      const [pagesCleanCount, pagesRawCount, graphMetaCount, pagesForJob, graphMetaForJob] = await Promise.all([
+        db.select({ count: sql<number>`count(*)` }).from(pagesClean),
+        db.select({ count: sql<number>`count(*)` }).from(pagesRaw),
+        db.select({ count: sql<number>`count(*)` }).from(graphMeta),
+        db.select({ count: sql<number>`count(*)` }).from(pagesRaw).where(eq(pagesRaw.jobId, jobId)),
+        db.select({ count: sql<number>`count(*)` }).from(graphMeta).where(eq(graphMeta.jobId, jobId))
+      ]);
+
+      // Get sample pages with JOIN
+      const samplePages = await db
+        .select({
+          id: pagesClean.id,
+          url: pagesRaw.url,
+          title: sql<string>`COALESCE(${pagesRaw.meta}->>'title', '')`,
+          isOrphan: graphMeta.isOrphan,
+          clickDepth: graphMeta.clickDepth
+        })
+        .from(pagesClean)
+        .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
+        .leftJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
+        .where(eq(pagesRaw.jobId, jobId))
+        .limit(5);
+
+      res.json({
+        projectId,
+        hasCompletedImport: true,
+        latestImport: latestImport[0],
+        counts: {
+          pagesClean: pagesCleanCount[0].count,
+          pagesRaw: pagesRawCount[0].count,
+          graphMeta: graphMetaCount[0].count,
+          pagesForJob: pagesForJob[0].count,
+          graphMetaForJob: graphMetaForJob[0].count
+        },
+        samplePages,
+        pagesWithoutId: samplePages.filter(p => !p.id).length,
+        pagesWithoutUrl: samplePages.filter(p => !p.url).length
+      });
+
+    } catch (error) {
+      console.error('❌ [Diagnostics API] Error:', error);
+      res.status(500).json({ error: "Failed to get diagnostics" });
+    }
+  });
+
   // Get generation progress
   app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
     try {

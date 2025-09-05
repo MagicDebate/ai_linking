@@ -636,19 +636,50 @@ export default function ProjectFixed() {
                     if (generationRunId && generationProgress) {
                       console.log('✅ [ProjectFixed Step 4] Rendering GenerationProgress component');
                       return (
-                        <GenerationProgress
-                          runId={generationRunId}
-                          status={generationProgress.status}
-                          phase={generationProgress.phase}
-                          percent={generationProgress.percent}
-                          generated={generationProgress.generated}
-                          rejected={generationProgress.rejected}
-                          taskProgress={generationProgress.taskProgress}
-                          counters={generationProgress.counters}
-                          startedAt={generationProgress.startedAt}
-                          finishedAt={generationProgress.finishedAt}
-                          errorMessage={generationProgress.errorMessage}
-                        />
+                        <div className="space-y-4">
+                          <GenerationProgress
+                            runId={generationRunId}
+                            status={generationProgress.status}
+                            phase={generationProgress.phase}
+                            percent={generationProgress.percent}
+                            generated={generationProgress.generated}
+                            rejected={generationProgress.rejected}
+                            taskProgress={generationProgress.taskProgress}
+                            counters={generationProgress.counters}
+                            startedAt={generationProgress.startedAt}
+                            finishedAt={generationProgress.finishedAt}
+                            errorMessage={generationProgress.errorMessage}
+                          />
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => {
+                              fetch(`/api/projects/${projectId}/diagnostics`)
+                                .then(res => res.json())
+                                .then(data => {
+                                  console.log('🔍 Database Diagnostics:', data);
+                                  alert(`Database Diagnostics:\n\n` +
+                                    `Pages Clean: ${data.counts?.pagesClean || 0}\n` +
+                                    `Pages Raw: ${data.counts?.pagesRaw || 0}\n` +
+                                    `Graph Meta: ${data.counts?.graphMeta || 0}\n` +
+                                    `Pages for Job: ${data.counts?.pagesForJob || 0}\n` +
+                                    `Graph Meta for Job: ${data.counts?.graphMetaForJob || 0}\n` +
+                                    `Pages without ID: ${data.pagesWithoutId || 0}\n` +
+                                    `Pages without URL: ${data.pagesWithoutUrl || 0}\n\n` +
+                                    `Sample Pages: ${JSON.stringify(data.samplePages, null, 2)}`
+                                  );
+                                })
+                                .catch(err => {
+                                  console.error('Diagnostics error:', err);
+                                  alert('Error getting diagnostics: ' + err.message);
+                                });
+                            }}
+                            className="w-full"
+                          >
+                            <Database className="w-4 h-4 mr-2" />
+                            Показать диагностику базы данных
+                          </Button>
+                        </div>
                       );
                                          } else if (generationProgressLoading) {
                        console.log('⏳ [ProjectFixed Step 4] Rendering loading state');
