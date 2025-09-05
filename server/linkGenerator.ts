@@ -773,12 +773,29 @@ export class LinkGenerator {
       .from(pagesClean)
       .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
       .leftJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
-      .where(eq(pagesRaw.jobId, jobId));
+      .where(and(
+        eq(pagesRaw.jobId, jobId),
+        sql`${pagesClean.id} IS NOT NULL`,
+        sql`${pagesRaw.url} IS NOT NULL`
+      ));
 
     console.log('🔍 [loadPages] Found pages:', pages.length);
     if (pages.length > 0) {
       console.log('🔍 [loadPages] Sample page:', pages[0]);
       console.log('🔍 [loadPages] Orphan pages:', pages.filter((p: any) => p.isOrphan).length);
+      
+      // Проверим есть ли страницы без ID или URL
+      const pagesWithoutId = pages.filter((p: any) => !p.id);
+      const pagesWithoutUrl = pages.filter((p: any) => !p.url);
+      console.log('🔍 [loadPages] Pages without ID:', pagesWithoutId.length);
+      console.log('🔍 [loadPages] Pages without URL:', pagesWithoutUrl.length);
+      
+      if (pagesWithoutId.length > 0) {
+        console.log('❌ [loadPages] Sample page without ID:', pagesWithoutId[0]);
+      }
+      if (pagesWithoutUrl.length > 0) {
+        console.log('❌ [loadPages] Sample page without URL:', pagesWithoutUrl[0]);
+      }
     } else {
       console.log('❌ [loadPages] No pages found for jobId:', jobId);
       
