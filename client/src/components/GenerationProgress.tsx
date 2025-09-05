@@ -193,19 +193,19 @@ export function GenerationProgress({
           {/* Статистика */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{counters.scanned}</div>
+              <div className="text-2xl font-bold text-blue-600">{taskProgress?.pages?.processed || 0}</div>
               <div className="text-sm text-gray-600">Просмотрено</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-600">{counters.candidates}</div>
+              <div className="text-2xl font-bold text-yellow-600">{taskProgress?.links?.total || 0}</div>
               <div className="text-sm text-gray-600">Кандидатов</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{counters.accepted}</div>
+              <div className="text-2xl font-bold text-green-600">{generated || 0}</div>
               <div className="text-sm text-gray-600">Принято</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">{counters.rejected}</div>
+              <div className="text-2xl font-bold text-red-600">{rejected || 0}</div>
               <div className="text-sm text-gray-600">Отклонено</div>
             </div>
           </div>
@@ -234,7 +234,7 @@ export function GenerationProgress({
           <CardTitle>Прогресс по задачам</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {Object.entries(taskProgress).map(([taskKey, progress]) => {
+          {taskProgress?.scenarios && Object.entries(taskProgress.scenarios).map(([taskKey, progress]) => {
             const config = taskConfig[taskKey as keyof typeof taskConfig];
             if (!config) return null;
             
