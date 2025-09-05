@@ -3014,23 +3014,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Project not found" });
       }
 
-      // Get link candidates
-      const candidates = await db
-        .select({
-          id: linkCandidates.id,
-          sourcePageId: linkCandidates.sourcePageId,
-          targetPageId: linkCandidates.targetPageId,
-          sourceUrl: linkCandidates.sourceUrl,
-          targetUrl: linkCandidates.targetUrl,
-          anchorText: linkCandidates.anchorText,
-          score: linkCandidates.score,
-          scenario: linkCandidates.scenario,
-          status: linkCandidates.status,
-          createdAt: linkCandidates.createdAt
-        })
+      // Get link candidates - сначала проверим, есть ли вообще записи
+      console.log(`🔍 [Results API] Checking if candidates exist for runId: ${runId}`);
+      
+      const candidatesCount = await db
+        .select({ count: sql<number>`count(*)` })
         .from(linkCandidates)
-        .where(eq(linkCandidates.runId, runId))
-        .orderBy(desc(linkCandidates.createdAt));
+        .where(eq(linkCandidates.runId, runId));
+      
+      console.log(`🔍 [Results API] Candidates count:`, candidatesCount[0]?.count || 0);
+      
+      let candidates = [];
+      if (candidatesCount[0]?.count > 0) {
+        // Получаем кандидатов только если они есть
+        candidates = await db
+          .select({
+            id: linkCandidates.id,
+            sourcePageId: linkCandidates.sourcePageId,
+            targetPageId: linkCandidates.targetPageId,
+            sourceUrl: linkCandidates.sourceUrl,
+            targetUrl: linkCandidates.targetUrl,
+            anchorText: linkCandidates.anchorText,
+            score: linkCandidates.score,
+            scenario: linkCandidates.scenario,
+            status: linkCandidates.status,
+            createdAt: linkCandidates.createdAt
+          })
+          .from(linkCandidates)
+          .where(eq(linkCandidates.runId, runId))
+          .orderBy(desc(linkCandidates.createdAt));
+      }
 
       console.log(`🔍 [Results API] Found ${candidates.length} link candidates`);
       console.log(`🔍 [Results API] First few candidates:`, candidates.slice(0, 3));
@@ -3088,23 +3101,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ error: "Run not found", runId });
       }
 
-      // Get candidates
-      const candidates = await db
-        .select({
-          id: linkCandidates.id,
-          sourcePageId: linkCandidates.sourcePageId,
-          targetPageId: linkCandidates.targetPageId,
-          sourceUrl: linkCandidates.sourceUrl,
-          targetUrl: linkCandidates.targetUrl,
-          anchorText: linkCandidates.anchorText,
-          score: linkCandidates.score,
-          scenario: linkCandidates.scenario,
-          status: linkCandidates.status,
-          createdAt: linkCandidates.createdAt
-        })
+      // Get candidates - сначала проверим, есть ли вообще записи
+      console.log(`🔍 [DEBUG Results API] Checking if candidates exist for runId: ${runId}`);
+      
+      const candidatesCount = await db
+        .select({ count: sql<number>`count(*)` })
         .from(linkCandidates)
-        .where(eq(linkCandidates.runId, runId))
-        .orderBy(desc(linkCandidates.createdAt));
+        .where(eq(linkCandidates.runId, runId));
+      
+      console.log(`🔍 [DEBUG Results API] Candidates count:`, candidatesCount[0]?.count || 0);
+      
+      let candidates = [];
+      if (candidatesCount[0]?.count > 0) {
+        // Получаем кандидатов только если они есть
+        candidates = await db
+          .select({
+            id: linkCandidates.id,
+            sourcePageId: linkCandidates.sourcePageId,
+            targetPageId: linkCandidates.targetPageId,
+            sourceUrl: linkCandidates.sourceUrl,
+            targetUrl: linkCandidates.targetUrl,
+            anchorText: linkCandidates.anchorText,
+            score: linkCandidates.score,
+            scenario: linkCandidates.scenario,
+            status: linkCandidates.status,
+            createdAt: linkCandidates.createdAt
+          })
+          .from(linkCandidates)
+          .where(eq(linkCandidates.runId, runId))
+          .orderBy(desc(linkCandidates.createdAt));
+      }
 
       console.log(`🔍 [DEBUG Results API] Found ${candidates.length} candidates`);
 
