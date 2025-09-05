@@ -2980,6 +2980,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate run belongs to user's project
       const run = await db
         .select({ 
+          runId: generationRuns.runId,
           projectId: generationRuns.projectId,
           status: generationRuns.status,
           generated: generationRuns.generated,
