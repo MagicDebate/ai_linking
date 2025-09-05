@@ -765,7 +765,7 @@ export class LinkGenerator {
     
     const pages = await db
       .select({
-        id: pagesClean.id,
+        id: pagesRaw.id, // Используем pagesRaw.id вместо pagesClean.id
         url: pagesRaw.url,
         title: sql<string>`COALESCE(${pagesRaw.meta}->>'title', '')`,
         wordCount: pagesClean.wordCount,
@@ -778,7 +778,7 @@ export class LinkGenerator {
       })
       .from(pagesClean)
       .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
-      .leftJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
+      .leftJoin(graphMeta, eq(pagesRaw.id, graphMeta.pageId))
       .where(and(
         eq(pagesRaw.jobId, jobId),
         sql`${pagesClean.id} IS NOT NULL`,
