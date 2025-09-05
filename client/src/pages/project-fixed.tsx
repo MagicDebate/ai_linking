@@ -650,35 +650,66 @@ export default function ProjectFixed() {
                             finishedAt={generationProgress.finishedAt}
                             errorMessage={generationProgress.errorMessage}
                           />
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => {
-                              fetch(`/api/projects/${projectId}/diagnostics`)
-                                .then(res => res.json())
-                                .then(data => {
-                                  console.log('🔍 Database Diagnostics:', data);
-                                  alert(`Database Diagnostics:\n\n` +
-                                    `Pages Clean: ${data.counts?.pagesClean || 0}\n` +
-                                    `Pages Raw: ${data.counts?.pagesRaw || 0}\n` +
-                                    `Graph Meta: ${data.counts?.graphMeta || 0}\n` +
-                                    `Pages for Job: ${data.counts?.pagesForJob || 0}\n` +
-                                    `Graph Meta for Job: ${data.counts?.graphMetaForJob || 0}\n` +
-                                    `Pages without ID: ${data.pagesWithoutId || 0}\n` +
-                                    `Pages without URL: ${data.pagesWithoutUrl || 0}\n\n` +
-                                    `Sample Pages: ${JSON.stringify(data.samplePages, null, 2)}`
-                                  );
-                                })
-                                .catch(err => {
-                                  console.error('Diagnostics error:', err);
-                                  alert('Error getting diagnostics: ' + err.message);
-                                });
-                            }}
-                            className="w-full"
-                          >
-                            <Database className="w-4 h-4 mr-2" />
-                            Показать диагностику базы данных
-                          </Button>
+                          <div className="space-y-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => {
+                                fetch(`/api/projects/${projectId}/diagnostics`)
+                                  .then(res => res.json())
+                                  .then(data => {
+                                    console.log('🔍 Database Diagnostics:', data);
+                                    alert(`Database Diagnostics:\n\n` +
+                                      `Pages Clean: ${data.counts?.pagesClean || 0}\n` +
+                                      `Pages Raw: ${data.counts?.pagesRaw || 0}\n` +
+                                      `Graph Meta: ${data.counts?.graphMeta || 0}\n` +
+                                      `Pages for Job: ${data.counts?.pagesForJob || 0}\n` +
+                                      `Graph Meta for Job: ${data.counts?.graphMetaForJob || 0}\n` +
+                                      `Pages without ID: ${data.pagesWithoutId || 0}\n` +
+                                      `Pages without URL: ${data.pagesWithoutUrl || 0}\n\n` +
+                                      `Sample Pages: ${JSON.stringify(data.samplePages, null, 2)}`
+                                    );
+                                  })
+                                  .catch(err => {
+                                    console.error('Diagnostics error:', err);
+                                    alert('Error getting diagnostics: ' + err.message);
+                                  });
+                              }}
+                              className="w-full"
+                            >
+                              <Database className="w-4 h-4 mr-2" />
+                              Показать диагностику базы данных
+                            </Button>
+                            
+                            {generationProgress?.status === 'draft' && (
+                              <Button 
+                                variant="default" 
+                                size="sm" 
+                                onClick={() => {
+                                  fetch(`/api/generate/results/${generationRunId}`)
+                                    .then(res => res.json())
+                                    .then(data => {
+                                      console.log('🔍 Generation Results:', data);
+                                      alert(`Generation Results:\n\n` +
+                                        `Status: ${data.status}\n` +
+                                        `Generated: ${data.generated}\n` +
+                                        `Rejected: ${data.rejected}\n` +
+                                        `Total Candidates: ${data.totalCandidates}\n\n` +
+                                        `First 5 candidates:\n${JSON.stringify(data.candidates?.slice(0, 5), null, 2)}`
+                                      );
+                                    })
+                                    .catch(err => {
+                                      console.error('Results error:', err);
+                                      alert('Error getting results: ' + err.message);
+                                    });
+                                }}
+                                className="w-full"
+                              >
+                                <Download className="w-4 h-4 mr-2" />
+                                Показать результаты генерации
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       );
                                          } else if (generationProgressLoading) {

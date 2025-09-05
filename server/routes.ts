@@ -2968,6 +2968,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get generation results
+  app.get("/api/generate/results/:runId", authenticateToken, async (req: any, res) => {
+    try {
+      const { runId } = req.params;
+      console.log(`🔍 [Results API] Getting results for runId: ${runId}`);
+      
+      // Validate run belongs to user's project
+      const run = await db
+        .select({ 
+          projectId: generationRuns.projectId,
+          status: generationRuns.status,
+          generated: generationRuns.generated,
+          rejected: generationRuns.rejected
+        })
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
+
+      if (!run.length) {
+        return res.status(404).json({ error: "Generation run not found" });
+      }
+
+      // Validate project belongs to user
+      const project = await storage.getProjectById(run[0].projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get link candidates
+      const candidates = await db
+        .select({
+          id: linkCandidates.id,
+          sourcePageId: linkCandidates.sourcePageId,
+          targetPageId: linkCandidates.targetPageId,
+          sourceUrl: linkCandidates.sourceUrl,
+          targetUrl: linkCandidates.targetUrl,
+          anchorText: linkCandidates.anchorText,
+          score: linkCandidates.score,
+          scenario: linkCandidates.scenario,
+          status: linkCandidates.status,
+          createdAt: linkCandidates.createdAt
+        })
+        .from(linkCandidates)
+        .where(eq(linkCandidates.runId, runId))
+        .orderBy(desc(linkCandidates.createdAt));
+
+      console.log(`🔍 [Results API] Found ${candidates.length} link candidates`);
+
+      res.json({
+        runId,
+        status: run[0].status,
+        generated: run[0].generated,
+        rejected: run[0].rejected,
+        totalCandidates: candidates.length,
+        candidates: candidates
+      });
+
+    } catch (error) {
+      console.error('❌ [Results API] Error:', error);
+      res.status(500).json({ error: "Failed to get results" });
+    }
+  });
+
   // Get generation progress
   app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
     try {
