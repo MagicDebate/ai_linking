@@ -10,6 +10,7 @@ import { useGenerationProgress } from "@/hooks/useGenerationProgress";
 
 import { ImportProgress } from "@/components/ImportProgress";
 import { GenerationProgress } from "@/components/GenerationProgress";
+import LinkResults from "@/components/LinkResults";
 
 import { SEOSettings, SEOProfile } from "@/components/SEOSettings";
 import Layout from "@/components/Layout";
@@ -310,12 +311,11 @@ export default function ProjectFixed() {
     }
   }, [importStatus, currentStep]);
 
-  // Автоматический переход после завершения генерации
+  // Уведомление о завершении генерации (без автоматического перехода)
   useEffect(() => {
     if (generationProgress?.status === 'draft' && currentStep === 4) {
-      console.log('✅ Generation completed, navigating to step 5');
-      toast({ title: "Генерация завершена успешно!" });
-      navigateToStep(5, projectId!);
+      console.log('✅ Generation completed, showing results on current step');
+      toast({ title: "Генерация завершена успешно! Управляйте ссылками ниже." });
     } else if (generationProgress?.status === 'failed' && currentStep === 4) {
       console.log('❌ Generation failed:', generationProgress.errorMessage);
       toast({ 
@@ -682,46 +682,11 @@ export default function ProjectFixed() {
                             </Button>
                             
                             {generationProgress?.status === 'draft' && (
-                              <div className="space-y-2">
-                                <Button 
-                                  variant="default" 
-                                  size="sm" 
-                                  onClick={() => {
-                                    window.location.href = `/project/${projectId}/links`;
-                                  }}
-                                  className="w-full"
-                                >
-                                  <Download className="w-4 h-4 mr-2" />
-                                  Управление ссылками
-                                </Button>
-                                
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  onClick={() => {
-                                    fetch(`/api/generate/results/${generationRunId}`)
-                                      .then(res => res.json())
-                                      .then(data => {
-                                        console.log('🔍 Generation Results:', data);
-                                        alert(`Generation Results:\n\n` +
-                                          `Status: ${data.status}\n` +
-                                          `Generated: ${data.generated}\n` +
-                                          `Rejected: ${data.rejected}\n` +
-                                          `Total Candidates: ${data.totalCandidates}\n\n` +
-                                          `First 5 candidates:\n${JSON.stringify(data.candidates?.slice(0, 5), null, 2)}`
-                                        );
-                                      })
-                                      .catch(err => {
-                                        console.error('Results error:', err);
-                                        alert('Error getting results: ' + err.message);
-                                      });
-                                  }}
-                                  className="w-full"
-                                >
-                                  <Database className="w-4 h-4 mr-2" />
-                                  Показать результаты (JSON)
-                                </Button>
-                              </div>
+                              <LinkResults 
+                                runId={generationRunId} 
+                                projectId={projectId!}
+                                onNext={() => navigateToStep(5, projectId!)}
+                              />
                             )}
                           </div>
                         </div>
