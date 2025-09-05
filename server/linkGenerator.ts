@@ -883,7 +883,7 @@ export class LinkGenerator {
     
     const pages = await db
       .select({
-        id: pagesRaw.id, // Используем pagesRaw.id вместо pagesClean.id
+        id: pagesClean.id, // ИСПРАВЛЕНО: используем pagesClean.id для foreign key
         url: pagesRaw.url,
         title: sql<string>`COALESCE(${pagesRaw.meta}->>'title', '')`,
         wordCount: pagesClean.wordCount,
@@ -926,7 +926,7 @@ export class LinkGenerator {
       // Попробуем найти страницы без graphMeta
       const simplePages = await db
         .select({
-          id: pagesClean.id,
+          id: pagesClean.id, // ИСПРАВЛЕНО: используем pagesClean.id для foreign key
           url: pagesRaw.url,
           title: pagesRaw.meta,
           wordCount: pagesClean.wordCount,
