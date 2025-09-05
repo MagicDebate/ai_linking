@@ -484,7 +484,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res.status(500).json({ message: "Internal server error", details: error.message });
         }
       } else {
-        res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error" });
       }
     }
   });
@@ -3570,13 +3570,13 @@ class ContentProcessor {
         console.error('💥 [EMBEDDINGS] embeddings is undefined!');
         throw new Error('embeddings table not found in @shared/tables');
       }
-      
-      // Получаем projectId из jobId
-      const job = await db
-        .select({ projectId: importJobs.projectId })
-        .from(importJobs)
-        .where(eq(importJobs.jobId, jobId))
-        .limit(1);
+    
+    // Получаем projectId из jobId
+    const job = await db
+      .select({ projectId: importJobs.projectId })
+      .from(importJobs)
+      .where(eq(importJobs.jobId, jobId))
+      .limit(1);
     
     if (job.length === 0) {
       throw new Error(`Job ${jobId} not found`);

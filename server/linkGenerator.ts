@@ -335,6 +335,18 @@ export class LinkGenerator {
       console.log('🔍 [OrphanFix] Similar pages found:', similarPages.length);
       
       for (const similarPage of similarPages) {
+        // Дополнительная проверка ID страниц
+        if (!similarPage.id || !orphanPage.id) {
+          console.log('❌ [OrphanFix] Skipping link - missing page IDs:', {
+            similarPageId: similarPage.id,
+            orphanPageId: orphanPage.id,
+            similarPageUrl: similarPage.url,
+            orphanPageUrl: orphanPage.url
+          });
+          rejected++;
+          continue;
+        }
+        
         const result = await this.tryCreateLink(runId, similarPage, orphanPage, 'orphan_fix', params);
         if (result.created) {
           generated++;
