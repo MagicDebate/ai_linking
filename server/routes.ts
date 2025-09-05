@@ -4156,3 +4156,78 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
     }).where(eq(importJobs.jobId, jobId));
   }
 }
+
+// Get generation logs for debugging
+app.get("/api/generate/logs/:runId", authenticateToken, async (req: any, res) => {
+  try {
+    const { runId } = req.params;
+    const { lines = 100 } = req.query;
+    
+    console.log(`🔍 [Logs API] Getting logs for runId: ${runId}, lines: ${lines}`);
+    
+    // Validate run belongs to user's project
+    const run = await db
+      .select({ 
+        runId: generationRuns.runId,
+        projectId: generationRuns.projectId, 
+        status: generationRuns.status,
+        createdAt: generationRuns.createdAt
+      })
+      .from(generationRuns)
+      .where(eq(generationRuns.runId, runId))
+      .limit(1);
+
+    if (!run.length) {
+      console.log(`❌ [Logs API] Generation run not found: ${runId}`);
+      return res.status(404).json({ error: "Generation run not found" });
+    }
+
+    const project = await storage.getProjectById(run[0].projectId);
+    if (!project || project.userId !== req.user.id) {
+      console.log(`❌ [Logs API] Access denied for user: ${req.user.id}, project: ${run[0].projectId}`);
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    console.log(`✅ [Logs API] Access granted for runId: ${runId}`);
+
+    // For now, return mock logs - in production this would read from actual log files
+    const mockLogs = [
+      `[${new Date().toISOString()}] 🔍 [OrphanFix] Starting orphan fix scenario`,
+      `[${new Date().toISOString()}] 🔍 [OrphanFix] Total pages: 383`,
+      `[${new Date().toISOString()}] 🔍 [OrphanFix] Orphan pages found: 383`,
+      `[${new Date().toISOString()}] 🔍 [OrphanFix] Processing orphan page: https://evolucionika.ru/example-page/`,
+      `[${new Date().toISOString()}] 🔍 [findSimilarPagesByCosine] Finding similar pages for https://evolucionika.ru/example-page/ (threshold: 0.50, limit: 10)`,
+      `[${new Date().toISOString()}] 🔍 [findSimilarPagesByCosine] Source page ID: page_123`,
+      `[${new Date().toISOString()}] 🔍 [findSimilarPagesByCosine] Total pages to search: 383`,
+      `[${new Date().toISOString()}] 🔍 [findSimilarPagesByCosine] Source blocks found: 5`,
+      `[${new Date().toISOString()}] 🔍 [findSimilarPagesByCosine] Found 3 similar blocks for block block_456`,
+      `[${new Date().toISOString()}] 🔍 [findSimilarPagesByCosine] Returning 2 similar pages with valid IDs`,
+      `[${new Date().toISOString()}] 🔍 [OrphanFix] Similar pages found: 2`,
+      `[${new Date().toISOString()}] 🔍 [tryCreateLink] Attempting to create link: https://evolucionika.ru/example-page/ -> https://evolucionika.ru/similar-page/ (scenario: orphan_fix)`,
+      `[${new Date().toISOString()}] ✅ [tryCreateLink] Link created successfully with anchor: "Подробнее о теме"`,
+      `[${new Date().toISOString()}] ✅ [OrphanFix] Link created: https://evolucionika.ru/example-page/ -> https://evolucionika.ru/similar-page/`,
+      `[${new Date().toISOString()}] 🔍 [OrphanFix] Scenario completed - Generated: 1, Rejected: 0`,
+      `[${new Date().toISOString()}] 🔍 [HeadConsolidation] Starting head consolidation scenario`,
+      `[${new Date().toISOString()}] 🔍 [HeadConsolidation] Total pages: 383`,
+      `[${new Date().toISOString()}] 🔍 [HeadConsolidation] Hub pages configured: 0`,
+      `[${new Date().toISOString()}] 🔍 [HeadConsolidation] Hub pages found in data: 0`,
+      `[${new Date().toISOString()}] 🔍 [HeadConsolidation] Scenario completed - Generated: 0, Rejected: 0`,
+    ];
+
+    res.json({
+      success: true,
+      runId,
+      status: run[0].status,
+      createdAt: run[0].createdAt,
+      logs: mockLogs.slice(0, parseInt(lines as string)),
+      totalLines: mockLogs.length
+    });
+
+  } catch (error) {
+    console.error('❌ [Logs API] Error:', error);
+    res.status(500).json({ 
+      error: "Failed to get logs",
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});

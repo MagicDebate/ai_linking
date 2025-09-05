@@ -11,6 +11,7 @@ import { useGenerationProgress } from "@/hooks/useGenerationProgress";
 import { ImportProgress } from "@/components/ImportProgress";
 import { GenerationProgress } from "@/components/GenerationProgress";
 import LinkResults from "@/components/LinkResults";
+import GenerationLogs from "@/components/GenerationLogs";
 
 import { SEOSettings, SEOProfile } from "@/components/SEOSettings";
 import Layout from "@/components/Layout";
@@ -705,6 +706,12 @@ export default function ProjectFixed() {
                                   runId={generationRunId} 
                                   projectId={projectId!}
                                   onNext={() => navigateToStep(5, projectId!)}
+                                />
+                                
+                                {/* Логи генерации */}
+                                <GenerationLogs 
+                                  runId={generationRunId} 
+                                  enabled={true}
                                 />
                               </div>
                             )}
