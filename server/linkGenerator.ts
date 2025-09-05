@@ -696,7 +696,7 @@ export class LinkGenerator {
 
       // 2. Проверка дубликатов
       if (params.policies.removeDuplicates) {
-        const isDuplicate = await this.isDuplicateLink(sourcePage.url, targetPage.url);
+        const isDuplicate = await this.isDuplicateLink(sourcePage.url, targetPage.url, runId);
         if (isDuplicate) {
           this.stats.duplicatesRemoved++;
           return { created: false, reason: 'Duplicate link removed' };
@@ -963,16 +963,21 @@ export class LinkGenerator {
   }
 
   // Проверка дубликатов ссылок
-  private async isDuplicateLink(sourceUrl: string, targetUrl: string): Promise<boolean> {
+  private async isDuplicateLink(sourceUrl: string, targetUrl: string, runId?: string): Promise<boolean> {
+    const conditions = [
+      eq(linkCandidates.sourceUrl, sourceUrl),
+      eq(linkCandidates.targetUrl, targetUrl)
+    ];
+    
+    // Если указан runId, проверяем дубликаты только в рамках текущей генерации
+    if (runId) {
+      conditions.push(eq(linkCandidates.runId, runId));
+    }
+    
     const existing = await db
       .select()
       .from(linkCandidates)
-      .where(
-        and(
-          eq(linkCandidates.sourceUrl, sourceUrl),
-          eq(linkCandidates.targetUrl, targetUrl)
-        )
-      )
+      .where(and(...conditions))
       .limit(1);
 
     return existing.length > 0;
