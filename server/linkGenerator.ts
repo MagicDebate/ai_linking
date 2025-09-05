@@ -147,6 +147,12 @@ export class LinkGenerator {
     console.log('🚀 [LinkGenerator] projectId:', this.projectId);
     console.log('🚨 [LinkGenerator] ===== ПРОЕКТ ID:', this.projectId, '=====');
     
+    // Глобальный timeout для всей генерации (5 минут)
+    const globalTimeout = setTimeout(() => {
+      console.error('❌ [generateLinks] GLOBAL TIMEOUT: Generation taking too long, forcing failure');
+      this.updateProgress(runId, 'failed', 0, 0, 0).catch(console.error);
+    }, 300000); // 5 минут
+    
     try {
       console.log('🚀 [generateLinks] Starting SPEC-COMPLIANT scenario-based link generation...');
       console.log('📋 [generateLinks] Active scenarios:', {
@@ -163,15 +169,15 @@ export class LinkGenerator {
       await this.handleOldLinksPolicy(params.policies.oldLinks, runId);
       console.log('✅ [generateLinks] Old links policy applied');
       
-      // Phase 1: Load pages (0-20%) with timeout
+      // Phase 1: Load pages (0-20%) with aggressive timeout
       console.log('🔍 [generateLinks] Phase 1: Loading pages...');
       await this.updateProgress(runId, 'loading', 10, 0, 0);
-      console.log('🔍 [generateLinks] Calling loadPages() with 30 second timeout...');
+      console.log('🔍 [generateLinks] Calling loadPages() with 10 second timeout...');
       
       const pages = await Promise.race([
         this.loadPages(),
         new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('loadPages() timeout after 30 seconds')), 30000)
+          setTimeout(() => reject(new Error('loadPages() timeout after 10 seconds')), 10000)
         )
       ]) as any[];
       
@@ -283,9 +289,15 @@ export class LinkGenerator {
 
       console.log('✅ Link generation completed successfully!');
       console.log('📊 Final statistics:', finalStats);
+      
+      // Clear global timeout
+      clearTimeout(globalTimeout);
 
     } catch (error) {
       console.error('❌ Link generation failed:', error);
+      
+      // Clear global timeout
+      clearTimeout(globalTimeout);
       
       // Update run with error status
       await db
