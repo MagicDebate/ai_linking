@@ -531,6 +531,11 @@ export class LinkGenerator {
           
           if (targetBlock.length > 0) {
             const targetPage = allPages.find(p => p.id === targetBlock[0].pageId);
+            console.log('🔍 [findSimilarPagesByCosine] Looking for page:', {
+              targetPageId: targetBlock[0].pageId,
+              foundPage: targetPage ? { id: targetPage.id, url: targetPage.url } : null,
+              allPagesCount: allPages.length
+            });
             if (targetPage && targetPage.id !== sourcePage.id) {
               const existing = similarities.find(s => s.page.id === targetPage.id);
               if (existing) {
