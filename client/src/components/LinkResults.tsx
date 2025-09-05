@@ -258,16 +258,37 @@ export default function LinkResults({ runId, projectId, onNext }: LinkResultsPro
               </ul>
             </div>
 
-            <Button 
-              onClick={() => {
-                console.log('🔍 [DEBUG] Manual refetch triggered');
-                refetchResults();
-              }}
-              variant="outline"
-              size="sm"
-            >
-              🔄 Обновить данные
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => {
+                  console.log('🔍 [DEBUG] Manual refetch triggered');
+                  refetchResults();
+                }}
+                variant="outline"
+                size="sm"
+              >
+                🔄 Обновить данные
+              </Button>
+              
+              <Button 
+                onClick={async () => {
+                  console.log('🔍 [DEBUG] Testing debug endpoint');
+                  try {
+                    const response = await fetch(`/api/debug/results/${runId}`);
+                    const data = await response.json();
+                    console.log('🔍 [DEBUG] Debug endpoint response:', data);
+                    alert(`Debug endpoint response:\n\n${JSON.stringify(data, null, 2)}`);
+                  } catch (error) {
+                    console.error('❌ [DEBUG] Debug endpoint error:', error);
+                    alert(`Debug endpoint error: ${error.message}`);
+                  }
+                }}
+                variant="outline"
+                size="sm"
+              >
+                🐛 Тест API
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

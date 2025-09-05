@@ -2968,12 +2968,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get generation results
+  // Get generation results (with auth)
   app.get("/api/generate/results/:runId", authenticateToken, async (req: any, res) => {
     try {
       const { runId } = req.params;
       console.log(`🔍 [Results API] Getting results for runId: ${runId}`);
       console.log(`🔍 [Results API] User ID: ${req.user?.id}`);
+      console.log(`🔍 [Results API] Request headers:`, req.headers);
+      console.log(`🔍 [Results API] Request cookies:`, req.cookies);
       
       // Validate run belongs to user's project
       const run = await db
@@ -2991,6 +2993,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!run.length) {
         console.log(`❌ [Results API] No run found for runId: ${runId}`);
+        
+        // Проверим, есть ли вообще записи в generationRuns
+        const allRuns = await db
+          .select({ runId: generationRuns.runId, status: generationRuns.status })
+          .from(generationRuns)
+          .limit(10);
+        console.log(`🔍 [Results API] All runs in database:`, allRuns);
+        
         return res.status(404).json({ error: "Generation run not found" });
       }
 
@@ -3042,7 +3052,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('❌ [Results API] Error:', error);
-      res.status(500).json({ error: "Failed to get results" });
+      console.error('❌ [Results API] Error stack:', error.stack);
+      console.error('❌ [Results API] Error message:', error.message);
+      res.status(500).json({ 
+        error: "Failed to get results",
+        details: error.message,
+        runId: req.params.runId
+      });
+    }
+  });
+
+  // Get generation results (debug - no auth)
+  app.get("/api/debug/results/:runId", async (req: any, res) => {
+    try {
+      const { runId } = req.params;
+      console.log(`🔍 [DEBUG Results API] Getting results for runId: ${runId}`);
+      
+      // Get run info
+      const run = await db
+        .select({ 
+          runId: generationRuns.runId,
+          projectId: generationRuns.projectId,
+          status: generationRuns.status,
+          generated: generationRuns.generated,
+          rejected: generationRuns.rejected
+        })
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
+
+      console.log(`🔍 [DEBUG Results API] Run found:`, run);
+
+      if (!run.length) {
+        return res.json({ error: "Run not found", runId });
+      }
+
+      // Get candidates
+      const candidates = await db
+        .select({
+          id: linkCandidates.id,
+          sourcePageId: linkCandidates.sourcePageId,
+          targetPageId: linkCandidates.targetPageId,
+          sourceUrl: linkCandidates.sourceUrl,
+          targetUrl: linkCandidates.targetUrl,
+          anchorText: linkCandidates.anchorText,
+          score: linkCandidates.score,
+          scenario: linkCandidates.scenario,
+          status: linkCandidates.status,
+          createdAt: linkCandidates.createdAt
+        })
+        .from(linkCandidates)
+        .where(eq(linkCandidates.runId, runId))
+        .orderBy(desc(linkCandidates.createdAt));
+
+      console.log(`🔍 [DEBUG Results API] Found ${candidates.length} candidates`);
+
+      res.json({
+        runId,
+        status: run[0].status,
+        generated: run[0].generated,
+        rejected: run[0].rejected,
+        totalCandidates: candidates.length,
+        candidates: candidates
+      });
+
+    } catch (error) {
+      console.error('❌ [DEBUG Results API] Error:', error);
+      res.status(500).json({ 
+        error: "Failed to get results",
+        details: error.message,
+        runId: req.params.runId
+      });
     }
   });
 
