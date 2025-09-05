@@ -325,9 +325,10 @@ export class LinkGenerator {
     let generated = 0, rejected = 0;
 
     // Получаем сиротские страницы
-    // Проверяем по нескольким критериям, так как isOrphan может быть null
+    // Если graphMeta не загружается, считаем все страницы сиротами
     const orphanPages = pages.filter(page => {
-      const isOrphan = page.isOrphan === true || page.isOrphan === 1 || page.inDegree === 0;
+      const isOrphan = page.isOrphan === true || page.isOrphan === 1 || page.inDegree === 0 || 
+                      (page.isOrphan === null && page.inDegree === null); // Если данные не загружены, считаем сиротой
       console.log('🔍 [OrphanFix] Page check:', {
         url: page.url,
         isOrphan: page.isOrphan,
