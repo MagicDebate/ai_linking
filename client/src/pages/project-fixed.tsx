@@ -682,11 +682,31 @@ export default function ProjectFixed() {
                             </Button>
                             
                             {generationProgress?.status === 'draft' && (
-                              <LinkResults 
-                                runId={generationRunId} 
-                                projectId={projectId!}
-                                onNext={() => navigateToStep(5, projectId!)}
-                              />
+                              <div className="space-y-4">
+                                {/* Отладочная информация */}
+                                <Card>
+                                  <CardHeader>
+                                    <CardTitle>🔍 Отладка генерации</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="space-y-2">
+                                      <p><strong>Generation Run ID:</strong> {generationRunId}</p>
+                                      <p><strong>Project ID:</strong> {projectId}</p>
+                                      <p><strong>Generation Status:</strong> {generationProgress?.status}</p>
+                                      <p><strong>Generation Phase:</strong> {generationProgress?.phase}</p>
+                                      <p><strong>Generation Percent:</strong> {generationProgress?.percent}%</p>
+                                      <p><strong>Generated:</strong> {generationProgress?.generated}</p>
+                                      <p><strong>Rejected:</strong> {generationProgress?.rejected}</p>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                                
+                                <LinkResults 
+                                  runId={generationRunId} 
+                                  projectId={projectId!}
+                                  onNext={() => navigateToStep(5, projectId!)}
+                                />
+                              </div>
                             )}
                           </div>
                         </div>

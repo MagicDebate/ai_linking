@@ -138,22 +138,77 @@ export default function LinkResults({ runId, projectId, onNext }: LinkResultsPro
 
   if (!results || !results.candidates?.length) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Результаты генерации</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <p>Результаты генерации не найдены.</p>
-            <div className="text-sm text-gray-500">
-              <p>RunId: {runId}</p>
-              <p>ProjectId: {projectId}</p>
-              <p>Results: {results ? 'Есть' : 'Нет'}</p>
-              <p>Candidates: {results?.candidates?.length || 0}</p>
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Результаты генерации</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <p>Результаты генерации не найдены.</p>
+              <div className="text-sm text-gray-500">
+                <p>RunId: {runId}</p>
+                <p>ProjectId: {projectId}</p>
+                <p>Results: {results ? 'Есть' : 'Нет'}</p>
+                <p>Candidates: {results?.candidates?.length || 0}</p>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* Отладочная панель */}
+        <Card>
+          <CardHeader>
+            <CardTitle>🔍 Отладочная информация</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold">Параметры запроса:</h4>
+                <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto">
+                  {JSON.stringify({
+                    runId,
+                    projectId,
+                    resultsLoading
+                  }, null, 2)}
+                </pre>
+              </div>
+              
+              <div>
+                <h4 className="font-semibold">Ответ API:</h4>
+                <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto max-h-40">
+                  {JSON.stringify(results, null, 2)}
+                </pre>
+              </div>
+
+              <div>
+                <h4 className="font-semibold">Проверка данных:</h4>
+                <ul className="text-sm space-y-1">
+                  <li>✅ RunId: {runId || 'НЕТ'}</li>
+                  <li>✅ ProjectId: {projectId || 'НЕТ'}</li>
+                  <li>✅ Results: {results ? 'ЕСТЬ' : 'НЕТ'}</li>
+                  <li>✅ Results.candidates: {results?.candidates ? 'ЕСТЬ' : 'НЕТ'}</li>
+                  <li>✅ Candidates.length: {results?.candidates?.length || 0}</li>
+                  <li>✅ Results.status: {results?.status || 'НЕТ'}</li>
+                  <li>✅ Results.generated: {results?.generated || 0}</li>
+                  <li>✅ Results.rejected: {results?.rejected || 0}</li>
+                </ul>
+              </div>
+
+              <Button 
+                onClick={() => {
+                  console.log('🔍 [DEBUG] Manual refetch triggered');
+                  refetchResults();
+                }}
+                variant="outline"
+                size="sm"
+              >
+                🔄 Обновить данные
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -164,6 +219,59 @@ export default function LinkResults({ runId, projectId, onNext }: LinkResultsPro
 
   return (
     <div className="space-y-6">
+      {/* Отладочная панель - всегда показываем */}
+      <Card>
+        <CardHeader>
+          <CardTitle>🔍 Отладочная информация</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-semibold">Параметры запроса:</h4>
+              <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto">
+                {JSON.stringify({
+                  runId,
+                  projectId,
+                  resultsLoading
+                }, null, 2)}
+              </pre>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold">Ответ API:</h4>
+              <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto max-h-40">
+                {JSON.stringify(results, null, 2)}
+              </pre>
+            </div>
+
+            <div>
+              <h4 className="font-semibold">Проверка данных:</h4>
+              <ul className="text-sm space-y-1">
+                <li>✅ RunId: {runId || 'НЕТ'}</li>
+                <li>✅ ProjectId: {projectId || 'НЕТ'}</li>
+                <li>✅ Results: {results ? 'ЕСТЬ' : 'НЕТ'}</li>
+                <li>✅ Results.candidates: {results?.candidates ? 'ЕСТЬ' : 'НЕТ'}</li>
+                <li>✅ Candidates.length: {results?.candidates?.length || 0}</li>
+                <li>✅ Results.status: {results?.status || 'НЕТ'}</li>
+                <li>✅ Results.generated: {results?.generated || 0}</li>
+                <li>✅ Results.rejected: {results?.rejected || 0}</li>
+              </ul>
+            </div>
+
+            <Button 
+              onClick={() => {
+                console.log('🔍 [DEBUG] Manual refetch triggered');
+                refetchResults();
+              }}
+              variant="outline"
+              size="sm"
+            >
+              🔄 Обновить данные
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
