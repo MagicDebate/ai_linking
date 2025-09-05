@@ -749,7 +749,7 @@ export class LinkGenerator {
       .select({
         id: pagesClean.id,
         url: pagesRaw.url,
-        title: pagesRaw.meta,
+        title: sql<string>`COALESCE(${pagesRaw.meta}->>'title', '')`,
         wordCount: pagesClean.wordCount,
         clickDepth: graphMeta.clickDepth,
         inDegree: graphMeta.inDegree,
@@ -955,7 +955,7 @@ export class LinkGenerator {
 
   // Шаг C: Fallback анкор
   private generateFallbackAnchor(targetPage: any, params: GenerationParams): string {
-    const title = targetPage.title || '';
+    const title = String(targetPage.title || '');
     
     // Извлекаем ключевые слова из заголовка
     const words = title.split(/\s+/).filter(word => word.length > 3).slice(0, 4);
