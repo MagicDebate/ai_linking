@@ -3492,37 +3492,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`✅ [Logs API] Access granted for runId: ${runId}`);
 
-      // For now, return mock logs - in production this would read from actual log files
-      const mockLogs = [
-        `[${new Date().toISOString()}] 🔍 [OrphanFix] Starting orphan fix scenario`,
-        `[${new Date().toISOString()}] 🔍 [OrphanFix] Total pages: 383`,
-        `[${new Date().toISOString()}] 🔍 [OrphanFix] Orphan pages found: 383`,
-        `[${new Date().toISOString()}] 🔍 [OrphanFix] Processing orphan page: https://evolucionika.ru/example-page/`,
-        `[${new Date().toISOString()}] 🔍 [findSimilarPagesByCosine] Finding similar pages for https://evolucionika.ru/example-page/ (threshold: 0.50, limit: 10)`,
-        `[${new Date().toISOString()}] 🔍 [findSimilarPagesByCosine] Source page ID: page_123`,
-        `[${new Date().toISOString()}] 🔍 [findSimilarPagesByCosine] Total pages to search: 383`,
-        `[${new Date().toISOString()}] 🔍 [findSimilarPagesByCosine] Source blocks found: 5`,
-        `[${new Date().toISOString()}] 🔍 [findSimilarPagesByCosine] Found 3 similar blocks for block block_456`,
-        `[${new Date().toISOString()}] 🔍 [findSimilarPagesByCosine] Returning 2 similar pages with valid IDs`,
-        `[${new Date().toISOString()}] 🔍 [OrphanFix] Similar pages found: 2`,
-        `[${new Date().toISOString()}] 🔍 [tryCreateLink] Attempting to create link: https://evolucionika.ru/example-page/ -> https://evolucionika.ru/similar-page/ (scenario: orphan_fix)`,
-        `[${new Date().toISOString()}] ✅ [tryCreateLink] Link created successfully with anchor: "Подробнее о теме"`,
-        `[${new Date().toISOString()}] ✅ [OrphanFix] Link created: https://evolucionika.ru/example-page/ -> https://evolucionika.ru/similar-page/`,
-        `[${new Date().toISOString()}] 🔍 [OrphanFix] Scenario completed - Generated: 1, Rejected: 0`,
-        `[${new Date().toISOString()}] 🔍 [HeadConsolidation] Starting head consolidation scenario`,
-        `[${new Date().toISOString()}] 🔍 [HeadConsolidation] Total pages: 383`,
-        `[${new Date().toISOString()}] 🔍 [HeadConsolidation] Hub pages configured: 0`,
-        `[${new Date().toISOString()}] 🔍 [HeadConsolidation] Hub pages found in data: 0`,
-        `[${new Date().toISOString()}] 🔍 [HeadConsolidation] Scenario completed - Generated: 0, Rejected: 0`,
-      ];
+      // Read real logs from app.log file
+      let realLogs: string[] = [];
+      try {
+        const logFilePath = path.join(process.cwd(), 'app.log');
+        console.log(`🔍 [Logs API] Reading logs from: ${logFilePath}`);
+        
+        if (fs.existsSync(logFilePath)) {
+          const logContent = fs.readFileSync(logFilePath, 'utf8');
+          const allLogs = logContent.split('\n').filter(line => line.trim());
+          
+          // Filter logs related to this runId
+          const runLogs = allLogs.filter(line => 
+            line.includes(runId) || 
+            line.includes('[OrphanFix]') || 
+            line.includes('[HeadConsolidation]') || 
+            line.includes('[ClusterCrossLink]') || 
+            line.includes('[CommercialRouting]') || 
+            line.includes('[DepthLift]') || 
+            line.includes('[FreshnessPush]') || 
+            line.includes('[findSimilarPagesByCosine]') || 
+            line.includes('[tryCreateLink]') ||
+            line.includes('🔗 Executing') ||
+            line.includes('🔍 [LinkGenerator]')
+          );
+          
+          // Take the last N lines
+          realLogs = runLogs.slice(-parseInt(lines as string));
+          console.log(`🔍 [Logs API] Found ${runLogs.length} relevant log lines, returning ${realLogs.length}`);
+        } else {
+          console.log(`⚠️ [Logs API] Log file not found: ${logFilePath}`);
+          realLogs = [`[${new Date().toISOString()}] ⚠️ Log file not found: ${logFilePath}`];
+        }
+      } catch (error) {
+        console.error(`❌ [Logs API] Error reading log file:`, error);
+        realLogs = [`[${new Date().toISOString()}] ❌ Error reading log file: ${error instanceof Error ? error.message : String(error)}`];
+      }
 
       res.json({
         success: true,
         runId,
         status: run[0].status,
         startedAt: run[0].startedAt,
-        logs: mockLogs.slice(0, parseInt(lines as string)),
-        totalLines: mockLogs.length
+        logs: realLogs,
+        totalLines: realLogs.length
       });
 
     } catch (error) {
