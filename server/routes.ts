@@ -3473,7 +3473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           runId: generationRuns.runId,
           projectId: generationRuns.projectId, 
           status: generationRuns.status,
-          createdAt: generationRuns.createdAt
+          startedAt: generationRuns.startedAt
         })
         .from(generationRuns)
         .where(eq(generationRuns.runId, runId))
@@ -3520,7 +3520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         runId,
         status: run[0].status,
-        createdAt: run[0].createdAt,
+        startedAt: run[0].startedAt,
         logs: mockLogs.slice(0, parseInt(lines as string)),
         totalLines: mockLogs.length
       });
