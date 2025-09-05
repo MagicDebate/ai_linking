@@ -1499,7 +1499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Start generation in background with API-level timeout
       console.log('🚀 [API] Starting generation in background...');
       
-      // API-level timeout (2 minutes)
+      // API-level timeout (10 minutes)
       const apiTimeout = setTimeout(() => {
         console.error(`❌ [API] API TIMEOUT: Generation ${runId} taking too long, forcing failure`);
         db.update(generationRuns)
@@ -1510,7 +1510,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
           .where(eq(generationRuns.runId, runId))
           .catch(updateError => console.error("Failed to update run status:", updateError));
-      }, 120000); // 2 минуты
+      }, 600000); // 10 минут
       
       generator.generateLinks(generationParams, runId).then(() => {
         console.log(`✅ [API] Generation completed with runId: ${runId}`);
