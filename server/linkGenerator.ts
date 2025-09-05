@@ -551,9 +551,10 @@ export class LinkGenerator {
     const result = similarities
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
-      .map(s => s.page);
+      .map(s => s.page)
+      .filter(page => page && page.id); // Фильтруем страницы без ID
     
-    console.log(`🔍 [findSimilarPagesByCosine] Returning ${result.length} similar pages`);
+    console.log(`🔍 [findSimilarPagesByCosine] Returning ${result.length} similar pages with valid IDs`);
     return result;
   }
 
@@ -617,6 +618,25 @@ export class LinkGenerator {
       }
 
       // 7. Создание ссылки в БД
+      console.log('🔍 [tryCreateLink] Creating link:', {
+        sourcePageId: sourcePage.id,
+        targetPageId: targetPage.id,
+        sourceUrl: sourcePage.url,
+        targetUrl: targetPage.url,
+        scenario
+      });
+      
+      // Проверяем что у нас есть ID страниц
+      if (!sourcePage.id || !targetPage.id) {
+        console.error('❌ [tryCreateLink] Missing page IDs:', {
+          sourcePageId: sourcePage.id,
+          targetPageId: targetPage.id,
+          sourceUrl: sourcePage.url,
+          targetUrl: targetPage.url
+        });
+        return { created: false, reason: 'Missing page IDs' };
+      }
+      
       await db.insert(linkCandidates).values({
         runId: runId,
         sourcePageId: sourcePage.id,
