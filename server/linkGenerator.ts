@@ -169,19 +169,20 @@ export class LinkGenerator {
       await this.handleOldLinksPolicy(params.policies.oldLinks, runId);
       console.log('✅ [generateLinks] Old links policy applied');
       
-      // Phase 1: Load pages (0-20%) with aggressive timeout
+      // Phase 1: Load pages (0-20%)
       console.log('🔍 [generateLinks] Phase 1: Loading pages...');
       await this.updateProgress(runId, 'loading', 10, 0, 0);
-      console.log('🔍 [generateLinks] Calling loadPages() with 10 second timeout...');
+      console.log('🔍 [generateLinks] Calling loadPages()...');
       
-      const pages = await Promise.race([
-        this.loadPages(),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('loadPages() timeout after 10 seconds')), 10000)
-        )
-      ]) as any[];
-      
-      console.log('🔍 [generateLinks] loadPages() completed, result:', pages.length, 'pages');
+      let pages: any[] = [];
+      try {
+        pages = await this.loadPages();
+        console.log('🔍 [generateLinks] loadPages() completed successfully, result:', pages.length, 'pages');
+      } catch (error) {
+        console.error('❌ [generateLinks] loadPages() failed with error:', error);
+        await this.updateProgress(runId, 'failed', 20, 0, 0);
+        throw error;
+      }
       
       if (pages.length === 0) {
         console.log('❌ [generateLinks] No pages found, cannot generate links');
