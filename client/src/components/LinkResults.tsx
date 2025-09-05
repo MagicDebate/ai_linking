@@ -42,9 +42,19 @@ export default function LinkResults({ runId, projectId, onNext }: LinkResultsPro
   const { data: results, isLoading: resultsLoading, refetch: refetchResults } = useQuery({
     queryKey: ['generation-results', runId],
     queryFn: async () => {
+      console.log(`🔍 [LinkResults] Fetching results for runId: ${runId}`);
       const response = await fetch(`/api/generate/results/${runId}`);
-      if (!response.ok) return null;
-      return response.json();
+      console.log(`🔍 [LinkResults] Response status: ${response.status}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ [LinkResults] API error: ${response.status} - ${errorText}`);
+        return null;
+      }
+      
+      const data = await response.json();
+      console.log(`🔍 [LinkResults] Response data:`, data);
+      return data;
     },
     enabled: !!runId,
     refetchInterval: 5000
@@ -116,6 +126,16 @@ export default function LinkResults({ runId, projectId, onNext }: LinkResultsPro
     );
   }
 
+  console.log(`🔍 [LinkResults] Render state:`, {
+    runId,
+    projectId,
+    results,
+    resultsLoading,
+    hasResults: !!results,
+    hasCandidates: !!results?.candidates?.length,
+    candidatesCount: results?.candidates?.length || 0
+  });
+
   if (!results || !results.candidates?.length) {
     return (
       <Card>
@@ -123,7 +143,15 @@ export default function LinkResults({ runId, projectId, onNext }: LinkResultsPro
           <CardTitle>Результаты генерации</CardTitle>
         </CardHeader>
         <CardContent>
-          <p>Результаты генерации не найдены.</p>
+          <div className="space-y-2">
+            <p>Результаты генерации не найдены.</p>
+            <div className="text-sm text-gray-500">
+              <p>RunId: {runId}</p>
+              <p>ProjectId: {projectId}</p>
+              <p>Results: {results ? 'Есть' : 'Нет'}</p>
+              <p>Candidates: {results?.candidates?.length || 0}</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     );

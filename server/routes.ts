@@ -2973,6 +2973,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { runId } = req.params;
       console.log(`🔍 [Results API] Getting results for runId: ${runId}`);
+      console.log(`🔍 [Results API] User ID: ${req.user?.id}`);
       
       // Validate run belongs to user's project
       const run = await db
@@ -2986,13 +2987,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(generationRuns.runId, runId))
         .limit(1);
 
+      console.log(`🔍 [Results API] Database query result:`, run);
+
       if (!run.length) {
+        console.log(`❌ [Results API] No run found for runId: ${runId}`);
         return res.status(404).json({ error: "Generation run not found" });
       }
 
       // Validate project belongs to user
       const project = await storage.getProjectById(run[0].projectId);
+      console.log(`🔍 [Results API] Project found:`, project);
+      
       if (!project || project.userId !== req.user.id) {
+        console.log(`❌ [Results API] Project access denied. Project userId: ${project?.userId}, Request userId: ${req.user.id}`);
         return res.status(404).json({ error: "Project not found" });
       }
 
@@ -3015,15 +3022,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(desc(linkCandidates.createdAt));
 
       console.log(`🔍 [Results API] Found ${candidates.length} link candidates`);
+      console.log(`🔍 [Results API] First few candidates:`, candidates.slice(0, 3));
 
-      res.json({
+      const response = {
         runId,
         status: run[0].status,
         generated: run[0].generated,
         rejected: run[0].rejected,
         totalCandidates: candidates.length,
         candidates: candidates
+      };
+
+      console.log(`✅ [Results API] Returning response:`, {
+        ...response,
+        candidates: `[${candidates.length} candidates]`
       });
+
+      res.json(response);
 
     } catch (error) {
       console.error('❌ [Results API] Error:', error);
