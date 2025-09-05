@@ -264,6 +264,9 @@ export class LinkGenerator {
       // Final phase (80-100%)
       await this.updateProgress(runId, 'finalizing', 90, totalGenerated, totalRejected);
       
+      // Update to 100% before finalizing
+      await this.updateProgress(runId, 'finalizing', 100, totalGenerated, totalRejected);
+      
       // Final statistics
       const finalStats = {
         totalGenerated,
@@ -669,6 +672,7 @@ export class LinkGenerator {
       await db
         .update(generationRuns)
         .set({
+          status: 'running', // Обновляем статус на running
           phase,
           percent,
           generated,
