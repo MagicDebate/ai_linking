@@ -195,7 +195,7 @@ export class LinkGenerator {
       }
       
       console.log('✅ [generateLinks] Loaded', pages.length, 'pages for generation');
-      await this.updateProgress(runId, 'loading', 20, 0, 0);
+      await this.updateProgress(runId, 'loading', 20, 0, 0, 0, pages.length);
 
       // Phase 2: Execute each scenario independently (20-80%)
       let totalGenerated = 0;
