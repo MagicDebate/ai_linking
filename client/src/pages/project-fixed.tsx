@@ -682,32 +682,46 @@ export default function ProjectFixed() {
                             </Button>
                             
                             {generationProgress?.status === 'draft' && (
-                              <Button 
-                                variant="default" 
-                                size="sm" 
-                                onClick={() => {
-                                  fetch(`/api/generate/results/${generationRunId}`)
-                                    .then(res => res.json())
-                                    .then(data => {
-                                      console.log('🔍 Generation Results:', data);
-                                      alert(`Generation Results:\n\n` +
-                                        `Status: ${data.status}\n` +
-                                        `Generated: ${data.generated}\n` +
-                                        `Rejected: ${data.rejected}\n` +
-                                        `Total Candidates: ${data.totalCandidates}\n\n` +
-                                        `First 5 candidates:\n${JSON.stringify(data.candidates?.slice(0, 5), null, 2)}`
-                                      );
-                                    })
-                                    .catch(err => {
-                                      console.error('Results error:', err);
-                                      alert('Error getting results: ' + err.message);
-                                    });
-                                }}
-                                className="w-full"
-                              >
-                                <Download className="w-4 h-4 mr-2" />
-                                Показать результаты генерации
-                              </Button>
+                              <div className="space-y-2">
+                                <Button 
+                                  variant="default" 
+                                  size="sm" 
+                                  onClick={() => {
+                                    window.location.href = `/project/${projectId}/links`;
+                                  }}
+                                  className="w-full"
+                                >
+                                  <Download className="w-4 h-4 mr-2" />
+                                  Управление ссылками
+                                </Button>
+                                
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => {
+                                    fetch(`/api/generate/results/${generationRunId}`)
+                                      .then(res => res.json())
+                                      .then(data => {
+                                        console.log('🔍 Generation Results:', data);
+                                        alert(`Generation Results:\n\n` +
+                                          `Status: ${data.status}\n` +
+                                          `Generated: ${data.generated}\n` +
+                                          `Rejected: ${data.rejected}\n` +
+                                          `Total Candidates: ${data.totalCandidates}\n\n` +
+                                          `First 5 candidates:\n${JSON.stringify(data.candidates?.slice(0, 5), null, 2)}`
+                                        );
+                                      })
+                                      .catch(err => {
+                                        console.error('Results error:', err);
+                                        alert('Error getting results: ' + err.message);
+                                      });
+                                  }}
+                                  className="w-full"
+                                >
+                                  <Database className="w-4 h-4 mr-2" />
+                                  Показать результаты (JSON)
+                                </Button>
+                              </div>
                             )}
                           </div>
                         </div>

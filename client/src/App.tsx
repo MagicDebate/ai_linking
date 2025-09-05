@@ -14,6 +14,7 @@ import DebugPages from "@/pages/debug-pages-new";
 import DraftReview from "@/pages/draft-review";
 import GenerateLinks from "@/pages/generate-links";
 import UserSettings from "@/pages/user-settings";
+import LinkManagement from "@/pages/link-management";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -48,6 +49,7 @@ function Router() {
           <Route path="/project/:id/generate" component={ProjectPage} />
           <Route path="/project/:id/draft" component={ProjectPage} />
           <Route path="/project/:id/publish" component={ProjectPage} />
+          <Route path="/project/:id/links" component={LinkManagement} />
           <Route path="/project/:id/draft/:runId" component={DraftReview} />
           <Route path="/project/:id/debug" component={DebugPages} />
           <Route path="/user-settings" component={UserSettings} />

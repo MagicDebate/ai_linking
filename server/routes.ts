@@ -3031,6 +3031,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update link candidate status
+  app.patch("/api/generate/candidates/:candidateId", authenticateToken, async (req: any, res) => {
+    try {
+      const { candidateId } = req.params;
+      const { status } = req.body; // 'accepted', 'rejected', 'pending'
+      
+      console.log(`🔍 [Update Candidate] Updating candidate ${candidateId} to status: ${status}`);
+      
+      // Validate candidate exists and belongs to user's project
+      const candidate = await db
+        .select({ 
+          runId: linkCandidates.runId,
+          projectId: generationRuns.projectId
+        })
+        .from(linkCandidates)
+        .innerJoin(generationRuns, eq(linkCandidates.runId, generationRuns.runId))
+        .where(eq(linkCandidates.id, candidateId))
+        .limit(1);
+
+      if (!candidate.length) {
+        return res.status(404).json({ error: "Candidate not found" });
+      }
+
+      // Validate project belongs to user
+      const project = await storage.getProjectById(candidate[0].projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Update candidate status
+      await db
+        .update(linkCandidates)
+        .set({ 
+          status,
+          updatedAt: new Date()
+        })
+        .where(eq(linkCandidates.id, candidateId));
+
+      console.log(`✅ [Update Candidate] Updated candidate ${candidateId} to ${status}`);
+
+      res.json({ 
+        success: true, 
+        message: `Candidate ${status} successfully`,
+        candidateId,
+        status
+      });
+
+    } catch (error) {
+      console.error('❌ [Update Candidate] Error:', error);
+      res.status(500).json({ error: "Failed to update candidate" });
+    }
+  });
+
+  // Get link graph visualization data
+  app.get("/api/projects/:projectId/graph", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      console.log(`🔍 [Graph API] Getting graph data for project: ${projectId}`);
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get latest import job
+      const latestImport = await db
+        .select({ jobId: importJobs.jobId })
+        .from(importJobs)
+        .where(and(
+          eq(importJobs.projectId, projectId),
+          eq(importJobs.status, 'completed')
+        ))
+        .orderBy(desc(importJobs.startedAt))
+        .limit(1);
+
+      if (!latestImport.length) {
+        return res.status(404).json({ error: "No completed import found" });
+      }
+
+      const jobId = latestImport[0].jobId;
+
+      // Get pages with their connections
+      const pages = await db
+        .select({
+          id: pagesRaw.id,
+          url: pagesRaw.url,
+          title: sql<string>`COALESCE(${pagesRaw.meta}->>'title', '')`,
+          isOrphan: graphMeta.isOrphan,
+          clickDepth: graphMeta.clickDepth,
+          inDegree: graphMeta.inDegree,
+          outDegree: graphMeta.outDegree
+        })
+        .from(pagesClean)
+        .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
+        .leftJoin(graphMeta, eq(pagesRaw.id, graphMeta.pageId))
+        .where(eq(pagesRaw.jobId, jobId));
+
+      // Get existing links (from link_candidates)
+      const links = await db
+        .select({
+          id: linkCandidates.id,
+          sourcePageId: linkCandidates.sourcePageId,
+          targetPageId: linkCandidates.targetPageId,
+          sourceUrl: linkCandidates.sourceUrl,
+          targetUrl: linkCandidates.targetUrl,
+          anchorText: linkCandidates.anchorText,
+          status: linkCandidates.status,
+          scenario: linkCandidates.scenario,
+          score: linkCandidates.score
+        })
+        .from(linkCandidates)
+        .innerJoin(generationRuns, eq(linkCandidates.runId, generationRuns.runId))
+        .where(eq(generationRuns.projectId, projectId));
+
+      res.json({
+        projectId,
+        pages: pages.map(p => ({
+          id: p.id,
+          url: p.url,
+          title: p.title,
+          isOrphan: p.isOrphan,
+          clickDepth: p.clickDepth,
+          inDegree: p.inDegree,
+          outDegree: p.outDegree
+        })),
+        links: links.map(l => ({
+          id: l.id,
+          sourcePageId: l.sourcePageId,
+          targetPageId: l.targetPageId,
+          sourceUrl: l.sourceUrl,
+          targetUrl: l.targetUrl,
+          anchorText: l.anchorText,
+          status: l.status,
+          scenario: l.scenario,
+          score: l.score
+        }))
+      });
+
+    } catch (error) {
+      console.error('❌ [Graph API] Error:', error);
+      res.status(500).json({ error: "Failed to get graph data" });
+    }
+  });
+
   // Get generation progress
   app.get("/api/generate/progress/:runId", authenticateToken, async (req: any, res) => {
     try {
