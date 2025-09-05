@@ -332,8 +332,9 @@ export class LinkGenerator {
       console.log('🔍 [OrphanFix] Processing orphan page:', orphanPage.url);
       
       // Ищем похожие страницы через cosine similarity
-      const similarPages = await this.findSimilarPagesByCosine(orphanPage, pages, 5, 0.70); // Пониженный порог для сирот
+      const similarPages = await this.findSimilarPagesByCosine(orphanPage, pages, 10, 0.50); // Еще более пониженный порог для сирот
       console.log('🔍 [OrphanFix] Similar pages found:', similarPages.length);
+      console.log('🔍 [OrphanFix] Similar pages details:', similarPages.map(p => ({ url: p.url, score: p.score })));
       
       for (const similarPage of similarPages) {
         // Дополнительная проверка ID страниц
