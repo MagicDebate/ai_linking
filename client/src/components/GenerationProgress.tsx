@@ -236,11 +236,13 @@ export function GenerationProgress({
         <CardContent className="space-y-4">
           {Object.entries(taskProgress).map(([taskKey, progress]) => {
             const config = taskConfig[taskKey as keyof typeof taskConfig];
+            if (!config) return null;
+            
             return (
               <div key={taskKey} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className={`p-1 rounded ${config.color} text-white`}>
+                    <div className={`p-1 rounded ${config.color || 'bg-gray-500'} text-white`}>
                       {config.icon}
                     </div>
                     <div>
