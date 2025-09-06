@@ -612,8 +612,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 // Toggle quote state
                 inQuotes = !inQuotes;
               }
-            } else if (char === ',' && !inQuotes) {
-              // End of field
+            } else if ((char === ',' || char === ';') && !inQuotes) {
+              // End of field (supports both comma and semicolon)
               currentRow.push(currentField);
               currentField = '';
             } else if ((char === '\n' || char === '\r') && !inQuotes) {
@@ -714,7 +714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               } else {
                 inQuotes = !inQuotes;
               }
-            } else if (char === ',' && !inQuotes) {
+            } else if ((char === ',' || char === ';') && !inQuotes) {
               currentRow.push(currentField.trim());
               currentField = '';
             } else if ((char === '\n' || char === '\r') && !inQuotes) {
@@ -1952,11 +1952,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Project not found" });
       }
 
-      // TODO: Реализовать генерацию CSV файла из результатов генерации
-      // Пока возвращаем заглушку
-      const csvContent = `URL,Anchor Text,Target URL,Score\n`;
+      // Получаем все сгенерированные ссылки для этого runId
+      const links = await db
+        .select({
+          sourceUrl: linkCandidates.sourceUrl,
+          targetUrl: linkCandidates.targetUrl,
+          anchorText: linkCandidates.anchorText,
+          type: linkCandidates.type,
+          status: linkCandidates.status,
+          similarity: linkCandidates.similarity,
+          confidence: linkCandidates.confidence,
+          createdAt: linkCandidates.createdAt
+        })
+        .from(linkCandidates)
+        .where(eq(linkCandidates.runId, runId))
+        .orderBy(desc(linkCandidates.createdAt));
+
+      // Генерируем CSV контент
+      const csvHeaders = [
+        'Source URL',
+        'Target URL', 
+        'Anchor Text',
+        'Scenario',
+        'Status',
+        'Similarity',
+        'Confidence',
+        'Created At'
+      ];
       
-      res.setHeader('Content-Type', 'text/csv');
+      const csvRows = links.map(link => [
+        link.sourceUrl,
+        link.targetUrl,
+        link.anchorText,
+        link.type,
+        link.status,
+        link.similarity?.toString() || '',
+        link.confidence?.toString() || '',
+        link.createdAt?.toISOString() || ''
+      ]);
+      
+      // Экранируем поля с кавычками и запятыми
+      const escapeCSVField = (field: string): string => {
+        if (field.includes('"') || field.includes(',') || field.includes(';') || field.includes('\n')) {
+          return `"${field.replace(/"/g, '""')}"`;
+        }
+        return field;
+      };
+      
+      const csvContent = [
+        csvHeaders.map(escapeCSVField).join(','),
+        ...csvRows.map(row => row.map(escapeCSVField).join(','))
+      ].join('\n');
+      
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="links-${runId}.csv"`);
       res.send(csvContent);
     } catch (error) {
@@ -3814,6 +3862,10 @@ class ContentProcessor {
   }
 
   private parseCSV(csvText: string): string[][] {
+    // Автоматическое определение разделителя
+    const delimiter = this.detectCSVDelimiter(csvText);
+    console.log(`🔍 [parseCSV] Detected delimiter: "${delimiter}"`);
+    
     const results: string[][] = [];
     let currentRow: string[] = [];
     let currentField = '';
@@ -3826,18 +3878,22 @@ class ContentProcessor {
       
       if (char === '"') {
         if (inQuotes && nextChar === '"') {
+          // Экранированная кавычка внутри поля
           currentField += '"';
           i += 2;
           continue;
         } else {
+          // Переключение состояния кавычек
           inQuotes = !inQuotes;
         }
-      } else if (char === ',' && !inQuotes) {
+      } else if (char === delimiter && !inQuotes) {
+        // Конец поля
         currentRow.push(currentField.trim());
         currentField = '';
       } else if ((char === '\n' || char === '\r') && !inQuotes) {
+        // Конец строки (только если не внутри кавычек)
         currentRow.push(currentField.trim());
-        if (currentRow.some(field => field.length > 0)) {
+        if (currentRow.length > 0 && currentRow.some(field => field.trim().length > 0)) {
           results.push(currentRow);
         }
         currentRow = [];
@@ -3849,14 +3905,71 @@ class ContentProcessor {
       i++;
     }
     
+    // Обработка последнего поля/строки
     if (currentField || currentRow.length > 0) {
       currentRow.push(currentField.trim());
-      if (currentRow.some(field => field.length > 0)) {
+      if (currentRow.length > 0 && currentRow.some(field => field.trim().length > 0)) {
         results.push(currentRow);
       }
     }
     
+    console.log(`🔍 [parseCSV] Parsed ${results.length} rows with delimiter "${delimiter}"`);
     return results;
+  }
+
+  // Автоматическое определение разделителя CSV
+  private detectCSVDelimiter(csvText: string): string {
+    // Берем первые несколько строк для анализа
+    const lines = csvText.split('\n').slice(0, 5).filter(line => line.trim().length > 0);
+    
+    if (lines.length === 0) {
+      return ','; // По умолчанию запятая
+    }
+    
+    // Подсчитываем количество разделителей в каждой строке
+    const delimiterCounts: { [key: string]: number[] } = {
+      ',': [],
+      ';': [],
+      '\t': []
+    };
+    
+    for (const line of lines) {
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const nextChar = line[i + 1];
+        
+        if (char === '"') {
+          if (inQuotes && nextChar === '"') {
+            i++; // Пропускаем экранированную кавычку
+            continue;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (!inQuotes) {
+          if (char === ',') delimiterCounts[','].push(1);
+          else if (char === ';') delimiterCounts[';'].push(1);
+          else if (char === '\t') delimiterCounts['\t'].push(1);
+        }
+      }
+    }
+    
+    // Выбираем разделитель с наибольшим количеством вхождений
+    let bestDelimiter = ',';
+    let maxCount = 0;
+    
+    for (const [delimiter, counts] of Object.entries(delimiterCounts)) {
+      const totalCount = counts.reduce((sum, count) => sum + count, 0);
+      if (totalCount > maxCount) {
+        maxCount = totalCount;
+        bestDelimiter = delimiter;
+      }
+    }
+    
+    console.log(`🔍 [detectCSVDelimiter] Counts: comma=${delimiterCounts[','].length}, semicolon=${delimiterCounts[';'].length}, tab=${delimiterCounts['\t'].length}`);
+    console.log(`🔍 [detectCSVDelimiter] Selected: "${bestDelimiter}"`);
+    
+    return bestDelimiter;
   }
 
   private async cleanHTML(csvData: any[], jobId: string) {
