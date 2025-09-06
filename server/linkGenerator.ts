@@ -357,17 +357,18 @@ export class LinkGenerator {
       const orphanPage = orphanPages[i];
       console.log('🔍 [OrphanFix] Processing orphan page:', orphanPage.url, `(${i + 1}/${orphanPages.length})`);
       
-      // Обновляем прогресс каждые 5 страниц для более частого обновления
-      if ((i + 1) % 5 === 0 || i === orphanPages.length - 1) {
+      // Обновляем прогресс каждые 20 страниц для оптимальной скорости
+      if ((i + 1) % 20 === 0 || i === orphanPages.length - 1) {
         await this.updateProgress(runId, 'generating', 30 + Math.round((i / orphanPages.length) * 20), generated, rejected, i + 1, orphanPages.length);
       }
       
       // Ищем похожие страницы через cosine similarity
-      const similarPages = await this.findSimilarPagesByCosine(orphanPage, pages, 10, 0.50); // Еще более пониженный порог для сирот
+      const similarPages = await this.findSimilarPagesByCosine(orphanPage, pages, 15, 0.45); // Больше кандидатов, ниже порог
       console.log('🔍 [OrphanFix] Similar pages found:', similarPages.length);
       console.log('🔍 [OrphanFix] Similar pages details:', similarPages.map(p => ({ url: p.url, score: p.score })));
       
-      for (const similarPage of similarPages) {
+      // Batch processing: обрабатываем все похожие страницы сразу
+      const linkPromises = similarPages.map(async (similarPage) => {
         // Дополнительная проверка ID страниц
         if (!similarPage.id || !orphanPage.id) {
           console.log('❌ [OrphanFix] Skipping link - missing page IDs:', {
@@ -376,20 +377,29 @@ export class LinkGenerator {
             similarPageUrl: similarPage.url,
             orphanPageUrl: orphanPage.url
           });
-          rejected++;
-          continue;
+          return { created: false, reason: 'Missing page IDs' };
         }
         
-        const result = await this.tryCreateLink(runId, similarPage, orphanPage, 'orphan_fix', params);
+        return await this.tryCreateLink(runId, similarPage, orphanPage, 'orphan_fix', params);
+      });
+
+      // Ждем все результаты параллельно
+      const results = await Promise.all(linkPromises);
+      
+      // Подсчитываем результаты
+      for (const result of results) {
         if (result.created) {
           generated++;
-          console.log('✅ [OrphanFix] Link created:', similarPage.url, '->', orphanPage.url);
-          // Обновляем прогресс после каждой созданной ссылки
-          await this.updateProgress(runId, 'generating', 30 + Math.round((i / orphanPages.length) * 20), generated, rejected, i + 1, orphanPages.length);
+          console.log('✅ [OrphanFix] Link created successfully');
         } else {
           rejected++;
-          console.log('❌ [OrphanFix] Link rejected:', similarPage.url, '->', orphanPage.url, 'Reason:', result.reason);
+          console.log('❌ [OrphanFix] Link rejected, reason:', result.reason);
         }
+      }
+      
+      // Обновляем прогресс только при создании ссылки (не после каждой)
+      if (generated % 5 === 0) {
+        await this.updateProgress(runId, 'generating', 30 + Math.round((i / orphanPages.length) * 20), generated, rejected, i + 1, orphanPages.length);
       }
     }
 
@@ -413,7 +423,7 @@ export class LinkGenerator {
       console.log('🔍 [HeadConsolidation] Processing hub page:', hubPage.url);
       
       // Ищем похожие страницы через cosine similarity
-      const similarPages = await this.findSimilarPagesByCosine(hubPage, pages, 3, 0.78);
+      const similarPages = await this.findSimilarPagesByCosine(hubPage, pages, 5, 0.70); // Больше кандидатов
       console.log('🔍 [HeadConsolidation] Similar pages found:', similarPages.length);
       
       for (const similarPage of similarPages) {
@@ -450,7 +460,7 @@ export class LinkGenerator {
       const page1 = pages[i];
       console.log('🔍 [ClusterCrossLink] Processing page:', page1.url, `(${i+1}/${pages.length})`);
       
-      const similarPages = await this.findSimilarPagesByCosine(page1, pages, 3, 0.78);
+      const similarPages = await this.findSimilarPagesByCosine(page1, pages, 5, 0.70); // Больше кандидатов
       console.log('🔍 [ClusterCrossLink] Similar pages found:', similarPages.length);
       
       for (const page2 of similarPages) {
@@ -535,7 +545,7 @@ export class LinkGenerator {
       const shallowPages = pages.filter(page => page.clickDepth < params.scenarios.depthLift.minDepth);
       console.log('🔍 [DepthLift] Shallow pages available:', shallowPages.length);
       
-      const similarPages = await this.findSimilarPagesByCosine(deepPage, shallowPages, 3, 0.70);
+      const similarPages = await this.findSimilarPagesByCosine(deepPage, shallowPages, 5, 0.65); // Больше кандидатов
       console.log('🔍 [DepthLift] Similar shallow pages found:', similarPages.length);
       
       for (const similarPage of similarPages) {
@@ -648,7 +658,7 @@ export class LinkGenerator {
           sourceBlock.id,
           this.projectId,
           embeddings,
-          10, // topK
+          5, // Уменьшили topK для скорости
           threshold
         );
 
