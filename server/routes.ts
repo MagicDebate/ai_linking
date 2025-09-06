@@ -1271,8 +1271,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const linkStats = await db
         .select({
           total: sql`COUNT(*)`.as('total'),
-          accepted: sql`SUM(CASE WHEN is_rejected = false THEN 1 ELSE 0 END)`.as('accepted'),
-          rejected: sql`SUM(CASE WHEN is_rejected = true THEN 1 ELSE 0 END)`.as('rejected')
+          accepted: sql`SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END)`.as('accepted'),
+          rejected: sql`SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END)`.as('rejected')
         })
         .from(linkCandidates)
         .where(eq(linkCandidates.runId, run.runId));
@@ -1307,10 +1307,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sourceUrl: linkCandidates.sourceUrl,
           targetUrl: linkCandidates.targetUrl,
           anchorText: linkCandidates.anchorText,
-          scenario: linkCandidates.scenario
+          type: linkCandidates.type
         })
         .from(linkCandidates)
-        .where(sql`run_id = ${run.runId} AND is_rejected = false`)
+        .where(sql`run_id = ${run.runId} AND status = 'accepted'`)
         .limit(50);
 
       const report = {
@@ -1567,9 +1567,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sourceUrl: linkCandidates.sourceUrl,
           targetUrl: linkCandidates.targetUrl,
           anchorText: linkCandidates.anchorText,
-          scenario: linkCandidates.scenario,
+          type: linkCandidates.type,
           similarity: linkCandidates.similarity,
-          isRejected: linkCandidates.isRejected,
+          status: linkCandidates.status,
           createdAt: linkCandidates.createdAt
         })
         .from(linkCandidates)
@@ -1707,7 +1707,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(
           and(
             eq(linkCandidates.sourceUrl, sourceUrl),
-            eq(linkCandidates.isRejected, false),
+            eq(linkCandidates.status, 'accepted'),
             eq(generationRuns.projectId, projectId)
           )
         )
@@ -2081,7 +2081,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let whereConditions = [eq(linkCandidates.runId, runId)];
       
       if (scenario && scenario !== 'all') {
-        whereConditions.push(eq(linkCandidates.scenario, scenario as string));
+        whereConditions.push(eq(linkCandidates.type, scenario as string));
       }
       
       if (page && page !== 'all') {
@@ -2106,14 +2106,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get scenario statistics
       const stats = await db
         .select({
-          scenario: linkCandidates.scenario,
+          type: linkCandidates.type,
           total: sql<number>`count(*)`,
-          accepted: sql<number>`count(*) filter (where is_rejected = false)`,
-          rejected: sql<number>`count(*) filter (where is_rejected = true)`
+          accepted: sql<number>`count(*) filter (where status = 'accepted')`,
+          rejected: sql<number>`count(*) filter (where status = 'rejected')`
         })
         .from(linkCandidates)
         .where(eq(linkCandidates.runId, runId))
-        .groupBy(linkCandidates.scenario);
+        .groupBy(linkCandidates.type);
 
       res.json({
         candidates,
@@ -3012,7 +3012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🔍 [Results API] Candidates count:`, candidatesCount[0]?.count || 0);
       
-      let candidates = [];
+      let candidates: any[] = [];
       if (candidatesCount[0]?.count > 0) {
         // Получаем кандидатов только если они есть
         candidates = await db
@@ -3023,8 +3023,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             sourceUrl: linkCandidates.sourceUrl,
             targetUrl: linkCandidates.targetUrl,
             anchorText: linkCandidates.anchorText,
-            score: linkCandidates.score,
-            scenario: linkCandidates.scenario,
+            similarity: linkCandidates.similarity,
+            type: linkCandidates.type,
             status: linkCandidates.status,
             createdAt: linkCandidates.createdAt
           })
@@ -3054,11 +3054,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('❌ [Results API] Error:', error);
-      console.error('❌ [Results API] Error stack:', error.stack);
-      console.error('❌ [Results API] Error message:', error.message);
+      console.error('❌ [Results API] Error stack:', error instanceof Error ? error.stack : 'No stack');
+      console.error('❌ [Results API] Error message:', error instanceof Error ? error.message : String(error));
       res.status(500).json({ 
         error: "Failed to get results",
-        details: error.message,
+        details: error instanceof Error ? error.message : String(error),
         runId: req.params.runId
       });
     }
@@ -3099,7 +3099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🔍 [DEBUG Results API] Candidates count:`, candidatesCount[0]?.count || 0);
       
-      let candidates = [];
+      let candidates: any[] = [];
       if (candidatesCount[0]?.count > 0) {
         // Получаем кандидатов только если они есть
         candidates = await db
@@ -3110,8 +3110,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             sourceUrl: linkCandidates.sourceUrl,
             targetUrl: linkCandidates.targetUrl,
             anchorText: linkCandidates.anchorText,
-            score: linkCandidates.score,
-            scenario: linkCandidates.scenario,
+            similarity: linkCandidates.similarity,
+            type: linkCandidates.type,
             status: linkCandidates.status,
             createdAt: linkCandidates.createdAt
           })
@@ -3135,7 +3135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('❌ [DEBUG Results API] Error:', error);
       res.status(500).json({ 
         error: "Failed to get results",
-        details: error.message,
+        details: error instanceof Error ? error.message : String(error),
         runId: req.params.runId
       });
     }
@@ -3175,7 +3175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .update(linkCandidates)
         .set({ 
           status,
-          updatedAt: new Date()
+          // updatedAt: new Date() // Поле не существует в схеме
         })
         .where(eq(linkCandidates.id, candidateId));
 
@@ -3249,8 +3249,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           targetUrl: linkCandidates.targetUrl,
           anchorText: linkCandidates.anchorText,
           status: linkCandidates.status,
-          scenario: linkCandidates.scenario,
-          score: linkCandidates.score
+          type: linkCandidates.type,
+          similarity: linkCandidates.similarity
         })
         .from(linkCandidates)
         .innerJoin(generationRuns, eq(linkCandidates.runId, generationRuns.runId))
@@ -3275,8 +3275,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           targetUrl: l.targetUrl,
           anchorText: l.anchorText,
           status: l.status,
-          scenario: l.scenario,
-          score: l.score
+          type: l.type,
+          similarity: l.similarity
         }))
       });
 
