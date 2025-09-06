@@ -238,7 +238,12 @@ export class LinkGenerator {
         totalGenerated += result.generated;
         totalRejected += result.rejected;
         progressBase += progressPerScenario;
-        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
+        scenarioStats.headConsolidation = {
+          generated: result.generated,
+          rejected: result.rejected,
+          status: 'completed'
+        };
+        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected, pages.length, pages.length, scenarioStats);
       }
 
       // CLUSTER CROSS-LINK SCENARIO
@@ -248,7 +253,12 @@ export class LinkGenerator {
         totalGenerated += result.generated;
         totalRejected += result.rejected;
         progressBase += progressPerScenario;
-        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
+        scenarioStats.clusterCrossLink = {
+          generated: result.generated,
+          rejected: result.rejected,
+          status: 'completed'
+        };
+        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected, pages.length, pages.length, scenarioStats);
       }
 
       // COMMERCIAL ROUTING SCENARIO
@@ -258,7 +268,12 @@ export class LinkGenerator {
         totalGenerated += result.generated;
         totalRejected += result.rejected;
         progressBase += progressPerScenario;
-        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
+        scenarioStats.commercialRouting = {
+          generated: result.generated,
+          rejected: result.rejected,
+          status: 'completed'
+        };
+        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected, pages.length, pages.length, scenarioStats);
       }
 
       // DEPTH LIFT SCENARIO
@@ -268,7 +283,12 @@ export class LinkGenerator {
         totalGenerated += result.generated;
         totalRejected += result.rejected;
         progressBase += progressPerScenario;
-        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
+        scenarioStats.depthLift = {
+          generated: result.generated,
+          rejected: result.rejected,
+          status: 'completed'
+        };
+        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected, pages.length, pages.length, scenarioStats);
       }
 
       // FRESHNESS PUSH SCENARIO
@@ -278,14 +298,19 @@ export class LinkGenerator {
         totalGenerated += result.generated;
         totalRejected += result.rejected;
         progressBase += progressPerScenario;
-        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
+        scenarioStats.freshnessPush = {
+          generated: result.generated,
+          rejected: result.rejected,
+          status: 'completed'
+        };
+        await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected, pages.length, pages.length, scenarioStats);
       }
 
       // Final phase (80-100%)
-      await this.updateProgress(runId, 'finalizing', 90, totalGenerated, totalRejected);
+      await this.updateProgress(runId, 'finalizing', 90, totalGenerated, totalRejected, pages.length, pages.length, scenarioStats);
       
       // Update to 100% before finalizing
-      await this.updateProgress(runId, 'finalizing', 100, totalGenerated, totalRejected);
+      await this.updateProgress(runId, 'finalizing', 100, totalGenerated, totalRejected, pages.length, pages.length, scenarioStats);
       
       // Final statistics
       const finalStats = {
