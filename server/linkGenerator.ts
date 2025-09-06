@@ -214,6 +214,8 @@ export class LinkGenerator {
       // ORPHAN FIX SCENARIO
       if (params.scenarios.orphanFix) {
         console.log('🔗 Executing ORPHAN FIX scenario...');
+        // Обновляем прогресс ПЕРЕД началом сценария
+        await this.updateProgress(runId, 'generating', 25, 0, 0, 0, pages.length);
         const result = await this.executeOrphanFixScenario(runId, pages, params);
         totalGenerated += result.generated;
         totalRejected += result.rejected;
@@ -353,10 +355,13 @@ export class LinkGenerator {
     });
     console.log('🔍 [OrphanFix] Orphan pages found:', orphanPages.length);
 
+    // Обновляем прогресс в начале обработки
+    await this.updateProgress(runId, 'generating', 30, 0, 0, 0, orphanPages.length);
+
     for (let i = 0; i < orphanPages.length; i++) {
       const orphanPage = orphanPages[i];
-      // Обновляем прогресс каждые 50 страниц для максимальной скорости
-      if ((i + 1) % 50 === 0 || i === orphanPages.length - 1) {
+      // Обновляем прогресс каждые 100 страниц для максимальной скорости
+      if ((i + 1) % 100 === 0 || i === orphanPages.length - 1) {
         await this.updateProgress(runId, 'generating', 30 + Math.round((i / orphanPages.length) * 20), generated, rejected, i + 1, orphanPages.length);
       }
       
@@ -392,7 +397,7 @@ export class LinkGenerator {
       }
       
       // Обновляем прогресс только при создании ссылки (не после каждой)
-      if (generated % 10 === 0) {
+      if (generated % 20 === 0) {
         await this.updateProgress(runId, 'generating', 30 + Math.round((i / orphanPages.length) * 20), generated, rejected, i + 1, orphanPages.length);
       }
     }
