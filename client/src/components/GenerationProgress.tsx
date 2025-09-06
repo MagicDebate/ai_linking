@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { 
   Play, 
   CheckCircle2, 
@@ -13,7 +14,9 @@ import {
   Link,
   TrendingUp,
   ArrowUp,
-  RefreshCw
+  RefreshCw,
+  Eye,
+  Download
 } from 'lucide-react';
 
 interface TaskProgress {
@@ -32,12 +35,27 @@ interface GenerationProgressProps {
   generated: number;
   rejected: number;
   taskProgress: {
-    orphanFix: TaskProgress;
-    headConsolidation: TaskProgress;
-    clusterCrossLink: TaskProgress;
-    commercialRouting: TaskProgress;
-    depthLift: TaskProgress;
-    freshnessPush: TaskProgress;
+    pages?: {
+      processed: number;
+      total: number;
+      percent: number;
+    };
+    links?: {
+      total: number;
+      generated: number;
+      rejected: number;
+    };
+    scenarios?: {
+      [key: string]: {
+        status: string;
+        generated: number;
+        rejected: number;
+      };
+    };
+    timing?: {
+      startedAt: string;
+      estimatedRemaining?: number;
+    };
   };
   counters: {
     scanned: number;
@@ -238,6 +256,10 @@ export function GenerationProgress({
             const config = taskConfig[taskKey as keyof typeof taskConfig];
             if (!config) return null;
             
+            // Вычисляем процент выполнения на основе статуса
+            const percent = progress.status === 'completed' ? 100 : 0;
+            const totalCandidates = progress.generated + progress.rejected;
+            
             return (
               <div key={taskKey} className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -251,17 +273,17 @@ export function GenerationProgress({
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-medium">{progress.percent}%</div>
+                    <div className="font-medium">{percent}%</div>
                     <div className="text-sm text-gray-600">
-                      {progress.accepted} / {progress.candidates}
+                      {progress.generated} / {totalCandidates}
                     </div>
                   </div>
                 </div>
-                <Progress value={progress.percent} className="h-2" />
+                <Progress value={percent} className="h-2" />
                 <div className="flex justify-between text-xs text-gray-500">
-                  <span>Просмотрено: {progress.scanned}</span>
-                  <span>Кандидатов: {progress.candidates}</span>
-                  <span>Принято: {progress.accepted}</span>
+                  <span>Просмотрено: {taskProgress.pages?.processed || 0}</span>
+                  <span>Кандидатов: {totalCandidates}</span>
+                  <span>Принято: {progress.generated}</span>
                   <span>Отклонено: {progress.rejected}</span>
                 </div>
               </div>
@@ -269,6 +291,52 @@ export function GenerationProgress({
           })}
         </CardContent>
       </Card>
+
+      {/* Кнопки действий */}
+      {(status === 'draft' || status === 'published' || (status === 'running' && generated > 0)) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Результаты генерации</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-3 flex-wrap">
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  // Переходим на страницу просмотра результатов
+                  window.open(`/draft/${runId}`, '_blank');
+                }}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Просмотреть ссылки
+              </Button>
+              
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  // Скачиваем CSV файл
+                  window.open(`/api/generate/download/${runId}`, '_blank');
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Скачать CSV
+              </Button>
+            </div>
+            
+            {generated > 0 && (
+              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2 text-green-700">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span className="font-medium">Готово!</span>
+                </div>
+                <p className="text-sm text-green-600 mt-1">
+                  Найдено {generated} ссылок. Нажмите "Просмотреть ссылки" для детального просмотра.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
