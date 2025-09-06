@@ -1410,12 +1410,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create link generator
       const generator = new LinkGenerator(projectId);
 
+      // Get the latest completed import jobId to use for generation
+      const latestImport = await db
+        .select({ jobId: importJobs.jobId, status: importJobs.status, startedAt: importJobs.startedAt })
+        .from(importJobs)
+        .where(and(
+          eq(importJobs.projectId, projectId),
+          eq(importJobs.status, 'completed')
+        ))
+        .orderBy(desc(importJobs.startedAt))
+        .limit(1);
+
+      if (!latestImport.length) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "No completed import found. Please complete import first." 
+        });
+      }
+
+      const jobId = latestImport[0].jobId;
+      console.log('🔍 [API] Using jobId for generation:', jobId);
+
       // Map UI data directly to generation parameters (full synchronization)
       const generationParams = {
         // Basic limits
         maxLinks: seoProfile.maxLinks || 3,
         minGap: seoProfile.minGap || 100,
         exactAnchorPercent: seoProfile.exactAnchorPercent || 20,
+        
+        // Job ID for specific import
+        jobId: jobId,
         
         // Lists
         stopAnchors: seoProfile.stopAnchors || [],
@@ -1927,6 +1951,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get runs error:", error);
       res.status(500).json({ error: "Failed to get generation runs" });
+    }
+  });
+
+  // Get all imports for project
+  app.get("/api/projects/:projectId/imports", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      
+      // Get all imports for project with page counts
+      const imports = await db
+        .select({
+          jobId: importJobs.jobId,
+          status: importJobs.status,
+          startedAt: importJobs.startedAt,
+          finishedAt: importJobs.finishedAt,
+          pagesTotal: importJobs.pagesTotal,
+          pagesDone: importJobs.pagesDone
+        })
+        .from(importJobs)
+        .where(eq(importJobs.projectId, projectId))
+        .orderBy(desc(importJobs.startedAt));
+      
+      // Get actual page counts from database
+      const importsWithCounts = await Promise.all(
+        imports.map(async (imp) => {
+          const pageCount = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(pagesRaw)
+            .where(eq(pagesRaw.jobId, imp.jobId));
+          
+          return {
+            ...imp,
+            actualPageCount: pageCount[0].count
+          };
+        })
+      );
+      
+      res.json({
+        success: true,
+        imports: importsWithCounts
+      });
+      
+    } catch (error) {
+      console.error("Get imports error:", error);
+      res.status(500).json({ error: "Failed to get imports" });
+    }
+  });
+
+  // Force use specific import for generation
+  app.post("/api/generate/force-import/:projectId", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      const { jobId } = req.body;
+      
+      console.log(`🔍 [Force Import] Project: ${projectId}, JobId: ${jobId}`);
+      
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      
+      // Verify jobId exists and belongs to project
+      const importJob = await db
+        .select({ jobId: importJobs.jobId, status: importJobs.status, projectId: importJobs.projectId })
+        .from(importJobs)
+        .where(and(
+          eq(importJobs.jobId, jobId),
+          eq(importJobs.projectId, projectId)
+        ))
+        .limit(1);
+      
+      if (!importJob.length) {
+        return res.status(404).json({ error: "Import job not found or not belongs to project" });
+      }
+      
+      // Get page count for this jobId
+      const pageCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(pagesRaw)
+        .where(eq(pagesRaw.jobId, jobId));
+      
+      console.log(`✅ [Force Import] Found ${pageCount[0].count} pages for jobId: ${jobId}`);
+      
+      res.json({
+        success: true,
+        jobId,
+        pageCount: pageCount[0].count,
+        message: `Will use import with ${pageCount[0].count} pages for next generation`
+      });
+      
+    } catch (error) {
+      console.error("Force import error:", error);
+      res.status(500).json({ error: "Failed to force import" });
     }
   });
 

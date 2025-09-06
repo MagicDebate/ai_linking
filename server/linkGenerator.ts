@@ -182,7 +182,10 @@ export class LinkGenerator {
       
       let pages: any[] = [];
       try {
-        pages = await this.loadPages();
+        // Используем jobId из параметров генерации, если он есть
+        const jobId = (params as any).jobId;
+        console.log('🔍 [generateLinks] Using jobId from params:', jobId || 'not specified');
+        pages = await this.loadPages(jobId);
         console.log('🔍 [generateLinks] loadPages() completed successfully, result:', pages.length, 'pages');
       } catch (error) {
         console.error('❌ [generateLinks] loadPages() failed with error:', error);
@@ -871,45 +874,71 @@ export class LinkGenerator {
   }
 
   // Загрузка страниц проекта
-  private async loadPages(): Promise<any[]> {
+  private async loadPages(forceJobId?: string): Promise<any[]> {
     console.log('🚨 [loadPages] ===== НАЧАЛО ЗАГРУЗКИ СТРАНИЦ =====');
     console.log('🔍 [loadPages] Loading pages for project:', this.projectId);
     console.log('🚨 [loadPages] ===== ПРОЕКТ ID:', this.projectId, '=====');
+    console.log('🔍 [loadPages] Force jobId:', forceJobId || 'not specified');
     
     try {
-      // Получаем последний завершенный импорт для проекта
-      console.log('🔍 [loadPages] Looking for completed imports...');
-      const latestImport = await db
-        .select({ jobId: importJobs.jobId, status: importJobs.status, startedAt: importJobs.startedAt })
-        .from(importJobs)
-        .where(and(
-          eq(importJobs.projectId, this.projectId),
-          eq(importJobs.status, 'completed')
-        ))
-        .orderBy(desc(importJobs.startedAt))
-        .limit(1);
-
-      console.log('🔍 [loadPages] Found imports:', latestImport.length);
-      if (latestImport.length > 0) {
-        console.log('🔍 [loadPages] Latest import:', latestImport[0]);
-      }
-
-      if (!latestImport.length) {
-        console.log('❌ [loadPages] No completed import found for project:', this.projectId);
+      let jobId: string;
+      
+      if (forceJobId) {
+        // Используем принудительно указанный jobId
+        console.log('🔍 [loadPages] Using forced jobId:', forceJobId);
+        jobId = forceJobId;
         
-        // Проверим какие импорты есть вообще
-        const allImports = await db
+        // Проверим что этот импорт существует и принадлежит проекту
+        const forcedImport = await db
+          .select({ jobId: importJobs.jobId, status: importJobs.status, projectId: importJobs.projectId })
+          .from(importJobs)
+          .where(and(
+            eq(importJobs.jobId, forceJobId),
+            eq(importJobs.projectId, this.projectId)
+          ))
+          .limit(1);
+        
+        if (!forcedImport.length) {
+          console.log('❌ [loadPages] Forced jobId not found or not belongs to project:', forceJobId);
+          throw new Error(`Import job ${forceJobId} not found or not belongs to project ${this.projectId}`);
+        }
+        
+        console.log('✅ [loadPages] Forced import found:', forcedImport[0]);
+      } else {
+        // Получаем последний завершенный импорт для проекта
+        console.log('🔍 [loadPages] Looking for latest completed import...');
+        const latestImport = await db
           .select({ jobId: importJobs.jobId, status: importJobs.status, startedAt: importJobs.startedAt })
           .from(importJobs)
-          .where(eq(importJobs.projectId, this.projectId))
+          .where(and(
+            eq(importJobs.projectId, this.projectId),
+            eq(importJobs.status, 'completed')
+          ))
           .orderBy(desc(importJobs.startedAt))
-          .limit(5);
-        
-        console.log('🔍 [loadPages] All imports for project:', allImports);
-        return [];
-      }
+          .limit(1);
 
-    const jobId = latestImport[0].jobId;
+        console.log('🔍 [loadPages] Found imports:', latestImport.length);
+        if (latestImport.length > 0) {
+          console.log('🔍 [loadPages] Latest import:', latestImport[0]);
+        }
+
+        if (!latestImport.length) {
+          console.log('❌ [loadPages] No completed import found for project:', this.projectId);
+          
+          // Проверим какие импорты есть вообще
+          const allImports = await db
+            .select({ jobId: importJobs.jobId, status: importJobs.status, startedAt: importJobs.startedAt })
+            .from(importJobs)
+            .where(eq(importJobs.projectId, this.projectId))
+            .orderBy(desc(importJobs.startedAt))
+            .limit(5);
+          
+          console.log('🔍 [loadPages] All imports for project:', allImports);
+          return [];
+        }
+
+        jobId = latestImport[0].jobId;
+      }
     console.log('🔍 [loadPages] Using jobId from latest import:', jobId);
     
     // Проверим есть ли страницы для этого jobId
