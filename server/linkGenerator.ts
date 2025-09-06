@@ -363,7 +363,7 @@ export class LinkGenerator {
       }
       
       // Ищем похожие страницы через cosine similarity
-      const similarPages = await this.findSimilarPagesByCosine(orphanPage, pages, 15, 0.45); // Больше кандидатов, ниже порог
+      const similarPages = await this.findSimilarPagesByCosine(orphanPage, pages, params.maxLinks, 0.45); // Используем настройки из UI
       console.log('🔍 [OrphanFix] Similar pages found:', similarPages.length);
       console.log('🔍 [OrphanFix] Similar pages details:', similarPages.map(p => ({ url: p.url, score: p.score })));
       
@@ -423,7 +423,7 @@ export class LinkGenerator {
       console.log('🔍 [HeadConsolidation] Processing hub page:', hubPage.url);
       
       // Ищем похожие страницы через cosine similarity
-      const similarPages = await this.findSimilarPagesByCosine(hubPage, pages, 5, 0.70); // Больше кандидатов
+      const similarPages = await this.findSimilarPagesByCosine(hubPage, pages, params.maxLinks, 0.70); // Используем настройки из UI
       console.log('🔍 [HeadConsolidation] Similar pages found:', similarPages.length);
       
       for (const similarPage of similarPages) {
@@ -460,7 +460,7 @@ export class LinkGenerator {
       const page1 = pages[i];
       console.log('🔍 [ClusterCrossLink] Processing page:', page1.url, `(${i+1}/${pages.length})`);
       
-      const similarPages = await this.findSimilarPagesByCosine(page1, pages, 5, 0.70); // Больше кандидатов
+      const similarPages = await this.findSimilarPagesByCosine(page1, pages, params.maxLinks, 0.70); // Используем настройки из UI
       console.log('🔍 [ClusterCrossLink] Similar pages found:', similarPages.length);
       
       for (const page2 of similarPages) {
@@ -545,7 +545,7 @@ export class LinkGenerator {
       const shallowPages = pages.filter(page => page.clickDepth < params.scenarios.depthLift.minDepth);
       console.log('🔍 [DepthLift] Shallow pages available:', shallowPages.length);
       
-      const similarPages = await this.findSimilarPagesByCosine(deepPage, shallowPages, 5, 0.65); // Больше кандидатов
+      const similarPages = await this.findSimilarPagesByCosine(deepPage, shallowPages, params.maxLinks, 0.65); // Используем настройки из UI
       console.log('🔍 [DepthLift] Similar shallow pages found:', similarPages.length);
       
       for (const similarPage of similarPages) {
