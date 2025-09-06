@@ -355,17 +355,13 @@ export class LinkGenerator {
 
     for (let i = 0; i < orphanPages.length; i++) {
       const orphanPage = orphanPages[i];
-      console.log('🔍 [OrphanFix] Processing orphan page:', orphanPage.url, `(${i + 1}/${orphanPages.length})`);
-      
-      // Обновляем прогресс каждые 20 страниц для оптимальной скорости
-      if ((i + 1) % 20 === 0 || i === orphanPages.length - 1) {
+      // Обновляем прогресс каждые 50 страниц для максимальной скорости
+      if ((i + 1) % 50 === 0 || i === orphanPages.length - 1) {
         await this.updateProgress(runId, 'generating', 30 + Math.round((i / orphanPages.length) * 20), generated, rejected, i + 1, orphanPages.length);
       }
       
       // Ищем похожие страницы через cosine similarity
       const similarPages = await this.findSimilarPagesByCosine(orphanPage, pages, params.maxLinks, 0.45); // Используем настройки из UI
-      console.log('🔍 [OrphanFix] Similar pages found:', similarPages.length);
-      console.log('🔍 [OrphanFix] Similar pages details:', similarPages.map(p => ({ url: p.url, score: p.score })));
       
       // Batch processing: обрабатываем все похожие страницы сразу
       const linkPromises = similarPages.map(async (similarPage) => {
@@ -390,15 +386,13 @@ export class LinkGenerator {
       for (const result of results) {
         if (result.created) {
           generated++;
-          console.log('✅ [OrphanFix] Link created successfully');
         } else {
           rejected++;
-          console.log('❌ [OrphanFix] Link rejected, reason:', result.reason);
         }
       }
       
       // Обновляем прогресс только при создании ссылки (не после каждой)
-      if (generated % 5 === 0) {
+      if (generated % 10 === 0) {
         await this.updateProgress(runId, 'generating', 30 + Math.round((i / orphanPages.length) * 20), generated, rejected, i + 1, orphanPages.length);
       }
     }
@@ -626,13 +620,8 @@ export class LinkGenerator {
     
     // Проверяем кэш
     if (this.similarityCache.has(cacheKey)) {
-      console.log(`🚀 [findSimilarPagesByCosine] Cache hit for ${sourcePage.url}`);
       return this.similarityCache.get(cacheKey)!;
     }
-    
-    console.log(`🔍 [findSimilarPagesByCosine] Finding similar pages for ${sourcePage.url} (threshold: ${threshold}, limit: ${limit})`);
-    console.log(`🔍 [findSimilarPagesByCosine] Source page ID: ${sourcePage.id}`);
-    console.log(`🔍 [findSimilarPagesByCosine] Total pages to search: ${allPages.length}`);
     
     // Получаем блоки исходной страницы
     const sourceBlocks = await db
@@ -640,10 +629,7 @@ export class LinkGenerator {
       .from(blocks)
       .where(eq(blocks.pageId, sourcePage.id));
 
-    console.log(`🔍 [findSimilarPagesByCosine] Source blocks found: ${sourceBlocks.length}`);
-    
     if (sourceBlocks.length === 0) {
-      console.log('⚠️ [findSimilarPagesByCosine] No blocks found for source page');
       const fallback = this.getFallbackPages(sourcePage, allPages, limit);
       this.similarityCache.set(cacheKey, fallback);
       return fallback;
@@ -658,11 +644,9 @@ export class LinkGenerator {
           sourceBlock.id,
           this.projectId,
           embeddings,
-          5, // Уменьшили topK для скорости
+          3, // Еще меньше для скорости
           threshold
         );
-
-        console.log(`🔍 [findSimilarPagesByCosine] Found ${similarBlocks.length} similar blocks for block ${sourceBlock.id}`);
 
         // Группируем результаты по страницам
         for (const similarBlock of similarBlocks) {
@@ -675,11 +659,6 @@ export class LinkGenerator {
           
           if (targetBlock.length > 0) {
             const targetPage = allPages.find(p => p.id === targetBlock[0].pageId);
-            console.log('🔍 [findSimilarPagesByCosine] Looking for page:', {
-              targetPageId: targetBlock[0].pageId,
-              foundPage: targetPage ? { id: targetPage.id, url: targetPage.url } : null,
-              allPagesCount: allPages.length
-            });
             if (targetPage && targetPage.id !== sourcePage.id) {
               const existing = similarities.find(s => s.page.id === targetPage.id);
               if (existing) {
@@ -694,13 +673,12 @@ export class LinkGenerator {
           }
         }
       } catch (error) {
-        console.log('⚠️ [findSimilarPagesByCosine] Error finding similar blocks, using fallback:', error);
+        // Молча игнорируем ошибки для скорости
       }
     }
 
     // Если не нашли похожих страниц через эмбеддинги, используем fallback
     if (similarities.length === 0) {
-      console.log('⚠️ [findSimilarPagesByCosine] No similar pages found via embeddings, using fallback');
       const fallback = this.getFallbackPages(sourcePage, allPages, limit);
       this.similarityCache.set(cacheKey, fallback);
       return fallback;
@@ -711,9 +689,7 @@ export class LinkGenerator {
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map(s => s.page)
-      .filter(page => page && page.id); // Фильтруем страницы без ID
-    
-    console.log(`🔍 [findSimilarPagesByCosine] Returning ${result.length} similar pages with valid IDs`);
+      .filter(page => page && page.id);
     
     // Кэшируем результат
     this.similarityCache.set(cacheKey, result);
