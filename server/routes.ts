@@ -1734,7 +1734,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log('🔗 Processing link:', { anchorText: link.anchorText, targetUrl: link.targetUrl });
         
-        // Convert transliterated anchor to Cyrillic for matching
+        // If we have a modified sentence with the link already inserted, use it
+        if (link.modifiedSentence) {
+          console.log('🔗 Using modified sentence:', link.modifiedSentence);
+          // Find the original sentence in content and replace with modified version
+          const originalText = link.modifiedSentence.replace(/<a[^>]*>.*?<\/a>/g, link.anchorText);
+          if (modifiedContent.includes(originalText)) {
+            modifiedContent = modifiedContent.replace(originalText, link.modifiedSentence);
+            console.log('🔗 Replaced with modified sentence');
+            continue;
+          }
+        }
+        
+        // Fallback: Convert transliterated anchor to Cyrillic for matching
         const cyrillicAnchor = convertTranslitToCyrillic(link.anchorText);
         console.log('🔗 Converted to cyrillic:', cyrillicAnchor);
         
@@ -2115,10 +2127,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(linkCandidates.runId, runId))
         .groupBy(linkCandidates.type);
 
+      // Map scenario types to Russian names
+      const scenarioNames: Record<string, string> = {
+        'orphan_fix': 'Исправление сирот',
+        'head_consolidation': 'Консолидация заголовков', 
+        'cluster_cross_link': 'Перелинковка кластеров',
+        'commercial_routing': 'Коммерческая маршрутизация',
+        'depth_lift': 'Поднятие глубины',
+        'freshness_push': 'Продвижение свежести'
+      };
+
+      const mappedStats = stats.map(stat => ({
+        ...stat,
+        name: scenarioNames[stat.type] || stat.type
+      }));
+
       res.json({
         candidates,
         total: totalCount[0]?.count || 0,
-        stats
+        stats: mappedStats
       });
     } catch (error) {
       console.error("Draft review error:", error);
@@ -3036,11 +3063,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`🔍 [Results API] Found ${candidates.length} link candidates`);
       console.log(`🔍 [Results API] First few candidates:`, candidates.slice(0, 3));
 
+      // Calculate correct statistics
+      const acceptedCount = candidates.filter(c => c.status === 'accepted').length;
+      const rejectedCount = candidates.filter(c => c.status === 'rejected').length;
+      
       const response = {
         runId,
         status: run[0].status,
-        generated: run[0].generated,
-        rejected: run[0].rejected,
+        generated: acceptedCount,
+        rejected: rejectedCount,
         totalCandidates: candidates.length,
         candidates: candidates
       };
