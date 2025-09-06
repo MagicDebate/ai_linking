@@ -72,6 +72,8 @@ export class LinkGenerator {
   private projectId: string;
   private embeddingService: EmbeddingService;
   private startTime: number = 0;
+  private embeddingCache: Map<string, any> = new Map(); // Кэш для embedding'ов
+  private similarityCache: Map<string, any[]> = new Map(); // Кэш для похожих страниц
   private stats: GenerationStats = {
     totalGenerated: 0,
     totalRejected: 0,
@@ -606,8 +608,16 @@ export class LinkGenerator {
     return { generated, rejected };
   }
 
-  // НОВЫЙ МЕТОД: Поиск похожих страниц через cosine similarity
+  // ОПТИМИЗИРОВАННЫЙ МЕТОД: Поиск похожих страниц через cosine similarity с кэшированием
   private async findSimilarPagesByCosine(sourcePage: any, allPages: any[], limit: number, threshold: number): Promise<any[]> {
+    const cacheKey = `${sourcePage.id}_${limit}_${threshold}`;
+    
+    // Проверяем кэш
+    if (this.similarityCache.has(cacheKey)) {
+      console.log(`🚀 [findSimilarPagesByCosine] Cache hit for ${sourcePage.url}`);
+      return this.similarityCache.get(cacheKey)!;
+    }
+    
     console.log(`🔍 [findSimilarPagesByCosine] Finding similar pages for ${sourcePage.url} (threshold: ${threshold}, limit: ${limit})`);
     console.log(`🔍 [findSimilarPagesByCosine] Source page ID: ${sourcePage.id}`);
     console.log(`🔍 [findSimilarPagesByCosine] Total pages to search: ${allPages.length}`);
@@ -622,7 +632,9 @@ export class LinkGenerator {
     
     if (sourceBlocks.length === 0) {
       console.log('⚠️ [findSimilarPagesByCosine] No blocks found for source page');
-      return [];
+      const fallback = this.getFallbackPages(sourcePage, allPages, limit);
+      this.similarityCache.set(cacheKey, fallback);
+      return fallback;
     }
 
     const similarities: Array<{ page: any, score: number }> = [];
@@ -677,15 +689,9 @@ export class LinkGenerator {
     // Если не нашли похожих страниц через эмбеддинги, используем fallback
     if (similarities.length === 0) {
       console.log('⚠️ [findSimilarPagesByCosine] No similar pages found via embeddings, using fallback');
-      
-      // Fallback: возвращаем случайные страницы (кроме самой себя)
-      const otherPages = allPages.filter(p => p.id !== sourcePage.id);
-      const shuffled = otherPages.sort(() => Math.random() - 0.5);
-      
-      return shuffled.slice(0, limit).map(page => ({
-        page,
-        score: 0.5 // Низкий score для fallback
-      }));
+      const fallback = this.getFallbackPages(sourcePage, allPages, limit);
+      this.similarityCache.set(cacheKey, fallback);
+      return fallback;
     }
 
     // Сортируем по score и берем top limit
@@ -696,8 +702,17 @@ export class LinkGenerator {
       .filter(page => page && page.id); // Фильтруем страницы без ID
     
     console.log(`🔍 [findSimilarPagesByCosine] Returning ${result.length} similar pages with valid IDs`);
-    console.log(`🔍 [findSimilarPagesByCosine] Result pages:`, result.map(p => ({ url: p.url, id: p.id })));
+    
+    // Кэшируем результат
+    this.similarityCache.set(cacheKey, result);
     return result;
+  }
+
+  // Вспомогательный метод для fallback страниц
+  private getFallbackPages(sourcePage: any, allPages: any[], limit: number): any[] {
+    const otherPages = allPages.filter(p => p.id !== sourcePage.id);
+    const shuffled = otherPages.sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, limit);
   }
 
   // Попытка создать ссылку с проверкой всех политик
