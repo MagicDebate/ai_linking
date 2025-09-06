@@ -357,8 +357,8 @@ export class LinkGenerator {
       const orphanPage = orphanPages[i];
       console.log('🔍 [OrphanFix] Processing orphan page:', orphanPage.url, `(${i + 1}/${orphanPages.length})`);
       
-      // Обновляем прогресс каждые 10 страниц
-      if ((i + 1) % 10 === 0 || i === orphanPages.length - 1) {
+      // Обновляем прогресс каждые 5 страниц для более частого обновления
+      if ((i + 1) % 5 === 0 || i === orphanPages.length - 1) {
         await this.updateProgress(runId, 'generating', 30 + Math.round((i / orphanPages.length) * 20), generated, rejected, i + 1, orphanPages.length);
       }
       
@@ -384,6 +384,8 @@ export class LinkGenerator {
         if (result.created) {
           generated++;
           console.log('✅ [OrphanFix] Link created:', similarPage.url, '->', orphanPage.url);
+          // Обновляем прогресс после каждой созданной ссылки
+          await this.updateProgress(runId, 'generating', 30 + Math.round((i / orphanPages.length) * 20), generated, rejected, i + 1, orphanPages.length);
         } else {
           rejected++;
           console.log('❌ [OrphanFix] Link rejected:', similarPage.url, '->', orphanPage.url, 'Reason:', result.reason);
