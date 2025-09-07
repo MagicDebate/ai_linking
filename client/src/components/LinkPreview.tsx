@@ -181,10 +181,10 @@ export function LinkPreview({ candidate, onApprove, onReject }: LinkPreviewProps
               <div 
                 className="text-sm leading-relaxed"
                 dangerouslySetInnerHTML={{ 
-                  __html: candidate.modifiedSentence.replace(
+                  __html: candidate.modifiedSentence ? candidate.modifiedSentence.replace(
                     /<a href="([^"]+)">([^<]+)<\/a>/g,
                     '<a href="$1" class="text-blue-600 underline font-medium" target="_blank">$2</a>'
-                  )
+                  ) : 'Нет текста'
                 }}
               />
             </div>

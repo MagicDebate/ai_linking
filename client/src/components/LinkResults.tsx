@@ -111,7 +111,7 @@ export default function LinkResults({ runId, projectId, onNext }: LinkResultsPro
     
     return (
       <Badge variant="outline" className={colors[scenario as keyof typeof colors] || 'bg-gray-500'}>
-        {scenario.replace('_', ' ')}
+        {scenario ? scenario.replace('_', ' ') : 'unknown'}
       </Badge>
     );
   };

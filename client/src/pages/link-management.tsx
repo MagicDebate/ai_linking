@@ -137,7 +137,7 @@ export default function LinkManagement() {
     
     return (
       <Badge variant="outline" className={colors[scenario as keyof typeof colors] || 'bg-gray-500'}>
-        {scenario.replace('_', ' ')}
+        {scenario ? scenario.replace('_', ' ') : 'unknown'}
       </Badge>
     );
   };

@@ -341,7 +341,7 @@ export default function DraftReview() {
                           <div className="font-medium">{candidate.anchorText}</div>
                           {candidate.modifiedSentence && (
                             <div className="text-xs text-gray-500 mt-1">
-                              Контекст: {candidate.modifiedSentence.replace(/<a[^>]*>.*?<\/a>/g, candidate.anchorText).substring(0, 100)}...
+                              Контекст: {candidate.modifiedSentence ? candidate.modifiedSentence.replace(/<a[^>]*>.*?<\/a>/g, candidate.anchorText || '').substring(0, 100) : 'Нет контекста'}...
                             </div>
                           )}
                         </div>
@@ -376,7 +376,7 @@ export default function DraftReview() {
                                     {candidate.modifiedSentence ? (
                                       <div>
                                         <div className="mb-2 text-xs text-gray-500">Исходный текст:</div>
-                                        <div className="mb-3">{candidate.modifiedSentence.replace(/<a[^>]*>.*?<\/a>/g, candidate.anchorText)}</div>
+                                        <div className="mb-3">{candidate.modifiedSentence ? candidate.modifiedSentence.replace(/<a[^>]*>.*?<\/a>/g, candidate.anchorText || '') : 'Нет текста'}</div>
                                         <div className="mb-2 text-xs text-gray-500">Текст с анкором:</div>
                                         <div className="bg-green-50 p-2 rounded" dangerouslySetInnerHTML={{ __html: candidate.modifiedSentence }} />
                                       </div>
