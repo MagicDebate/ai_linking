@@ -2612,9 +2612,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (fixedTitle && fixedTitle.includes('')) {
           try {
+            // Используем iconv-lite для правильной конвертации
+            const iconv = require('iconv-lite');
             const buffer = Buffer.from(fixedTitle, 'binary');
-            fixedTitle = buffer.toString('utf-8');
+            fixedTitle = iconv.decode(buffer, 'windows-1251');
             needsUpdate = true;
+            console.log('✅ [FIX ENCODING PROJECT] Fixed title:', fixedTitle.substring(0, 50));
           } catch (error) {
             console.log('⚠️ [FIX ENCODING PROJECT] Could not fix title:', fixedTitle);
           }
@@ -2622,9 +2625,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (fixedDescription && fixedDescription.includes('')) {
           try {
+            // Используем iconv-lite для правильной конвертации
+            const iconv = require('iconv-lite');
             const buffer = Buffer.from(fixedDescription, 'binary');
-            fixedDescription = buffer.toString('utf-8');
+            fixedDescription = iconv.decode(buffer, 'windows-1251');
             needsUpdate = true;
+            console.log('✅ [FIX ENCODING PROJECT] Fixed description:', fixedDescription.substring(0, 50));
           } catch (error) {
             console.log('⚠️ [FIX ENCODING PROJECT] Could not fix description:', fixedDescription);
           }
@@ -2647,10 +2653,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const block of blocksData) {
         if (block.text && block.text.includes('')) {
           try {
+            // Используем iconv-lite для правильной конвертации
+            const iconv = require('iconv-lite');
             const buffer = Buffer.from(block.text, 'binary');
-            const fixedText = buffer.toString('utf-8');
+            const fixedText = iconv.decode(buffer, 'windows-1251');
             await db.update(blocks).set({ text: fixedText }).where(eq(blocks.id, block.id));
             fixedBlocks++;
+            console.log('✅ [FIX ENCODING PROJECT] Fixed block text:', fixedText.substring(0, 50));
           } catch (error) {
             console.log('⚠️ [FIX ENCODING PROJECT] Could not fix block text');
           }
