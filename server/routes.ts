@@ -41,6 +41,33 @@ const authLimiter = rateLimit({
 
 export async function registerRoutes(app: Express): Promise<Server> {
   console.log('🚀 [ROUTES] Starting registerRoutes...');
+  
+  // Принудительно завершаем все активные генерации при старте сервера
+  try {
+    console.log('🔧 [STARTUP] Checking for active generations to complete...');
+    const activeGenerations = await db
+      .select({ runId: generationRuns.runId, projectId: generationRuns.projectId })
+      .from(generationRuns)
+      .where(eq(generationRuns.status, 'running'));
+
+    if (activeGenerations.length > 0) {
+      console.log(`🔧 [STARTUP] Found ${activeGenerations.length} active generations, completing them...`);
+      for (const gen of activeGenerations) {
+        await db
+          .update(generationRuns)
+          .set({
+            status: 'draft',
+            phase: 'completed',
+            percent: 100,
+            finishedAt: new Date()
+          })
+          .where(eq(generationRuns.runId, gen.runId));
+        console.log(`🔧 [STARTUP] Completed generation: ${gen.runId}`);
+      }
+    }
+  } catch (error) {
+    console.error('❌ [STARTUP] Error completing active generations:', error);
+  }
   console.log('🔍 [ROUTES] Checking imports...');
   
   try {
@@ -2631,7 +2658,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('❌ Fix encoding project error:', error);
-      res.status(500).json({ error: 'Failed to fix encoding for project' });
+      console.error('❌ Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        projectId
+      });
+      res.status(500).json({ 
+        error: 'Failed to fix encoding for project',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
   
