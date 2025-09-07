@@ -195,48 +195,63 @@ export default function GenerateLinks() {
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-4">
-              <Link href={`/project/${projectId}`}>
+              <Link href={`/project/${projectId}/seo`}>
                 <Button variant="outline" size="sm">
                   <ArrowLeft className="h-4 w-4 mr-2" />
-                  Назад к проекту
+                  Назад к настройкам
                 </Button>
               </Link>
               <h1 className="text-2xl font-bold text-gray-900">
-                Генерация ссылок
+                {activeRun ? 'Генерация в процессе' : 'Генерация ссылок'}
               </h1>
             </div>
             <p className="text-gray-600">
-              Автоматическая генерация внутренних ссылок для SEO
+              {activeRun ? 'Следите за прогрессом генерации ссылок' : 'Автоматическая генерация внутренних ссылок для SEO'}
             </p>
           </div>
           
-          <Button 
-            onClick={() => generateMutation.mutate()}
-            disabled={generateMutation.isPending || !!activeRun}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            {generateMutation.isPending ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Запуск...
-              </>
-            ) : (
-              <>
-                <Zap className="h-4 w-4 mr-2" />
-                Запустить генерацию
-              </>
-            )}
-          </Button>
+          {!activeRun && (
+            <Button 
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {generateMutation.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Запуск...
+                </>
+              ) : (
+                <>
+                  <Zap className="h-4 w-4 mr-2" />
+                  Запустить генерацию
+                </>
+              )}
+            </Button>
+          )}
         </div>
 
         {/* Active Generation Progress */}
         {activeRun && (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-blue-600" />
-                Генерация в процессе
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-blue-600" />
+                  Генерация в процессе
+                </CardTitle>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    // TODO: Implement stop generation
+                    toast({ title: "Функция остановки генерации будет добавлена" });
+                  }}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Остановить
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               {generationProgress && (
@@ -292,12 +307,13 @@ export default function GenerateLinks() {
           </Card>
         )}
 
-        {/* Recent Runs */}
-        <Card>
-          <CardHeader>
-            <CardTitle>История генераций</CardTitle>
-          </CardHeader>
-          <CardContent>
+        {/* Recent Runs - показываем только если нет активной генерации */}
+        {!activeRun && (
+          <Card>
+            <CardHeader>
+              <CardTitle>История генераций</CardTitle>
+            </CardHeader>
+            <CardContent>
             {runs && runs.length > 0 ? (
               <div className="space-y-3">
                 {runs.map((run) => (
@@ -352,9 +368,10 @@ export default function GenerateLinks() {
             )}
           </CardContent>
         </Card>
+        )}
 
-        {/* Quick Actions */}
-        {latestCompletedRun && (
+        {/* Quick Actions - показываем только если нет активной генерации */}
+        {!activeRun && latestCompletedRun && (
           <Card>
             <CardHeader>
               <CardTitle>Быстрые действия</CardTitle>
