@@ -16,7 +16,7 @@ import {
 import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, edges, graphMeta, pagesRaw, generationRuns, linkCandidates, projectImportConfigs, insertProjectImportConfigSchema, importJobs, imports } from "@shared/tables";
 import { LinkGenerator } from "./linkGenerator.js";
 import { progressStreamManager } from "./progressStream";
-import { sql, eq, and, desc } from "drizzle-orm";
+import { sql, eq, and, desc, inArray } from "drizzle-orm";
 import { db } from "./db"; 
 import { DatabaseStorage } from "./storage";
 import multer from "multer";
@@ -2594,7 +2594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const jobIds = importJobsData.map(job => job.jobId);
-      const pagesRawData = await db.select().from(pagesRaw).where(sql`${pagesRaw.jobId} = ANY(${jobIds})`);
+      const pagesRawData = await db.select().from(pagesRaw).where(inArray(pagesRaw.jobId, jobIds));
       console.log(`🔧 [FIX ENCODING PROJECT] Found ${pagesRawData.length} pages_raw to fix`);
       
       let fixedPagesRaw = 0;
@@ -2632,8 +2632,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Fix blocks
-      const blocksData = await db.select().from(blocks).where(sql`${blocks.pageId} = ANY(SELECT id FROM pages_raw WHERE job_id = ANY(${jobIds}))`);
+      // Fix blocks - получаем ID всех pages_raw для этих jobIds
+      const pageIds = pagesRawData.map(page => page.id);
+      const blocksData = await db.select().from(blocks).where(inArray(blocks.pageId, pageIds));
       console.log(`🔧 [FIX ENCODING PROJECT] Found ${blocksData.length} blocks to fix`);
       
       let fixedBlocks = 0;
@@ -2661,7 +2662,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('❌ Error details:', {
         message: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
-        projectId
+        projectId: req.params.projectId
       });
       res.status(500).json({ 
         error: 'Failed to fix encoding for project',
