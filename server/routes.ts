@@ -2538,6 +2538,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ========== GENERATION MANAGEMENT ==========
   
+  // Fix encoding in project data (pages_raw and blocks)
+  app.post("/api/fix-encoding-project/:projectId", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      console.log('🔧 [FIX ENCODING PROJECT] Starting encoding fix for project:', projectId);
+      
+      // Fix pages_raw
+      const pagesRaw = await db.select().from(pagesRaw).where(eq(pagesRaw.projectId, projectId));
+      console.log(`🔧 [FIX ENCODING PROJECT] Found ${pagesRaw.length} pages_raw to fix`);
+      
+      let fixedPagesRaw = 0;
+      for (const page of pagesRaw) {
+        let needsUpdate = false;
+        let fixedTitle = page.title;
+        let fixedDescription = page.description;
+        
+        if (fixedTitle && fixedTitle.includes('')) {
+          try {
+            const buffer = Buffer.from(fixedTitle, 'binary');
+            fixedTitle = buffer.toString('utf-8');
+            needsUpdate = true;
+          } catch (error) {
+            console.log('⚠️ [FIX ENCODING PROJECT] Could not fix title:', fixedTitle);
+          }
+        }
+        
+        if (fixedDescription && fixedDescription.includes('')) {
+          try {
+            const buffer = Buffer.from(fixedDescription, 'binary');
+            fixedDescription = buffer.toString('utf-8');
+            needsUpdate = true;
+          } catch (error) {
+            console.log('⚠️ [FIX ENCODING PROJECT] Could not fix description:', fixedDescription);
+          }
+        }
+        
+        if (needsUpdate) {
+          await db.update(pagesRaw).set({ 
+            title: fixedTitle, 
+            description: fixedDescription,
+            meta: { title: fixedTitle, description: fixedDescription || '' }
+          }).where(eq(pagesRaw.id, page.id));
+          fixedPagesRaw++;
+        }
+      }
+      
+      // Fix blocks
+      const blocks = await db.select().from(blocks).where(eq(blocks.pageId, sql`ANY(SELECT id FROM pages_raw WHERE project_id = ${projectId})`));
+      console.log(`🔧 [FIX ENCODING PROJECT] Found ${blocks.length} blocks to fix`);
+      
+      let fixedBlocks = 0;
+      for (const block of blocks) {
+        if (block.text && block.text.includes('')) {
+          try {
+            const buffer = Buffer.from(block.text, 'binary');
+            const fixedText = buffer.toString('utf-8');
+            await db.update(blocks).set({ text: fixedText }).where(eq(blocks.id, block.id));
+            fixedBlocks++;
+          } catch (error) {
+            console.log('⚠️ [FIX ENCODING PROJECT] Could not fix block text');
+          }
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `Fixed encoding for project ${projectId}`,
+        fixedPagesRaw,
+        fixedBlocks
+      });
+    } catch (error) {
+      console.error('❌ Fix encoding project error:', error);
+      res.status(500).json({ error: 'Failed to fix encoding for project' });
+    }
+  });
+  
   // Force complete old generation runs
   app.post("/api/generate/force-complete/:projectId", authenticateToken, async (req: any, res) => {
     try {

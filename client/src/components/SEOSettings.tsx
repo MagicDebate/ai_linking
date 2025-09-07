@@ -175,6 +175,33 @@ export function SEOSettings({
       });
     }
   });
+
+  // Мутация для исправления кодировки проекта
+  const fixProjectEncodingMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const response = await fetch(`/api/fix-encoding-project/${projectId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fix project encoding');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Кодировка проекта исправлена", description: `Исправлено ${data.fixedPagesRaw} страниц и ${data.fixedBlocks} блоков` });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Ошибка исправления кодировки проекта", 
+        description: error instanceof Error ? error.message : "Не удалось исправить кодировку проекта",
+        variant: "destructive" 
+      });
+    }
+  });
   const updateProfile = (updates: Partial<SEOProfile>) => {
     onProfileChange({ ...seoProfile, ...updates });
   };
@@ -624,7 +651,7 @@ export function SEOSettings({
              </Button>
              
              <Button 
-               onClick={() => fixEncodingMutation.mutate('run_1757273148401_n3v9vjy58')}
+               onClick={() => fixEncodingMutation.mutate('run_1757273888760_twgn3d95p')}
                disabled={fixEncodingMutation.isPending}
                variant="outline"
                size="lg"
@@ -639,6 +666,26 @@ export function SEOSettings({
                  <>
                    <Code className="h-4 w-4 mr-2" />
                    Исправить кодировку
+                 </>
+               )}
+             </Button>
+             
+             <Button 
+               onClick={() => fixProjectEncodingMutation.mutate(projectId)}
+               disabled={fixProjectEncodingMutation.isPending}
+               variant="outline"
+               size="lg"
+               className="px-6"
+             >
+               {fixProjectEncodingMutation.isPending ? (
+                 <>
+                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                   Исправление проекта...
+                 </>
+               ) : (
+                 <>
+                   <Settings className="h-4 w-4 mr-2" />
+                   Исправить кодировку проекта
                  </>
                )}
              </Button>
