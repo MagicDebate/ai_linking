@@ -146,6 +146,25 @@ export default function GenerateLinks() {
     };
   }, [runs]);
 
+  // Handle generation completion
+  useEffect(() => {
+    if (generationProgress?.status === 'draft' || generationProgress?.status === 'completed') {
+      toast({
+        title: "Генерация завершена!",
+        description: `Сгенерировано ${generationProgress.generated} ссылок, отклонено ${generationProgress.rejected}`,
+      });
+      
+      // Refresh runs list to show completed run
+      queryClient.invalidateQueries({ queryKey: ['/api/generate/runs', projectId] });
+      
+      // Close progress stream
+      if (eventSource) {
+        eventSource.close();
+        setEventSource(null);
+      }
+    }
+  }, [generationProgress?.status, generationProgress?.generated, generationProgress?.rejected, toast, queryClient, projectId, eventSource]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
