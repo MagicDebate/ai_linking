@@ -232,7 +232,7 @@ export default function LinkManagement() {
                     <div className="flex gap-2">
                       {getStatusBadge(candidate.status)}
                       {getScenarioBadge(candidate.scenario)}
-                      <Badge variant="outline">Score: {candidate.score.toFixed(2)}</Badge>
+                      <Badge variant="outline">Score: {candidate.score ? candidate.score.toFixed(2) : 'N/A'}</Badge>
                     </div>
                     <div className="flex gap-2">
                       {candidate.status !== 'accepted' && (

@@ -503,7 +503,7 @@ export function ImportPage() {
               <div className="text-center p-3 bg-gray-50 rounded-lg">
                 <TrendingUp className="h-6 w-6 text-gray-600 mx-auto mb-2" />
                 <div className="text-2xl font-bold text-gray-900">
-                  {(importStatus.avgClickDepth || 0).toFixed(1)}
+                  {(importStatus?.avgClickDepth || 0).toFixed(1)}
                 </div>
                 <div className="text-sm text-gray-600">глубина</div>
               </div>
@@ -556,7 +556,7 @@ export function ImportPage() {
                 </div>
                 <div className="text-center p-3 bg-white rounded-lg border">
                   <div className="text-2xl font-bold text-green-600">
-                    {(importStatus.avgClickDepth || 0).toFixed(1)}
+                    {(importStatus?.avgClickDepth || 0).toFixed(1)}
                   </div>
                   <div className="text-sm text-green-700">средняя глубина</div>
                 </div>
