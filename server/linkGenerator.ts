@@ -736,6 +736,52 @@ export class LinkGenerator {
     return shuffled.slice(0, limit);
   }
 
+  // Convert transliterated text to Cyrillic
+  private convertTranslitToCyrillic(anchor: string): string {
+    // Сначала проверяем готовые фразы
+    const fixedPhrases: { [key: string]: string } = {
+      'kak ponyat chto u tebya panicheskaya ataka': 'как понять что у тебя паническая атака',
+      'chto takoe osoznannost ot buddijskoj': 'что такое осознанность от буддийской',
+      'chto delat pri panicheskoy atake': 'что делать при панической атаке',
+      'lechenie panicheskih atak': 'лечение панических атак',
+      'panicheskie ataki posle alkogolya': 'панические атаки после алкоголя',
+      'panicheskie ataki pered snom pri zasypanii': 'панические атаки перед сном при засыпании',
+      'panicheskiy strah': 'панический страх',
+      'plohoe samochuvstvie posle panicheskoy ataki': 'плохое самочувствие после панической атаки',
+      'simptomy panicheskih atak u zhenshchin': 'симптомы панических атак у женщин',
+      'panicheskie ataki pri klimakse': 'панические атаки при климаксе',
+      'bessonnica pri depressii': 'бессонница при депрессии',
+      'hronicheskaya depressiya': 'хроническая депрессия',
+      'vidy depressii': 'виды депрессии'
+    };
+    
+    const lowerAnchor = anchor.toLowerCase();
+    
+    // Проверяем точные совпадения
+    if (fixedPhrases[lowerAnchor]) {
+      return fixedPhrases[lowerAnchor];
+    }
+    
+    // Общая транслитерация для остальных случаев
+    const translitMap: { [key: string]: string } = {
+      'shch': 'щ', 'sch': 'щ', 'sh': 'ш', 'ch': 'ч', 'zh': 'ж', 'yu': 'ю', 'ya': 'я', 'yo': 'ё',
+      'kh': 'х', 'ts': 'ц', 'tz': 'ц', 'ph': 'ф', 'th': 'т',
+      'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д', 'e': 'е', 'z': 'з', 'i': 'и', 'j': 'й',
+      'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о', 'p': 'п', 'r': 'р', 's': 'с', 't': 'т',
+      'u': 'у', 'f': 'ф', 'c': 'ц', 'y': 'ы', 'w': 'в', 'x': 'кс', 'q': 'к'
+    };
+    
+    let result = anchor;
+    
+    // Заменяем по порядку (сначала длинные комбинации)
+    for (const [translit, cyrillic] of Object.entries(translitMap)) {
+      const regex = new RegExp(translit, 'gi');
+      result = result.replace(regex, cyrillic);
+    }
+    
+    return result;
+  }
+
   // Попытка создать ссылку с проверкой всех политик
   private async tryCreateLink(runId: string, sourcePage: any, targetPage: any, scenario: string, params: GenerationParams): Promise<{ created: boolean, reason?: string, anchor?: string }> {
     console.log(`🔍 [tryCreateLink] Attempting to create link: ${sourcePage.url} -> ${targetPage.url} (scenario: ${scenario})`);
@@ -764,7 +810,10 @@ export class LinkGenerator {
       }
 
       // 4. Генерация анкора
-      const anchorText = await this.generateAnchorText(sourcePage, targetPage, params);
+      let anchorText = await this.generateAnchorText(sourcePage, targetPage, params);
+      
+      // Конвертируем транслитерацию в кириллицу
+      anchorText = this.convertTranslitToCyrillic(anchorText);
       
       // 5. Проверка стоп-листа
       if (this.isStopAnchor(anchorText, params.stopAnchors)) {

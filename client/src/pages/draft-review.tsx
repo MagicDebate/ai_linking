@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Filter, ExternalLink, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ArrowLeft, Filter, ExternalLink, CheckCircle, XCircle, AlertTriangle, Eye } from 'lucide-react';
 import { Link } from 'wouter';
 
 interface LinkCandidate {
@@ -16,11 +17,12 @@ interface LinkCandidate {
   sourceUrl: string;
   targetUrl: string;
   anchorText: string;
-  scenario: string;
-  isRejected: boolean;
+  type: string; // Изменили scenario на type
+  status: string; // Изменили isRejected на status
   rejectionReason?: string;
   similarity?: number;
   position: number;
+  modifiedSentence?: string; // Добавили для предпросмотра
 }
 
 interface DraftStats {
@@ -37,21 +39,21 @@ interface DraftData {
 }
 
 const SCENARIO_LABELS: Record<string, string> = {
-  orphan: 'Поднятие сирот',
-  head: 'Консолидация голов',
-  depth: 'Поднятие глубоких',
-  fresh: 'Продвижение свежих',
-  cross: 'Кросс-линковка',
-  money: 'Коммерческий роутинг'
+  orphan_fix: 'Исправление сирот',
+  head_consolidation: 'Консолидация заголовков',
+  depth_lift: 'Поднятие глубины',
+  freshness_push: 'Продвижение свежести',
+  cluster_cross_link: 'Перелинковка кластеров',
+  commercial_routing: 'Коммерческая маршрутизация'
 };
 
 const SCENARIO_COLORS: Record<string, string> = {
-  orphan: 'bg-red-100 text-red-800',
-  head: 'bg-blue-100 text-blue-800',
-  depth: 'bg-purple-100 text-purple-800',
-  fresh: 'bg-green-100 text-green-800',
-  cross: 'bg-yellow-100 text-yellow-800',
-  money: 'bg-orange-100 text-orange-800'
+  orphan_fix: 'bg-red-100 text-red-800',
+  head_consolidation: 'bg-blue-100 text-blue-800',
+  depth_lift: 'bg-purple-100 text-purple-800',
+  freshness_push: 'bg-green-100 text-green-800',
+  cluster_cross_link: 'bg-yellow-100 text-yellow-800',
+  commercial_routing: 'bg-orange-100 text-orange-800'
 };
 
 export default function DraftReview() {
@@ -61,6 +63,7 @@ export default function DraftReview() {
   const [selectedScenario, setSelectedScenario] = useState<string>('all');
   const [selectedPage, setSelectedPage] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(0);
+  const [previewCandidate, setPreviewCandidate] = useState<LinkCandidate | null>(null);
   const pageSize = 50;
 
   // Fetch draft data
@@ -294,15 +297,15 @@ export default function DraftReview() {
                 {draftData.candidates.map((candidate) => (
                   <TableRow key={candidate.id}>
                     <TableCell>
-                      {candidate.isRejected ? (
+                      {candidate.status === 'rejected' ? (
                         <Badge variant="destructive">Отклонено</Badge>
                       ) : (
                         <Badge variant="default" className="bg-green-100 text-green-800">Принято</Badge>
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge className={SCENARIO_COLORS[candidate.scenario] || 'bg-gray-100 text-gray-800'}>
-                        {SCENARIO_LABELS[candidate.scenario] || candidate.scenario}
+                      <Badge className={SCENARIO_COLORS[candidate.type] || 'bg-gray-100 text-gray-800'}>
+                        {SCENARIO_LABELS[candidate.type] || candidate.type}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -332,7 +335,49 @@ export default function DraftReview() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="font-medium">{candidate.anchorText}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{candidate.anchorText}</span>
+                        {candidate.modifiedSentence && (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => setPreviewCandidate(candidate)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                              <DialogHeader>
+                                <DialogTitle>Предпросмотр текста с анкором</DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div className="bg-blue-50 p-4 rounded-lg">
+                                  <h4 className="font-medium mb-2">Информация о ссылке:</h4>
+                                  <div className="space-y-1 text-sm">
+                                    <div><strong>Анкор:</strong> {candidate.anchorText}</div>
+                                    <div><strong>Ведет на:</strong> <a href={candidate.targetUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{candidate.targetUrl}</a></div>
+                                    <div><strong>Сценарий:</strong> <Badge className={SCENARIO_COLORS[candidate.type] || 'bg-gray-100 text-gray-800'}>{SCENARIO_LABELS[candidate.type] || candidate.type}</Badge></div>
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <h4 className="font-medium mb-2">Исходный текст:</h4>
+                                  <div className="bg-gray-50 p-3 rounded border text-sm">
+                                    {candidate.modifiedSentence.replace(/<a[^>]*>.*?<\/a>/g, candidate.anchorText)}
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <h4 className="font-medium mb-2">Текст с анкором:</h4>
+                                  <div className="bg-green-50 p-3 rounded border text-sm" dangerouslySetInnerHTML={{ __html: candidate.modifiedSentence }} />
+                                </div>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {candidate.rejectionReason && (
