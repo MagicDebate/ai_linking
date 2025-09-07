@@ -1579,6 +1579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         scenarios: seoProfile?.scenarios,
         policies: seoProfile?.policies
       });
+      console.log('🔍 [API] ===== ДЕТАЛЬНАЯ ОТЛАДКА ЗАПУСКА ГЕНЕРАЦИИ =====');
       
       // Validate project belongs to user
       const project = await storage.getProjectById(projectId);
@@ -1617,6 +1618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const generator = new LinkGenerator(projectId);
 
       // Get the latest completed import jobId to use for generation
+      console.log('🔍 [API] Looking for latest completed import for project:', projectId);
       const latestImport = await db
         .select({ jobId: importJobs.jobId, status: importJobs.status, startedAt: importJobs.startedAt })
         .from(importJobs)
@@ -1626,8 +1628,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ))
         .orderBy(desc(importJobs.startedAt))
         .limit(1);
+      
+      console.log('🔍 [API] Latest completed import found:', latestImport.length > 0 ? latestImport[0] : 'NONE');
 
       if (!latestImport.length) {
+        console.log('❌ [API] No completed import found for project:', projectId);
+        console.log('❌ [API] ===== ПРИЧИНА: Нет импортов со статусом completed =====');
         return res.status(400).json({ 
           success: false, 
           error: "No completed import found. Please complete import first." 

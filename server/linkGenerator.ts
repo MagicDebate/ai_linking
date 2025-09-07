@@ -195,6 +195,9 @@ export class LinkGenerator {
       
       if (pages.length === 0) {
         console.log('❌ [generateLinks] No pages found, cannot generate links');
+        console.log('❌ [generateLinks] ===== ПРИЧИНА: loadPages() вернул пустой массив =====');
+        console.log('❌ [generateLinks] ProjectId:', this.projectId);
+        console.log('❌ [generateLinks] JobId from params:', (params as any).jobId);
         await this.updateProgress(runId, 'failed', 20, 0, 0);
         throw new Error('No pages found for generation. Please complete import first.');
       }
@@ -987,6 +990,7 @@ export class LinkGenerator {
     console.log('🔍 [loadPages] Loading pages for project:', this.projectId);
     console.log('🚨 [loadPages] ===== ПРОЕКТ ID:', this.projectId, '=====');
     console.log('🔍 [loadPages] Force jobId:', forceJobId || 'not specified');
+    console.log('🔍 [loadPages] ===== ДЕТАЛЬНАЯ ОТЛАДКА =====');
     
     try {
       let jobId: string;
@@ -1042,6 +1046,7 @@ export class LinkGenerator {
             .limit(5);
           
           console.log('🔍 [loadPages] All imports for project:', allImports);
+          console.log('❌ [loadPages] RETURNING EMPTY ARRAY - NO IMPORTS FOUND');
           return [];
         }
 
@@ -1056,6 +1061,7 @@ export class LinkGenerator {
       .where(eq(pagesRaw.jobId, jobId));
     
     console.log('🔍 [loadPages] Raw pages count for jobId:', pagesCount[0].count);
+    console.log('🔍 [loadPages] ===== ПРОВЕРКА СТРАНИЦ =====');
     
     // Проверим есть ли graphMeta для этого jobId
     const graphMetaCount = await db
@@ -1088,9 +1094,11 @@ export class LinkGenerator {
       ));
 
     console.log('🔍 [loadPages] Found pages:', pages.length);
+    console.log('🔍 [loadPages] ===== РЕЗУЛЬТАТ ЗАПРОСА =====');
     if (pages.length > 0) {
       console.log('🔍 [loadPages] Sample page:', pages[0]);
       console.log('🔍 [loadPages] Orphan pages:', pages.filter((p: any) => p.isOrphan).length);
+      console.log('✅ [loadPages] SUCCESS: Found', pages.length, 'pages for generation');
       
       // Проверим есть ли страницы без ID или URL
       const pagesWithoutId = pages.filter((p: any) => !p.id);
@@ -1106,6 +1114,7 @@ export class LinkGenerator {
       }
     } else {
       console.log('❌ [loadPages] No pages found for jobId:', jobId);
+      console.log('🔍 [loadPages] ===== ПОПЫТКА НАЙТИ СТРАНИЦЫ БЕЗ GRAPHMETA =====');
       
       // Попробуем найти страницы без graphMeta
       const simplePages = await db
