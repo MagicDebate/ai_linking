@@ -2551,15 +2551,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('🔧 [FIX ENCODING PROJECT] Starting encoding fix for project:', projectId);
       
-      // Fix pages_raw
-      const pagesRaw = await db.select().from(pagesRaw).where(eq(pagesRaw.projectId, projectId));
-      console.log(`🔧 [FIX ENCODING PROJECT] Found ${pagesRaw.length} pages_raw to fix`);
+      // Fix pages_raw - нужно получить через importJobs
+      const importJobsData = await db
+        .select({ jobId: importJobs.jobId })
+        .from(importJobs)
+        .where(eq(importJobs.projectId, projectId));
+      
+      if (importJobsData.length === 0) {
+        return res.json({ 
+          success: true, 
+          message: "No import jobs found for project",
+          fixedPagesRaw: 0,
+          fixedBlocks: 0
+        });
+      }
+      
+      const jobIds = importJobsData.map(job => job.jobId);
+      const pagesRawData = await db.select().from(pagesRaw).where(sql`${pagesRaw.jobId} = ANY(${jobIds})`);
+      console.log(`🔧 [FIX ENCODING PROJECT] Found ${pagesRawData.length} pages_raw to fix`);
       
       let fixedPagesRaw = 0;
-      for (const page of pagesRaw) {
+      for (const page of pagesRawData) {
         let needsUpdate = false;
-        let fixedTitle = page.title;
-        let fixedDescription = page.description;
+        const meta = page.meta as any;
+        let fixedTitle = meta?.title;
+        let fixedDescription = meta?.description;
         
         if (fixedTitle && fixedTitle.includes('')) {
           try {
@@ -2583,20 +2599,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (needsUpdate) {
           await db.update(pagesRaw).set({ 
-            title: fixedTitle, 
-            description: fixedDescription,
-            meta: { title: fixedTitle, description: fixedDescription || '' }
+            meta: { ...meta, title: fixedTitle, description: fixedDescription || '' }
           }).where(eq(pagesRaw.id, page.id));
           fixedPagesRaw++;
         }
       }
       
       // Fix blocks
-      const blocks = await db.select().from(blocks).where(eq(blocks.pageId, sql`ANY(SELECT id FROM pages_raw WHERE project_id = ${projectId})`));
-      console.log(`🔧 [FIX ENCODING PROJECT] Found ${blocks.length} blocks to fix`);
+      const blocksData = await db.select().from(blocks).where(sql`${blocks.pageId} = ANY(SELECT id FROM pages_raw WHERE job_id = ANY(${jobIds}))`);
+      console.log(`🔧 [FIX ENCODING PROJECT] Found ${blocksData.length} blocks to fix`);
       
       let fixedBlocks = 0;
-      for (const block of blocks) {
+      for (const block of blocksData) {
         if (block.text && block.text.includes('')) {
           try {
             const buffer = Buffer.from(block.text, 'binary');

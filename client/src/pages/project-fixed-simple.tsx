@@ -248,12 +248,18 @@ export default function ProjectFixedSimple() {
     }
   }, [importStatus?.status, currentStep, navigateToStep]);
 
-  // Auto-transition from generation to draft
+  // Show completion notification (no auto-transition to avoid white screen)
   useEffect(() => {
     if (generationProgress?.status === 'draft' && currentStep === 4) {
-      navigateToStep(5);
+      toast({ title: "Генерация завершена успешно! Результаты доступны ниже." });
+    } else if (generationProgress?.status === 'failed' && currentStep === 4) {
+      toast({ 
+        title: "Ошибка генерации", 
+        description: generationProgress.errorMessage || "Неизвестная ошибка",
+        variant: "destructive" 
+      });
     }
-  }, [generationProgress?.status, currentStep, navigateToStep]);
+  }, [generationProgress?.status, currentStep]);
 
   // Handle back to upload
   const handleBackToUpload = () => {
