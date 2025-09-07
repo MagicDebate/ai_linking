@@ -1270,6 +1270,12 @@ export class LinkGenerator {
         8 // maxWords
       );
 
+      // Дополнительная проверка что анкор есть в исходном тексте
+      if (aiAnchor && !sourceText.toLowerCase().includes(aiAnchor.toLowerCase())) {
+        console.log('⚠️ [generateAIAnchor] AI generated anchor not found in source text:', aiAnchor);
+        return null;
+      }
+
       return aiAnchor;
     } catch (error) {
       console.error('❌ [generateAIAnchor] Error:', error);
@@ -1282,13 +1288,16 @@ export class LinkGenerator {
     const title = String(targetPage.title || '');
     
     // Извлекаем ключевые слова из заголовка
-    const words = title.split(/\s+/).filter(word => word.length > 3).slice(0, 4);
+    const words = title.split(/\s+/)
+      .filter(word => word.length > 3)
+      .filter(word => !/^(для|при|после|перед|во|в|на|с|из|от|до|за|под|над|между|среди|через|без|кроме|вместо|благодаря|согласно|вопреки|несмотря|наряду|вместе|помимо|кроме|включая|исключая|начиная|кончая|заканчивая|продолжая|останавливая|прекращая|начинающий|кончающий|заканчивающий|продолжающий|останавливающий|прекращающий)$/i.test(word))
+      .slice(0, 4);
     
     if (words.length >= 2) {
       return words.join(' ');
     }
     
-    // Если не получилось - используем заголовок целиком
+    // Если не получилось - используем заголовок целиком (обрезанный)
     return title.length > 50 ? title.substring(0, 50) + '...' : title;
   }
 

@@ -2045,7 +2045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!project || project.userId !== req.user.id) {
         return res.status(404).json({ error: "Project not found" });
       }
-      
+
       // Verify jobId exists and belongs to project
       const importJob = await db
         .select({ jobId: importJobs.jobId, status: importJobs.status, projectId: importJobs.projectId })

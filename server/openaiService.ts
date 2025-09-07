@@ -34,6 +34,18 @@ export class OpenAIService {
         return this.generateFallbackAnchor(targetTitle);
       }
 
+      // КРИТИЧЕСКАЯ ПРОВЕРКА: если в тексте есть ромбы - это проблема кодировки
+      if (sourceText.includes('') || targetTitle.includes('')) {
+        console.log('❌ [OpenAI] ENCODING ERROR detected - diamonds in text, using fallback');
+        return this.generateFallbackAnchor(targetTitle);
+      }
+
+      // КРИТИЧЕСКАЯ ПРОВЕРКА: если текст слишком короткий или бессмысленный
+      if (sourceText.length < 50 || sourceText.split(' ').length < 5) {
+        console.log('❌ [OpenAI] Source text too short or meaningless, using fallback');
+        return this.generateFallbackAnchor(targetTitle);
+      }
+
       const prompt = `
 Ты - эксперт по SEO и внутренней перелинковке. Создай естественный анкор для ссылки.
 
@@ -86,9 +98,21 @@ export class OpenAIService {
       
       console.log('🤖 [OpenAI] Cleaned anchor:', cleanAnchor);
       
+      // Проверяем на специальный ответ
+      if (cleanAnchor === 'НЕТ_ПОДХОДЯЩЕГО_АНКОРА') {
+        console.log('⚠️ [OpenAI] No suitable anchor found in source text, using fallback');
+        return this.generateFallbackAnchor(targetTitle);
+      }
+      
       // Валидация качества анкора
       if (!this.isValidAnchor(cleanAnchor)) {
         console.log('⚠️ [OpenAI] Generated anchor failed validation, using fallback');
+        return this.generateFallbackAnchor(targetTitle);
+      }
+      
+      // Дополнительная проверка релевантности
+      if (!this.isRelevantAnchor(cleanAnchor, targetTitle, sourceText)) {
+        console.log('⚠️ [OpenAI] Generated anchor is not relevant, using fallback');
         return this.generateFallbackAnchor(targetTitle);
       }
       
@@ -218,6 +242,54 @@ export class OpenAIService {
       return false;
     }
 
+    return true;
+  }
+
+  // Проверка релевантности анкора
+  private isRelevantAnchor(anchor: string, targetTitle: string, sourceText: string): boolean {
+    const lowerAnchor = anchor.toLowerCase();
+    const lowerTarget = targetTitle.toLowerCase();
+    const lowerSource = sourceText.toLowerCase();
+    
+    // Проверяем что анкор есть в исходном тексте
+    if (!lowerSource.includes(lowerAnchor)) {
+      console.log('❌ [isRelevantAnchor] Anchor not found in source text:', anchor);
+      return false;
+    }
+    
+    // Извлекаем ключевые слова из заголовка
+    const targetKeywords = targetTitle.toLowerCase()
+      .split(/\s+/)
+      .filter(word => word.length > 3)
+      .filter(word => !/^(для|при|после|перед|во|в|на|с|из|от|до|за|под|над|между|среди|через|без|кроме|вместо|благодаря|согласно|вопреки|несмотря|наряду|вместе|помимо|кроме|включая|исключая|начиная|кончая|заканчивая|продолжая|останавливая|прекращая|начинающий|кончающий|заканчивающий|продолжающий|останавливающий|прекращающий)$/i.test(word));
+    
+    // Проверяем что анкор содержит хотя бы одно ключевое слово
+    const hasRelevantKeyword = targetKeywords.some(keyword => 
+      lowerAnchor.includes(keyword) || keyword.includes(lowerAnchor)
+    );
+    
+    if (!hasRelevantKeyword) {
+      console.log('❌ [isRelevantAnchor] Anchor not relevant to target:', anchor, 'vs', targetTitle);
+      return false;
+    }
+    
+    // Проверяем на явно нерелевантные темы
+    const irrelevantTopics = [
+      'программирование', 'python', 'пытон', 'код', 'разработка', 'программист',
+      'футбол', 'спорт', 'игра', 'музыка', 'фильм', 'кино', 'автомобиль',
+      'кулинария', 'рецепт', 'готовка', 'мода', 'одежда', 'красота'
+    ];
+    
+    const hasIrrelevantTopic = irrelevantTopics.some(topic => 
+      lowerAnchor.includes(topic) || lowerTarget.includes(topic)
+    );
+    
+    if (hasIrrelevantTopic) {
+      console.log('❌ [isRelevantAnchor] Anchor contains irrelevant topic:', anchor);
+      return false;
+    }
+    
+    console.log('✅ [isRelevantAnchor] Anchor is relevant:', anchor);
     return true;
   }
 
