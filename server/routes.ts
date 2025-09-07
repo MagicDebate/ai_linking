@@ -3721,11 +3721,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied" });
       }
 
+      // ПРОВЕРЯЕМ: если все сценарии завершены, но статус не обновился - исправляем
+      let finalStatus = run[0].status;
+      let finalPhase = run[0].phase;
+      let finalPercent = run[0].percent;
+      
+      if (run[0].taskProgress && run[0].taskProgress.scenarios) {
+        const scenarios = run[0].taskProgress.scenarios;
+        const allScenariosCompleted = Object.values(scenarios).every((scenario: any) => 
+          scenario.status === 'completed'
+        );
+        
+        if (allScenariosCompleted && run[0].status === 'running') {
+          console.log('🔧 [Progress API] All scenarios completed but status not updated, fixing...');
+          finalStatus = 'draft';
+          finalPhase = 'completed';
+          finalPercent = 100;
+          
+          // Обновляем в базе
+          await db
+            .update(generationRuns)
+            .set({
+              status: 'draft',
+              phase: 'completed',
+              percent: 100,
+              finishedAt: new Date()
+            })
+            .where(eq(generationRuns.runId, runId));
+        }
+      }
+
       const response = {
         runId: runId,
-        status: run[0].status,
-        phase: run[0].phase,
-        percent: run[0].percent,
+        status: finalStatus,
+        phase: finalPhase,
+        percent: finalPercent,
         generated: run[0].generated,
         rejected: run[0].rejected,
         taskProgress: run[0].taskProgress,

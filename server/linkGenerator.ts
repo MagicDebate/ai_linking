@@ -323,6 +323,9 @@ export class LinkGenerator {
       };
 
       // Update run with final status
+      console.log('🚀 [generateLinks] Updating final status to draft/completed...');
+      console.log('🚀 [generateLinks] Final stats - Generated:', totalGenerated, 'Rejected:', totalRejected);
+      
       await db
         .update(generationRuns)
         .set({
@@ -335,8 +338,9 @@ export class LinkGenerator {
         })
         .where(eq(generationRuns.runId, runId));
 
-      console.log('✅ Link generation completed successfully!');
-      console.log('📊 Final statistics:', finalStats);
+      console.log('✅ [generateLinks] Link generation completed successfully!');
+      console.log('✅ [generateLinks] Status updated to draft/completed in database');
+      console.log('📊 [generateLinks] Final statistics:', finalStats);
       
       // Clear global timeout
       clearTimeout(globalTimeout);
