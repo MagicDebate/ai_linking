@@ -325,16 +325,31 @@ export class LinkGenerator {
         similarityMatches: this.stats.similarityMatches
       };
 
-      // Update run with final status
-      console.log('🚀 [generateLinks] Updating final status to draft/completed...');
-      console.log('🚀 [generateLinks] Final stats - Generated:', totalGenerated, 'Rejected:', totalRejected);
+      // Ждем завершения всех асинхронных операций
+      console.log('⏳ [generateLinks] Waiting for all scenarios to complete...');
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Даем время завершиться всем операциям
+      
+      // Пересчитываем финальную статистику после ожидания
+      const finalStatsQuery = await db
+        .select({ 
+          generated: sql<number>`COUNT(*) FILTER (WHERE status = 'accepted')`,
+          rejected: sql<number>`COUNT(*) FILTER (WHERE status = 'rejected')`
+        })
+        .from(linkCandidates)
+        .where(eq(linkCandidates.runId, runId));
+      
+      const finalStatsFromDB = finalStatsQuery[0] || { generated: 0, rejected: 0 };
+      const finalGenerated = finalStatsFromDB.generated;
+      const finalRejected = finalStatsFromDB.rejected;
+      
+      console.log('🚀 [generateLinks] Final stats after waiting - Generated:', finalGenerated, 'Rejected:', finalRejected);
       
       // Определяем финальный статус на основе результатов
-      const finalStatus = totalGenerated > 0 ? 'draft' : 'failed';
-      const finalPhase = totalGenerated > 0 ? 'completed' : 'failed';
-      const finalPercent = totalGenerated > 0 ? 100 : 0;
+      const finalStatus = finalGenerated > 0 ? 'draft' : 'failed';
+      const finalPhase = finalGenerated > 0 ? 'completed' : 'failed';
+      const finalPercent = finalGenerated > 0 ? 100 : 0;
       
-      console.log('🚀 [generateLinks] Final status determined:', { finalStatus, finalPhase, finalPercent, totalGenerated });
+      console.log('🚀 [generateLinks] Final status determined:', { finalStatus, finalPhase, finalPercent, finalGenerated });
       
       await db
         .update(generationRuns)
@@ -342,10 +357,10 @@ export class LinkGenerator {
           status: finalStatus,
           phase: finalPhase,
           percent: finalPercent,
-          generated: totalGenerated,
-          rejected: totalRejected,
+          generated: finalGenerated,
+          rejected: finalRejected,
           finishedAt: new Date(),
-          errorMessage: totalGenerated === 0 ? 'No links generated - no pages found or all scenarios failed' : undefined
+          errorMessage: finalGenerated === 0 ? 'No links generated - no pages found or all scenarios failed' : undefined
         })
         .where(eq(generationRuns.runId, runId));
 
