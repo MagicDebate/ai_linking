@@ -307,13 +307,12 @@ export default function GenerateLinks() {
           </Card>
         )}
 
-        {/* Recent Runs - показываем только если нет активной генерации */}
-        {!activeRun && (
-          <Card>
-            <CardHeader>
-              <CardTitle>История генераций</CardTitle>
-            </CardHeader>
-            <CardContent>
+        {/* Recent Runs */}
+        <Card>
+          <CardHeader>
+            <CardTitle>История генераций</CardTitle>
+          </CardHeader>
+          <CardContent>
             {runs && runs.length > 0 ? (
               <div className="space-y-3">
                 {runs.map((run) => (
@@ -368,10 +367,9 @@ export default function GenerateLinks() {
             )}
           </CardContent>
         </Card>
-        )}
 
-        {/* Quick Actions - показываем только если нет активной генерации */}
-        {!activeRun && latestCompletedRun && (
+        {/* Quick Actions */}
+        {latestCompletedRun && (
           <Card>
             <CardHeader>
               <CardTitle>Быстрые действия</CardTitle>
