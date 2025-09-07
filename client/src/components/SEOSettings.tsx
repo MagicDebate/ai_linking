@@ -148,6 +148,33 @@ export function SEOSettings({
       });
     }
   });
+
+  // Мутация для исправления кодировки
+  const fixEncodingMutation = useMutation({
+    mutationFn: async (runId: string) => {
+      const response = await fetch(`/api/fix-encoding-candidates/${runId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fix encoding');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Кодировка исправлена", description: `Исправлено ${data.fixedCount} записей` });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Ошибка исправления кодировки", 
+        description: error instanceof Error ? error.message : "Не удалось исправить кодировку",
+        variant: "destructive" 
+      });
+    }
+  });
   const updateProfile = (updates: Partial<SEOProfile>) => {
     onProfileChange({ ...seoProfile, ...updates });
   };
@@ -575,25 +602,47 @@ export function SEOSettings({
          </Button>
          
          {projectId && (
-           <Button 
-             onClick={() => forceCompleteMutation.mutate(projectId)}
-             disabled={forceCompleteMutation.isPending}
-             variant="outline"
-             size="lg"
-             className="px-6"
-           >
-             {forceCompleteMutation.isPending ? (
-               <>
-                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                 Завершение...
-               </>
-             ) : (
-               <>
-                 <XCircle className="h-4 w-4 mr-2" />
-                 Завершить старую генерацию
-               </>
-             )}
-           </Button>
+           <>
+             <Button 
+               onClick={() => forceCompleteMutation.mutate(projectId)}
+               disabled={forceCompleteMutation.isPending}
+               variant="outline"
+               size="lg"
+               className="px-6"
+             >
+               {forceCompleteMutation.isPending ? (
+                 <>
+                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                   Завершение...
+                 </>
+               ) : (
+                 <>
+                   <XCircle className="h-4 w-4 mr-2" />
+                   Завершить старую генерацию
+                 </>
+               )}
+             </Button>
+             
+             <Button 
+               onClick={() => fixEncodingMutation.mutate('run_1757273148401_n3v9vjy58')}
+               disabled={fixEncodingMutation.isPending}
+               variant="outline"
+               size="lg"
+               className="px-6"
+             >
+               {fixEncodingMutation.isPending ? (
+                 <>
+                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                   Исправление...
+                 </>
+               ) : (
+                 <>
+                   <Code className="h-4 w-4 mr-2" />
+                   Исправить кодировку
+                 </>
+               )}
+             </Button>
+           </>
          )}
        </div>
      </div>
