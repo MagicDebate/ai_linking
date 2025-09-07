@@ -122,6 +122,7 @@ export default function DraftReview() {
   const totalPages = Math.ceil(draftData.total / pageSize);
   const acceptedTotal = draftData.stats.reduce((sum, stat) => sum + stat.accepted, 0);
   const rejectedTotal = draftData.stats.reduce((sum, stat) => sum + stat.rejected, 0);
+  const actualTotal = acceptedTotal + rejectedTotal;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -162,7 +163,7 @@ export default function DraftReview() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Всего</p>
-                  <p className="text-2xl font-bold text-gray-900">{draftData.total}</p>
+                  <p className="text-2xl font-bold text-gray-900">{actualTotal}</p>
                 </div>
                 <Filter className="h-8 w-8 text-gray-400" />
               </div>
@@ -199,7 +200,7 @@ export default function DraftReview() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Качество</p>
                   <p className="text-2xl font-bold text-blue-600">
-                    {Math.round((acceptedTotal / draftData.total) * 100)}%
+                    {actualTotal > 0 ? Math.round((acceptedTotal / actualTotal) * 100) : 0}%
                   </p>
                 </div>
                 <AlertTriangle className="h-8 w-8 text-blue-400" />
@@ -336,7 +337,14 @@ export default function DraftReview() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{candidate.anchorText}</span>
+                        <div className="flex-1">
+                          <div className="font-medium">{candidate.anchorText}</div>
+                          {candidate.modifiedSentence && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Контекст: {candidate.modifiedSentence.replace(/<a[^>]*>.*?<\/a>/g, candidate.anchorText).substring(0, 100)}...
+                            </div>
+                          )}
+                        </div>
                         {candidate.modifiedSentence && (
                           <Dialog>
                             <DialogTrigger asChild>
@@ -363,15 +371,21 @@ export default function DraftReview() {
                                 </div>
                                 
                                 <div>
-                                  <h4 className="font-medium mb-2">Исходный текст:</h4>
+                                  <h4 className="font-medium mb-2">Контекст анкора:</h4>
                                   <div className="bg-gray-50 p-3 rounded border text-sm">
-                                    {candidate.modifiedSentence.replace(/<a[^>]*>.*?<\/a>/g, candidate.anchorText)}
+                                    {candidate.modifiedSentence ? (
+                                      <div>
+                                        <div className="mb-2 text-xs text-gray-500">Исходный текст:</div>
+                                        <div className="mb-3">{candidate.modifiedSentence.replace(/<a[^>]*>.*?<\/a>/g, candidate.anchorText)}</div>
+                                        <div className="mb-2 text-xs text-gray-500">Текст с анкором:</div>
+                                        <div className="bg-green-50 p-2 rounded" dangerouslySetInnerHTML={{ __html: candidate.modifiedSentence }} />
+                                      </div>
+                                    ) : (
+                                      <div className="text-gray-500 italic">
+                                        Контекст не найден. Анкор: <strong>{candidate.anchorText}</strong>
+                                      </div>
+                                    )}
                                   </div>
-                                </div>
-                                
-                                <div>
-                                  <h4 className="font-medium mb-2">Текст с анкором:</h4>
-                                  <div className="bg-green-50 p-3 rounded border text-sm" dangerouslySetInnerHTML={{ __html: candidate.modifiedSentence }} />
                                 </div>
                               </div>
                             </DialogContent>
