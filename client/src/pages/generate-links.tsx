@@ -186,7 +186,7 @@ export default function GenerateLinks() {
   }
 
   const activeRun = runs?.find(run => run.status === 'running');
-  const latestCompletedRun = runs?.find(run => run.status === 'completed');
+  const latestCompletedRun = runs?.find(run => run.status === 'completed' || run.status === 'draft');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -321,12 +321,12 @@ export default function GenerateLinks() {
                       <div className="flex items-center gap-2">
                         <Badge 
                           variant={
-                            run.status === 'completed' ? 'default' : 
+                            run.status === 'completed' || run.status === 'draft' ? 'default' : 
                             run.status === 'running' ? 'secondary' : 
                             'destructive'
                           }
                         >
-                          {run.status === 'completed' ? 'Завершено' :
+                          {run.status === 'completed' || run.status === 'draft' ? 'Завершено' :
                            run.status === 'running' ? 'В процессе' : 'Ошибка'}
                         </Badge>
                         <span className="text-sm text-gray-500">
@@ -334,14 +334,14 @@ export default function GenerateLinks() {
                         </span>
                       </div>
                       
-                      {run.status === 'completed' && (
+                      {(run.status === 'completed' || run.status === 'draft') && (
                         <div className="text-sm text-gray-600">
                           {run.acceptedCandidates} принято, {run.rejectedCandidates} отклонено
                         </div>
                       )}
                     </div>
                     
-                    {run.status === 'completed' && (
+                    {(run.status === 'completed' || run.status === 'draft') && (
                       <div className="flex gap-2">
                         <Link href={`/project/${projectId}/draft/${run.runId}`}>
                           <Button variant="outline" size="sm">
