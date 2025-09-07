@@ -90,6 +90,186 @@ const phaseLabels: Record<string, string> = {
   finalizing: "Финализация"
 };
 
+function GenerationProgressStep({ projectId, onBack }: { projectId: string; onBack: () => void }) {
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const [generationProgress, setGenerationProgress] = useState<any>(null);
+  const [eventSource, setEventSource] = useState<EventSource | null>(null);
+  const { toast } = useToast();
+
+  // Fetch recent generation runs
+  const { data: runs, isLoading: runsLoading } = useQuery({
+    queryKey: ['/api/generate/runs', projectId],
+    queryFn: async () => {
+      const response = await fetch(`/api/generate/runs/${projectId}`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch generation runs');
+      }
+      
+      return response.json();
+    },
+    enabled: !!projectId,
+    refetchInterval: 2000
+  });
+
+  // Setup progress stream when a run is active
+  useEffect(() => {
+    const activeRun = runs?.find((run: any) => run.status === 'running');
+    if (!activeRun) return;
+
+    setCurrentRunId(activeRun.runId);
+    
+    // Setup Server-Sent Events for progress
+    const eventSource = new EventSource(`/api/generate/progress/${activeRun.runId}`);
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const progress = JSON.parse(event.data);
+        setGenerationProgress(progress);
+      } catch (error) {
+        console.error('Failed to parse progress data:', error);
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error('Progress stream error:', error);
+      eventSource.close();
+    };
+    
+    setEventSource(eventSource);
+    
+    return () => {
+      eventSource.close();
+      setEventSource(null);
+    };
+  }, [runs]);
+
+  // Handle generation completion
+  useEffect(() => {
+    if (generationProgress?.status === 'draft' || generationProgress?.status === 'completed') {
+      toast({
+        title: "Генерация завершена!",
+        description: `Сгенерировано ${generationProgress.generated} ссылок, отклонено ${generationProgress.rejected}`,
+      });
+      
+      // Close progress stream
+      if (eventSource) {
+        eventSource.close();
+        setEventSource(null);
+      }
+    }
+  }, [generationProgress?.status, generationProgress?.generated, generationProgress?.rejected, toast, eventSource]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, [eventSource]);
+
+  const activeRun = runs?.find((run: any) => run.status === 'running');
+
+  if (runsLoading) {
+    return (
+      <div className="text-center space-y-6">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="text-gray-600">Загрузка...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">Генерация ссылок</h2>
+          <p className="text-gray-600">Автоматическая генерация внутренних ссылок для SEO</p>
+        </div>
+        <Button variant="outline" onClick={onBack}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Назад
+        </Button>
+      </div>
+
+      {activeRun && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-blue-600" />
+              Генерация в процессе
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {generationProgress && (
+              <>
+                {/* Progress Bar */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium">
+                      {generationProgress.phase || 'Генерация'}
+                    </span>
+                    <span>{generationProgress.percent || 0}%</span>
+                  </div>
+                  <Progress value={generationProgress.percent || 0} className="h-2" />
+                </div>
+
+                {/* Statistics */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center p-3 bg-blue-50 rounded-lg">
+                    <div className="text-lg font-bold text-blue-900">
+                      {generationProgress.processed || 0}/{generationProgress.total || 0}
+                    </div>
+                    <div className="text-sm text-blue-700">Обработано</div>
+                  </div>
+                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                    <div className="text-lg font-bold text-green-900">
+                      {generationProgress.generated || 0}
+                    </div>
+                    <div className="text-sm text-green-700">Сгенерировано</div>
+                  </div>
+                  <div className="text-center p-3 bg-red-50 rounded-lg">
+                    <div className="text-lg font-bold text-red-900">
+                      {generationProgress.rejected || 0}
+                    </div>
+                    <div className="text-sm text-red-700">Отклонено</div>
+                  </div>
+                  <div className="text-center p-3 bg-gray-50 rounded-lg">
+                    <div className="text-lg font-bold text-gray-900">
+                      {(generationProgress.generated || 0) + (generationProgress.rejected || 0)}
+                    </div>
+                    <div className="text-sm text-gray-700">Всего</div>
+                  </div>
+                </div>
+              </>
+            )}
+            
+            {!generationProgress && (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Инициализация генерации...</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {!activeRun && (
+        <Card>
+          <CardContent className="text-center py-8">
+            <Zap className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p className="text-gray-500">Генерация не запущена</p>
+            <p className="text-sm text-gray-400">Вернитесь к настройкам для запуска генерации</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 function ImportProgressStep({ projectId, jobId: initialJobId, onBack }: { projectId: string; jobId: string | null; onBack: () => void }) {
   const [jobId, setJobId] = useState<string | null>(initialJobId);
   const [showLogs, setShowLogs] = useState(false);
@@ -1847,11 +2027,10 @@ export default function ProjectPage() {
               </div>
             )}
 
-            {/* Step 5: Import Progress */}
+            {/* Step 5: Generation Progress */}
             {currentStep === 5 && (
-              <ImportProgressStep 
+              <GenerationProgressStep 
                 projectId={projectId!} 
-                jobId={jobId}
                 onBack={() => setCurrentStep(4)}
               />
             )}
