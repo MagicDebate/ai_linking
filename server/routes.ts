@@ -72,6 +72,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendFile(indexPath);
   });
 
+  // Fix encoding in existing data
+  app.post("/api/fix-encoding/:projectId", authenticateToken, async (req: any, res) => {
+    try {
+      const projectId = req.params.projectId;
+      console.log('🔧 [FIX ENCODING] Starting encoding fix for project:', projectId);
+      
+      // Get all pages for this project
+      const pages = await db.execute(sql`
+        SELECT pr.id, pr.meta, pr.raw_html 
+        FROM pages_raw pr 
+        INNER JOIN import_jobs ij ON pr.job_id = ij.job_id
+        WHERE ij.project_id::text = ${projectId}
+      `);
+      
+      console.log(`🔧 [FIX ENCODING] Found ${pages.rows.length} pages to fix`);
+      
+      let fixedCount = 0;
+      for (const page of pages.rows) {
+        const meta = typeof page.meta === 'string' ? JSON.parse(page.meta) : page.meta;
+        let needsUpdate = false;
+        
+        // Check if title has encoding issues
+        if (meta.title && meta.title.includes('')) {
+          console.log('🔧 [FIX ENCODING] Fixing title:', meta.title);
+          // Try to fix encoding
+          try {
+            const buffer = Buffer.from(meta.title, 'binary');
+            meta.title = buffer.toString('utf-8');
+            needsUpdate = true;
+          } catch (error) {
+            console.log('⚠️ [FIX ENCODING] Could not fix title:', meta.title);
+          }
+        }
+        
+        // Check if description has encoding issues
+        if (meta.description && meta.description.includes('')) {
+          console.log('🔧 [FIX ENCODING] Fixing description:', meta.description);
+          try {
+            const buffer = Buffer.from(meta.description, 'binary');
+            meta.description = buffer.toString('utf-8');
+            needsUpdate = true;
+          } catch (error) {
+            console.log('⚠️ [FIX ENCODING] Could not fix description:', meta.description);
+          }
+        }
+        
+        if (needsUpdate) {
+          await db.execute(sql`
+            UPDATE pages_raw 
+            SET meta = ${JSON.stringify(meta)}::jsonb 
+            WHERE id = ${page.id}
+          `);
+          fixedCount++;
+        }
+      }
+      
+      console.log(`✅ [FIX ENCODING] Fixed ${fixedCount} pages`);
+      res.json({ success: true, fixedCount });
+      
+    } catch (error) {
+      console.error('❌ [FIX ENCODING] Error:', error);
+      res.status(500).json({ error: 'Failed to fix encoding' });
+    }
+  });
+
   // Setup Google OAuth
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -4160,7 +4225,7 @@ class ContentProcessor {
         url: page.url,
         jobId,
         rawHtml: page.content,
-        meta: { title: page.title },
+        meta: { title: page.title, description: page.description || '' },
           importBatchId: crypto.randomUUID()
       }).returning({ id: pagesRaw.id });
       
@@ -4240,12 +4305,25 @@ class ContentProcessor {
         const batchSize = 10;
         for (let i = 0; i < blockList.length; i += batchSize) {
           const batch = blockList.slice(i, i + batchSize);
-          const batchValues = batch.map((block, batchIndex) => ({
-            pageId: page.id,
-            blockType: block.type,
-            text: block.text,
-            position: i + batchIndex
-          }));
+          const batchValues = batch.map((block, batchIndex) => {
+            // Fix encoding in block text
+            let blockText = block.text;
+            if (blockText.includes('')) {
+              try {
+                const buffer = Buffer.from(blockText, 'binary');
+                blockText = buffer.toString('utf-8');
+              } catch (error) {
+                console.log('⚠️ [FIX ENCODING] Could not fix block text');
+              }
+            }
+            
+            return {
+              pageId: page.id,
+              blockType: block.type,
+              text: blockText,
+              position: i + batchIndex
+            };
+          });
           
           try {
             // Добавляем таймаут для предотвращения зависания
