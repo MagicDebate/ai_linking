@@ -2471,8 +2471,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: scenarioNames[stat.type] || stat.type
       }));
 
+      // ИСПРАВЛЯЕМ КОДИРОВКУ В РЕАЛЬНОМ ВРЕМЕНИ
+      const fixedCandidates = candidates.map(candidate => {
+        let fixedAnchorText = candidate.anchorText;
+        let fixedModifiedSentence = candidate.modifiedSentence;
+        
+        // Исправляем кодировку анкора
+        if (fixedAnchorText && fixedAnchorText.includes('')) {
+          try {
+            const buffer = Buffer.from(fixedAnchorText, 'binary');
+            fixedAnchorText = buffer.toString('utf-8');
+          } catch (error) {
+            console.log('⚠️ [DRAFT API] Could not fix anchor text encoding');
+          }
+        }
+        
+        // Исправляем кодировку модифицированного предложения
+        if (fixedModifiedSentence && fixedModifiedSentence.includes('')) {
+          try {
+            const buffer = Buffer.from(fixedModifiedSentence, 'binary');
+            fixedModifiedSentence = buffer.toString('utf-8');
+          } catch (error) {
+            console.log('⚠️ [DRAFT API] Could not fix modified sentence encoding');
+          }
+        }
+        
+        return {
+          ...candidate,
+          anchorText: fixedAnchorText,
+          modifiedSentence: fixedModifiedSentence
+        };
+      });
+
       res.json({
-        candidates,
+        candidates: fixedCandidates,
         total: totalCount[0]?.count || 0,
         stats: mappedStats
       });

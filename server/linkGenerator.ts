@@ -868,20 +868,42 @@ export class LinkGenerator {
         return { created: false, reason: 'Missing page IDs' };
       }
       
+      // ИСПРАВЛЯЕМ КОДИРОВКУ ПЕРЕД СОХРАНЕНИЕМ
+      let fixedAnchorText = anchorText;
+      let fixedModifiedSentence = modifiedSentence;
+      
+      if (fixedAnchorText && fixedAnchorText.includes('')) {
+        try {
+          const buffer = Buffer.from(fixedAnchorText, 'binary');
+          fixedAnchorText = buffer.toString('utf-8');
+        } catch (error) {
+          console.log('⚠️ [tryCreateLink] Could not fix anchor text encoding');
+        }
+      }
+      
+      if (fixedModifiedSentence && fixedModifiedSentence.includes('')) {
+        try {
+          const buffer = Buffer.from(fixedModifiedSentence, 'binary');
+          fixedModifiedSentence = buffer.toString('utf-8');
+        } catch (error) {
+          console.log('⚠️ [tryCreateLink] Could not fix modified sentence encoding');
+        }
+      }
+
       await db.insert(linkCandidates).values({
         runId: runId,
         sourcePageId: sourcePage.id,
         targetPageId: targetPage.id,
         sourceUrl: sourcePage.url,
         targetUrl: targetPage.url,
-        anchorText: anchorText,
+        anchorText: fixedAnchorText,
         type: scenario,
         status: 'accepted',
         anchorSource: 'ai', // или 'text' или 'generic' в зависимости от источника
         confidence: 0.8, // Заглушка
         positionHint: { pageId: sourcePage.id, blockId: 1, offset: 0 }, // Заглушка
         similarity: 0.75, // Заглушка
-        modifiedSentence: modifiedSentence
+        modifiedSentence: fixedModifiedSentence
       });
 
       console.log('✅ [tryCreateLink] Link created successfully with anchor:', anchorText);
