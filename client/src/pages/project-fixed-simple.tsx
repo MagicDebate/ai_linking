@@ -422,6 +422,7 @@ export default function ProjectFixedSimple() {
             <CardContent>
               <SEOSettings 
                 seoProfile={seoProfile}
+                projectId={projectId}
                 onProfileChange={setSeoProfileLocal}
                 onGenerate={handleGenerate}
                 isGenerating={isStartingGeneration}

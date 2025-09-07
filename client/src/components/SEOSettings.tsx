@@ -18,8 +18,11 @@ import {
   RefreshCw,
   Code,
   ExternalLink,
-  CheckCircle2
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
+import { toast } from '@/hooks/use-toast';
 
 export interface SEOProfile {
   // Лимиты
@@ -108,14 +111,43 @@ interface SEOSettingsProps {
   onProfileChange: (profile: SEOProfile) => void;
   onGenerate: () => void;
   isGenerating?: boolean;
+  projectId?: string;
 }
 
 export function SEOSettings({ 
   seoProfile, 
   onProfileChange,
   onGenerate,
-  isGenerating = false
+  isGenerating = false,
+  projectId
 }: SEOSettingsProps) {
+  
+  // Мутация для принудительного завершения генерации
+  const forceCompleteMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const response = await fetch(`/api/generate/force-complete/${projectId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to force complete generation');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Старая генерация завершена", description: "Теперь можно запустить новую" });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Ошибка завершения генерации", 
+        description: error instanceof Error ? error.message : "Не удалось завершить генерацию",
+        variant: "destructive" 
+      });
+    }
+  });
   const updateProfile = (updates: Partial<SEOProfile>) => {
     onProfileChange({ ...seoProfile, ...updates });
   };
@@ -521,8 +553,8 @@ export function SEOSettings({
                  </CardContent>
        </Card>
 
-       {/* Кнопка генерации */}
-       <div className="flex justify-center">
+       {/* Кнопки генерации */}
+       <div className="flex justify-center gap-4">
          <Button 
            onClick={onGenerate}
            disabled={isGenerating}
@@ -541,6 +573,28 @@ export function SEOSettings({
              </>
            )}
          </Button>
+         
+         {projectId && (
+           <Button 
+             onClick={() => forceCompleteMutation.mutate(projectId)}
+             disabled={forceCompleteMutation.isPending}
+             variant="outline"
+             size="lg"
+             className="px-6"
+           >
+             {forceCompleteMutation.isPending ? (
+               <>
+                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                 Завершение...
+               </>
+             ) : (
+               <>
+                 <XCircle className="h-4 w-4 mr-2" />
+                 Завершить старую генерацию
+               </>
+             )}
+           </Button>
+         )}
        </div>
      </div>
    );

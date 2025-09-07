@@ -599,6 +599,7 @@ export default function ProjectFixed() {
 
                   <SEOSettings
                     seoProfile={seoProfile}
+                    projectId={projectId}
                     onProfileChange={(newProfile) => {
                       // Обновляем локальное состояние для немедленного отображения
                       setLocalSeoProfile(newProfile);
