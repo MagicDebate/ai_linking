@@ -1005,14 +1005,14 @@ export class LinkGenerator {
         
         console.log('✅ [loadPages] Forced import found:', forcedImport[0]);
       } else {
-        // Получаем последний завершенный импорт для проекта
-        console.log('🔍 [loadPages] Looking for latest completed import...');
+        // Получаем последний импорт для проекта (не failed и не canceled)
+        console.log('🔍 [loadPages] Looking for latest import...');
         const latestImport = await db
           .select({ jobId: importJobs.jobId, status: importJobs.status, startedAt: importJobs.startedAt })
           .from(importJobs)
           .where(and(
             eq(importJobs.projectId, this.projectId),
-            eq(importJobs.status, 'completed')
+            sql`${importJobs.status} NOT IN ('failed', 'canceled')`
           ))
           .orderBy(desc(importJobs.startedAt))
           .limit(1);
