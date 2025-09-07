@@ -326,15 +326,23 @@ export class LinkGenerator {
       console.log('🚀 [generateLinks] Updating final status to draft/completed...');
       console.log('🚀 [generateLinks] Final stats - Generated:', totalGenerated, 'Rejected:', totalRejected);
       
+      // Определяем финальный статус на основе результатов
+      const finalStatus = totalGenerated > 0 ? 'draft' : 'failed';
+      const finalPhase = totalGenerated > 0 ? 'completed' : 'failed';
+      const finalPercent = totalGenerated > 0 ? 100 : 0;
+      
+      console.log('🚀 [generateLinks] Final status determined:', { finalStatus, finalPhase, finalPercent, totalGenerated });
+      
       await db
         .update(generationRuns)
         .set({
-          status: 'draft',
-          phase: 'completed',
-          percent: 100,
+          status: finalStatus,
+          phase: finalPhase,
+          percent: finalPercent,
           generated: totalGenerated,
           rejected: totalRejected,
-          finishedAt: new Date()
+          finishedAt: new Date(),
+          errorMessage: totalGenerated === 0 ? 'No links generated - no pages found or all scenarios failed' : undefined
         })
         .where(eq(generationRuns.runId, runId));
 

@@ -225,7 +225,23 @@ export const linkGenerationWorker = new Worker(
       console.log(`🔗 Starting actual link generation for run ${runId}`);
       await generator.generateLinks(generationParams, runId);
       
-      console.log(`✅ Link generation run ${runId} completed successfully`);
+      // Проверяем результат генерации
+      const finalRun = await db
+        .select({ status: generationRuns.status, generated: generationRuns.generated, errorMessage: generationRuns.errorMessage })
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
+      
+      if (finalRun.length > 0) {
+        const run = finalRun[0];
+        console.log(`✅ Link generation run ${runId} completed with status: ${run.status}, generated: ${run.generated}`);
+        
+        if (run.status === 'failed') {
+          console.log(`❌ Link generation run ${runId} failed: ${run.errorMessage}`);
+        }
+      } else {
+        console.log(`❌ Link generation run ${runId} - no final status found in database`);
+      }
     } catch (error) {
       console.error(`❌ Link generation run ${runId} failed:`, error);
       
