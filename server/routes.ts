@@ -72,6 +72,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendFile(indexPath);
   });
 
+  // Fix encoding in link candidates
+  app.post("/api/fix-encoding-candidates/:runId", authenticateToken, async (req: any, res) => {
+    try {
+      const { runId } = req.params;
+      console.log('🔧 [FIX ENCODING CANDIDATES] Starting encoding fix for runId:', runId);
+      
+      // Get all candidates for this run
+      const candidates = await db
+        .select()
+        .from(linkCandidates)
+        .where(eq(linkCandidates.runId, runId));
+      
+      console.log(`🔧 [FIX ENCODING CANDIDATES] Found ${candidates.length} candidates to fix`);
+      
+      let fixedCount = 0;
+      for (const candidate of candidates) {
+        let needsUpdate = false;
+        let fixedAnchorText = candidate.anchorText;
+        let fixedModifiedSentence = candidate.modifiedSentence;
+        
+        // Check if anchor text has encoding issues
+        if (fixedAnchorText && fixedAnchorText.includes('')) {
+          console.log('🔧 [FIX ENCODING CANDIDATES] Fixing anchor text:', fixedAnchorText);
+          try {
+            const buffer = Buffer.from(fixedAnchorText, 'binary');
+            fixedAnchorText = buffer.toString('utf-8');
+            needsUpdate = true;
+          } catch (error) {
+            console.log('⚠️ [FIX ENCODING CANDIDATES] Could not fix anchor text:', fixedAnchorText);
+          }
+        }
+        
+        // Check if modified sentence has encoding issues
+        if (fixedModifiedSentence && fixedModifiedSentence.includes('')) {
+          console.log('🔧 [FIX ENCODING CANDIDATES] Fixing modified sentence:', fixedModifiedSentence);
+          try {
+            const buffer = Buffer.from(fixedModifiedSentence, 'binary');
+            fixedModifiedSentence = buffer.toString('utf-8');
+            needsUpdate = true;
+          } catch (error) {
+            console.log('⚠️ [FIX ENCODING CANDIDATES] Could not fix modified sentence:', fixedModifiedSentence);
+          }
+        }
+        
+        if (needsUpdate) {
+          await db
+            .update(linkCandidates)
+            .set({
+              anchorText: fixedAnchorText,
+              modifiedSentence: fixedModifiedSentence
+            })
+            .where(eq(linkCandidates.id, candidate.id));
+          fixedCount++;
+        }
+      }
+      
+      console.log(`✅ [FIX ENCODING CANDIDATES] Fixed ${fixedCount} candidates`);
+      res.json({ success: true, fixedCount });
+      
+    } catch (error) {
+      console.error('❌ [FIX ENCODING CANDIDATES] Error:', error);
+      res.status(500).json({ error: 'Failed to fix encoding' });
+    }
+  });
+
   // Fix encoding in existing data
   app.post("/api/fix-encoding/:projectId", authenticateToken, async (req: any, res) => {
     try {
@@ -4318,10 +4383,10 @@ class ContentProcessor {
             }
             
             return {
-              pageId: page.id,
-              blockType: block.type,
+            pageId: page.id,
+            blockType: block.type,
               text: blockText,
-              position: i + batchIndex
+            position: i + batchIndex
             };
           });
           
