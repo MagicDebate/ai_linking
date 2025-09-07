@@ -1243,7 +1243,23 @@ export class LinkGenerator {
         return null;
       }
 
-      const sourceText = sourceBlock[0].text.substring(0, 500); // Ограничиваем длину
+      // Получаем больше текста из разных блоков
+      let sourceText = sourceBlock[0].text;
+      
+      // Если текст слишком короткий, попробуем получить больше блоков
+      if (sourceText.length < 100) {
+        const allSourceBlocks = await db
+          .select({ text: blocks.text })
+          .from(blocks)
+          .where(eq(blocks.pageId, sourcePage.id))
+          .limit(5);
+        
+        sourceText = allSourceBlocks.map(b => b.text).join(' ');
+        console.log('🔧 [generateAIAnchor] Extended source text length:', sourceText.length);
+      }
+      
+      // Ограничиваем длину для OpenAI
+      sourceText = sourceText.substring(0, 1000);
       const targetTitle = targetPage.title || '';
       const targetDescription = targetPage.description || '';
 

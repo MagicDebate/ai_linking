@@ -66,6 +66,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serve static files from public directory
   app.use("/static", express.static("public/static"));
 
+  // Draft review page route - serve index.html for client-side routing
+  app.get("/draft/:runId", (req, res) => {
+    const indexPath = path.join(__dirname, '../dist/public/index.html');
+    res.sendFile(indexPath);
+  });
+
   // Setup Google OAuth
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -577,8 +583,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileName = req.file.originalname;
       const fileSize = req.file.size;
 
-      // Parse file based on extension
-      const fileContent = fs.readFileSync(filePath, 'utf-8');
+      // Parse file based on extension - FIX ENCODING ISSUE
+      let fileContent: string;
+      try {
+        // Попробуем разные кодировки
+        const buffer = fs.readFileSync(filePath);
+        
+        // Сначала пробуем UTF-8
+        fileContent = buffer.toString('utf-8');
+        
+        // Проверяем на неправильную кодировку (ромбы)
+        if (fileContent.includes('�')) {
+          console.log('🔧 [ENCODING] UTF-8 failed, trying windows-1251...');
+          // Если есть ромбы, пробуем windows-1251
+          fileContent = buffer.toString('binary');
+          // Конвертируем из windows-1251 в UTF-8
+          fileContent = Buffer.from(fileContent, 'binary').toString('utf-8');
+        }
+        
+        console.log('🔧 [ENCODING] File content preview (first 100 chars):', fileContent.substring(0, 100));
+      } catch (error) {
+        console.error('❌ [ENCODING] Error reading file:', error);
+        fileContent = fs.readFileSync(filePath, 'utf-8');
+      }
       let headers: string[] = [];
       let rows: string[][] = [];
 
@@ -3948,7 +3975,29 @@ class ContentProcessor {
       throw new Error("Import data or file path not found");
     }
 
-    const fileContent = fs.readFileSync(importData.filePath, 'utf-8');
+    // Исправляем кодировку - FIX ENCODING ISSUE
+    let fileContent: string;
+    try {
+      // Попробуем разные кодировки
+      const buffer = fs.readFileSync(importData.filePath);
+      
+      // Сначала пробуем UTF-8
+      fileContent = buffer.toString('utf-8');
+      
+      // Проверяем на неправильную кодировку (ромбы)
+      if (fileContent.includes('�')) {
+        console.log('🔧 [ENCODING] UTF-8 failed, trying windows-1251...');
+        // Если есть ромбы, пробуем windows-1251
+        fileContent = buffer.toString('binary');
+        // Конвертируем из windows-1251 в UTF-8
+        fileContent = Buffer.from(fileContent, 'binary').toString('utf-8');
+      }
+      
+      console.log('🔧 [ENCODING] File content preview (first 100 chars):', fileContent.substring(0, 100));
+    } catch (error) {
+      console.error('❌ [ENCODING] Error reading file:', error);
+      fileContent = fs.readFileSync(importData.filePath, 'utf-8');
+    }
     const fieldMapping = JSON.parse(importData.fieldMapping || '{}');
     
     const csvRows = this.parseCSV(fileContent);
