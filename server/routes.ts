@@ -1565,7 +1565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(generationRuns)
         .where(and(
           eq(generationRuns.projectId, projectId),
-          sql`${generationRuns.status} IN ('running', 'pending')`
+          eq(generationRuns.status, 'running')
         ))
         .orderBy(desc(generationRuns.startedAt))
         .limit(1);
@@ -2549,13 +2549,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Project not found" });
       }
 
-      // Find all running/pending generations for this project
+      // Find all running generations for this project
       const activeGenerations = await db
         .select({ runId: generationRuns.runId, status: generationRuns.status })
         .from(generationRuns)
         .where(and(
           eq(generationRuns.projectId, projectId),
-          sql`${generationRuns.status} IN ('running', 'pending')`
+          eq(generationRuns.status, 'running')
         ));
 
       if (activeGenerations.length === 0) {
