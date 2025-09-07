@@ -1559,6 +1559,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Project not found" });
       }
 
+      // ПРОВЕРЯЕМ: есть ли уже активная генерация для этого проекта
+      const activeGeneration = await db
+        .select({ runId: generationRuns.runId, status: generationRuns.status, phase: generationRuns.phase })
+        .from(generationRuns)
+        .where(and(
+          eq(generationRuns.projectId, projectId),
+          sql`${generationRuns.status} IN ('running', 'pending')`
+        ))
+        .orderBy(desc(generationRuns.startedAt))
+        .limit(1);
+
+      if (activeGeneration.length > 0) {
+        console.log('⚠️ [API] Active generation found:', activeGeneration[0]);
+        return res.status(409).json({ 
+          success: false, 
+          error: "Generation already in progress", 
+          activeRunId: activeGeneration[0].runId,
+          status: activeGeneration[0].status,
+          phase: activeGeneration[0].phase
+        });
+      }
+
       // Validate SEO profile structure
       if (!seoProfile || !seoProfile.scenarios || !seoProfile.policies) {
         return res.status(400).json({ error: "Invalid SEO profile structure" });
@@ -2511,6 +2533,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Draft review error:", error);
       res.status(500).json({ error: "Failed to get draft data" });
+    }
+  });
+
+  // ========== GENERATION MANAGEMENT ==========
+  
+  // Force complete old generation runs
+  app.post("/api/generate/force-complete/:projectId", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Find all running/pending generations for this project
+      const activeGenerations = await db
+        .select({ runId: generationRuns.runId, status: generationRuns.status })
+        .from(generationRuns)
+        .where(and(
+          eq(generationRuns.projectId, projectId),
+          sql`${generationRuns.status} IN ('running', 'pending')`
+        ));
+
+      if (activeGenerations.length === 0) {
+        return res.json({ 
+          success: true, 
+          message: "No active generations found",
+          completed: 0
+        });
+      }
+
+      // Force complete all active generations
+      let completed = 0;
+      for (const gen of activeGenerations) {
+        await db
+          .update(generationRuns)
+          .set({
+            status: 'draft',
+            phase: 'completed',
+            percent: 100,
+            finishedAt: new Date()
+          })
+          .where(eq(generationRuns.runId, gen.runId));
+        completed++;
+        console.log(`🔧 [Force Complete] Completed generation: ${gen.runId}`);
+      }
+
+      res.json({ 
+        success: true, 
+        message: `Force completed ${completed} generation(s)`,
+        completed
+      });
+    } catch (error) {
+      console.error('❌ Force complete error:', error);
+      res.status(500).json({ error: 'Failed to force complete generations' });
     }
   });
 
