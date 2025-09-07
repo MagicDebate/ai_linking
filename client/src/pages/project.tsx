@@ -96,29 +96,44 @@ function GenerationProgressStep({ projectId, onBack }: { projectId: string; onBa
   const [eventSource, setEventSource] = useState<EventSource | null>(null);
   const { toast } = useToast();
 
+  console.log('🔍 [GenerationProgressStep] Component mounted with projectId:', projectId);
+
   // Fetch recent generation runs
-  const { data: runs, isLoading: runsLoading } = useQuery({
+  const { data: runs, isLoading: runsLoading, error: runsError } = useQuery({
     queryKey: ['/api/generate/runs', projectId],
     queryFn: async () => {
+      console.log('🔍 [GenerationProgressStep] Fetching runs for projectId:', projectId);
       const response = await fetch(`/api/generate/runs/${projectId}`, {
         credentials: 'include'
       });
       
       if (!response.ok) {
+        console.error('❌ [GenerationProgressStep] Failed to fetch runs:', response.status, response.statusText);
         throw new Error('Failed to fetch generation runs');
       }
       
-      return response.json();
+      const data = await response.json();
+      console.log('✅ [GenerationProgressStep] Fetched runs:', data);
+      return data;
     },
     enabled: !!projectId,
     refetchInterval: 2000
   });
 
+  console.log('🔍 [GenerationProgressStep] Query state:', { runs, runsLoading, runsError });
+
   // Setup progress stream when a run is active
   useEffect(() => {
+    console.log('🔍 [GenerationProgressStep] useEffect runs changed:', runs);
     const activeRun = runs?.find((run: any) => run.status === 'running');
-    if (!activeRun) return;
+    console.log('🔍 [GenerationProgressStep] Active run found:', activeRun);
+    
+    if (!activeRun) {
+      console.log('🔍 [GenerationProgressStep] No active run found');
+      return;
+    }
 
+    console.log('🔍 [GenerationProgressStep] Setting up progress stream for runId:', activeRun.runId);
     setCurrentRunId(activeRun.runId);
     
     // Setup Server-Sent Events for progress
@@ -127,20 +142,22 @@ function GenerationProgressStep({ projectId, onBack }: { projectId: string; onBa
     eventSource.onmessage = (event) => {
       try {
         const progress = JSON.parse(event.data);
+        console.log('🔍 [GenerationProgressStep] Progress received:', progress);
         setGenerationProgress(progress);
       } catch (error) {
-        console.error('Failed to parse progress data:', error);
+        console.error('❌ [GenerationProgressStep] Failed to parse progress data:', error);
       }
     };
     
     eventSource.onerror = (error) => {
-      console.error('Progress stream error:', error);
+      console.error('❌ [GenerationProgressStep] Progress stream error:', error);
       eventSource.close();
     };
     
     setEventSource(eventSource);
     
     return () => {
+      console.log('🔍 [GenerationProgressStep] Cleaning up event source');
       eventSource.close();
       setEventSource(null);
     };
@@ -148,7 +165,9 @@ function GenerationProgressStep({ projectId, onBack }: { projectId: string; onBa
 
   // Handle generation completion
   useEffect(() => {
+    console.log('🔍 [GenerationProgressStep] generationProgress changed:', generationProgress);
     if (generationProgress?.status === 'draft' || generationProgress?.status === 'completed') {
+      console.log('✅ [GenerationProgressStep] Generation completed!');
       toast({
         title: "Генерация завершена!",
         description: `Сгенерировано ${generationProgress.generated} ссылок, отклонено ${generationProgress.rejected}`,
@@ -156,6 +175,7 @@ function GenerationProgressStep({ projectId, onBack }: { projectId: string; onBa
       
       // Close progress stream
       if (eventSource) {
+        console.log('🔍 [GenerationProgressStep] Closing event source after completion');
         eventSource.close();
         setEventSource(null);
       }
@@ -172,12 +192,24 @@ function GenerationProgressStep({ projectId, onBack }: { projectId: string; onBa
   }, [eventSource]);
 
   const activeRun = runs?.find((run: any) => run.status === 'running');
+  console.log('🔍 [GenerationProgressStep] Render state:', { activeRun, runsLoading, runsError, generationProgress });
 
   if (runsLoading) {
+    console.log('🔍 [GenerationProgressStep] Showing loading state');
     return (
       <div className="text-center space-y-6">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
         <p className="text-gray-600">Загрузка...</p>
+      </div>
+    );
+  }
+
+  if (runsError) {
+    console.error('❌ [GenerationProgressStep] Error loading runs:', runsError);
+    return (
+      <div className="text-center space-y-6">
+        <div className="text-red-500">Ошибка загрузки данных генерации</div>
+        <p className="text-gray-600">{runsError.message}</p>
       </div>
     );
   }
