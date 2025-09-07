@@ -3,6 +3,7 @@ import Redis from 'ioredis';
 import { db } from './db';
 import { importJobs, generationRuns } from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import { LinkGenerator } from './linkGenerator.js';
 
 // Redis connection
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
@@ -201,20 +202,29 @@ export const linkGenerationWorker = new Worker(
       .where(eq(generationRuns.runId, runId));
     
     try {
-      // Link generation logic will be implemented here
-      // For now, just simulate processing
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Create link generator and run actual generation
+      const generator = new LinkGenerator(projectId);
       
-      // Update run status to completed
-      await db.update(generationRuns)
-        .set({ 
-          status: 'draft',
-          phase: 'completed',
-          percent: 100,
-          finishedAt: new Date()
-        })
-        .where(eq(generationRuns.runId, runId));
-        
+      const generationParams = {
+        scenarios: scenarios || {
+          orphanFix: true,
+          headConsolidation: true,
+          clusterCrossLink: true,
+          commercialRouting: true,
+          depthLift: { enabled: true, minDepth: 5 },
+          freshnessPush: { enabled: true, daysFresh: 30, linksPerDonor: 1 }
+        },
+        rules: rules || {
+          maxLinks: 5,
+          minDistance: 150,
+          exactPercent: 20
+        },
+        check404Policy: 'disabled'
+      };
+      
+      console.log(`🔗 Starting actual link generation for run ${runId}`);
+      await generator.generateLinks(generationParams, runId);
+      
       console.log(`✅ Link generation run ${runId} completed successfully`);
     } catch (error) {
       console.error(`❌ Link generation run ${runId} failed:`, error);
