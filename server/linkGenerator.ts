@@ -1336,30 +1336,50 @@ export class LinkGenerator {
         console.log('❌ [generateAIAnchor] ENCODING ERROR detected - fixing encoding before AI...');
         
         try {
+          // Попробуем исправить кодировку с помощью iconv-lite
           const iconv = require('iconv-lite');
           
           if (sourceText.includes('')) {
             const buffer = Buffer.from(sourceText, 'binary');
             sourceText = iconv.decode(buffer, 'windows-1251');
-            console.log('✅ [generateAIAnchor] Fixed source text encoding');
+            console.log('✅ [generateAIAnchor] Fixed source text encoding with iconv-lite');
             console.log('  - Fixed source text preview:', sourceText.substring(0, 100));
           }
           
           if (targetTitle.includes('')) {
             const buffer = Buffer.from(targetTitle, 'binary');
             targetTitle = iconv.decode(buffer, 'windows-1251');
-            console.log('✅ [generateAIAnchor] Fixed target title encoding');
+            console.log('✅ [generateAIAnchor] Fixed target title encoding with iconv-lite');
             console.log('  - Fixed target title:', targetTitle);
           }
           
           if (targetDescription.includes('')) {
             const buffer = Buffer.from(targetDescription, 'binary');
             targetDescription = iconv.decode(buffer, 'windows-1251');
-            console.log('✅ [generateAIAnchor] Fixed target description encoding');
+            console.log('✅ [generateAIAnchor] Fixed target description encoding with iconv-lite');
             console.log('  - Fixed target description:', targetDescription);
           }
         } catch (error) {
-          console.log('⚠️ [generateAIAnchor] Could not fix encoding, using original text');
+          console.log('⚠️ [generateAIAnchor] iconv-lite failed, trying alternative method:', error.message);
+          
+          // Альтернативный способ - просто убираем ромбики
+          if (sourceText.includes('')) {
+            sourceText = sourceText.replace(/\uFFFD/g, '');
+            console.log('✅ [generateAIAnchor] Removed diamonds from source text');
+            console.log('  - Cleaned source text preview:', sourceText.substring(0, 100));
+          }
+          
+          if (targetTitle.includes('')) {
+            targetTitle = targetTitle.replace(/\uFFFD/g, '');
+            console.log('✅ [generateAIAnchor] Removed diamonds from target title');
+            console.log('  - Cleaned target title:', targetTitle);
+          }
+          
+          if (targetDescription.includes('')) {
+            targetDescription = targetDescription.replace(/\uFFFD/g, '');
+            console.log('✅ [generateAIAnchor] Removed diamonds from target description');
+            console.log('  - Cleaned target description:', targetDescription);
+          }
         }
       } else {
         console.log('✅ [generateAIAnchor] No encoding issues detected');

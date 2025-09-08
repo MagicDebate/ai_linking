@@ -63,8 +63,23 @@ export class OpenAIService {
             console.log('✅ [OpenAI] Fixed target description encoding');
           }
         } catch (error) {
-          console.log('⚠️ [OpenAI] Could not fix encoding, using fallback');
-          return this.generateFallbackAnchor(fixedTargetTitle);
+          console.log('⚠️ [OpenAI] iconv-lite failed, trying alternative method:', error.message);
+          
+          // Альтернативный способ - просто убираем ромбики
+          if (sourceText.includes('')) {
+            fixedSourceText = sourceText.replace(/\uFFFD/g, '');
+            console.log('✅ [OpenAI] Removed diamonds from source text');
+          }
+          
+          if (targetTitle.includes('')) {
+            fixedTargetTitle = targetTitle.replace(/\uFFFD/g, '');
+            console.log('✅ [OpenAI] Removed diamonds from target title');
+          }
+          
+          if (targetDescription.includes('')) {
+            fixedTargetDescription = targetDescription.replace(/\uFFFD/g, '');
+            console.log('✅ [OpenAI] Removed diamonds from target description');
+          }
         }
       }
 
@@ -337,8 +352,11 @@ export class OpenAIService {
         fixedTitle = iconv.decode(buffer, 'windows-1251');
         console.log('✅ [generateFallbackAnchor] Fixed title encoding');
       } catch (error) {
-        console.log('⚠️ [generateFallbackAnchor] Could not fix encoding, using original');
-        fixedTitle = targetTitle;
+        console.log('⚠️ [generateFallbackAnchor] iconv-lite failed, trying alternative method:', error.message);
+        
+        // Альтернативный способ - просто убираем ромбики
+        fixedTitle = targetTitle.replace(/\uFFFD/g, '');
+        console.log('✅ [generateFallbackAnchor] Removed diamonds from title');
       }
     }
 
