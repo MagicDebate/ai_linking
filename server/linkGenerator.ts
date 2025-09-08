@@ -1374,23 +1374,39 @@ export class LinkGenerator {
         } catch (error) {
           console.log('⚠️ [generateAIAnchor] iconv-lite failed, trying alternative method:', error.message);
           
-          // Альтернативный способ - просто убираем ромбики
+          // Альтернативный способ - исправляем кодировку вручную
           if (sourceText.includes('')) {
-            sourceText = sourceText.replace(/\uFFFD/g, '');
-            console.log('✅ [generateAIAnchor] Removed diamonds from source text');
-            console.log('  - Cleaned source text preview:', sourceText.substring(0, 100));
+            try {
+              // Пробуем исправить кодировку вручную
+              const buffer = Buffer.from(sourceText, 'binary');
+              sourceText = buffer.toString('utf8');
+              console.log('✅ [generateAIAnchor] Fixed source text encoding manually');
+              console.log('  - Fixed source text preview:', sourceText.substring(0, 100));
+            } catch (error) {
+              console.log('⚠️ [generateAIAnchor] Manual encoding fix failed, using original');
+            }
           }
           
           if (targetTitle.includes('')) {
-            targetTitle = targetTitle.replace(/\uFFFD/g, '');
-            console.log('✅ [generateAIAnchor] Removed diamonds from target title');
-            console.log('  - Cleaned target title:', targetTitle);
+            try {
+              const buffer = Buffer.from(targetTitle, 'binary');
+              targetTitle = buffer.toString('utf8');
+              console.log('✅ [generateAIAnchor] Fixed target title encoding manually');
+              console.log('  - Fixed target title:', targetTitle);
+            } catch (error) {
+              console.log('⚠️ [generateAIAnchor] Manual title encoding fix failed, using original');
+            }
           }
           
           if (targetDescription.includes('')) {
-            targetDescription = targetDescription.replace(/\uFFFD/g, '');
-            console.log('✅ [generateAIAnchor] Removed diamonds from target description');
-            console.log('  - Cleaned target description:', targetDescription);
+            try {
+              const buffer = Buffer.from(targetDescription, 'binary');
+              targetDescription = buffer.toString('utf8');
+              console.log('✅ [generateAIAnchor] Fixed target description encoding manually');
+              console.log('  - Fixed target description:', targetDescription);
+            } catch (error) {
+              console.log('⚠️ [generateAIAnchor] Manual description encoding fix failed, using original');
+            }
           }
         }
       } else {

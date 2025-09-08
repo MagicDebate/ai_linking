@@ -65,20 +65,35 @@ export class OpenAIService {
         } catch (error) {
           console.log('⚠️ [OpenAI] iconv-lite failed, trying alternative method:', error.message);
           
-          // Альтернативный способ - просто убираем ромбики
+          // Альтернативный способ - исправляем кодировку вручную
           if (sourceText.includes('')) {
-            fixedSourceText = sourceText.replace(/\uFFFD/g, '');
-            console.log('✅ [OpenAI] Removed diamonds from source text');
+            try {
+              const buffer = Buffer.from(sourceText, 'binary');
+              fixedSourceText = buffer.toString('utf8');
+              console.log('✅ [OpenAI] Fixed source text encoding manually');
+            } catch (error) {
+              console.log('⚠️ [OpenAI] Manual encoding fix failed, using original');
+            }
           }
           
           if (targetTitle.includes('')) {
-            fixedTargetTitle = targetTitle.replace(/\uFFFD/g, '');
-            console.log('✅ [OpenAI] Removed diamonds from target title');
+            try {
+              const buffer = Buffer.from(targetTitle, 'binary');
+              fixedTargetTitle = buffer.toString('utf8');
+              console.log('✅ [OpenAI] Fixed target title encoding manually');
+            } catch (error) {
+              console.log('⚠️ [OpenAI] Manual title encoding fix failed, using original');
+            }
           }
           
           if (targetDescription.includes('')) {
-            fixedTargetDescription = targetDescription.replace(/\uFFFD/g, '');
-            console.log('✅ [OpenAI] Removed diamonds from target description');
+            try {
+              const buffer = Buffer.from(targetDescription, 'binary');
+              fixedTargetDescription = buffer.toString('utf8');
+              console.log('✅ [OpenAI] Fixed target description encoding manually');
+            } catch (error) {
+              console.log('⚠️ [OpenAI] Manual description encoding fix failed, using original');
+            }
           }
         }
       }
@@ -354,9 +369,15 @@ export class OpenAIService {
       } catch (error) {
         console.log('⚠️ [generateFallbackAnchor] iconv-lite failed, trying alternative method:', error.message);
         
-        // Альтернативный способ - просто убираем ромбики
-        fixedTitle = targetTitle.replace(/\uFFFD/g, '');
-        console.log('✅ [generateFallbackAnchor] Removed diamonds from title');
+        // Альтернативный способ - исправляем кодировку вручную
+        try {
+          const buffer = Buffer.from(targetTitle, 'binary');
+          fixedTitle = buffer.toString('utf8');
+          console.log('✅ [generateFallbackAnchor] Fixed title encoding manually');
+        } catch (error) {
+          console.log('⚠️ [generateFallbackAnchor] Manual encoding fix failed, using original');
+          fixedTitle = targetTitle;
+        }
       }
     }
 
