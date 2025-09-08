@@ -1290,6 +1290,8 @@ export class LinkGenerator {
   // Шаг B: Генерация анкора через ИИ
   private async generateAIAnchor(sourcePage: any, targetPage: any, params: GenerationParams): Promise<string | null> {
     try {
+      console.log('🔗 [generateAIAnchor] Starting AI anchor generation for:', targetPage.url);
+      
       // Берем первый блок страницы-донора для контекста
       const sourceBlock = await db
         .select({ text: blocks.text })
@@ -1298,6 +1300,7 @@ export class LinkGenerator {
         .limit(1);
 
       if (!sourceBlock.length) {
+        console.log('⚠️ [generateAIAnchor] No source blocks found for page:', sourcePage.id);
         return null;
       }
 
@@ -1321,7 +1324,14 @@ export class LinkGenerator {
       let targetTitle = targetPage.title || '';
       let targetDescription = targetPage.description || '';
 
-      // ИСПРАВЛЯЕМ КОДИРОВКУ перед отправкой в AI
+      // ПРОВЕРЯЕМ КОДИРОВКУ перед отправкой в AI
+      console.log('🔍 [generateAIAnchor] Checking encoding:');
+      console.log('  - Source text contains diamonds:', sourceText.includes(''));
+      console.log('  - Target title contains diamonds:', targetTitle.includes(''));
+      console.log('  - Target description contains diamonds:', targetDescription.includes(''));
+      console.log('  - Source text preview:', sourceText.substring(0, 100));
+      console.log('  - Target title:', targetTitle);
+      
       if (sourceText.includes('') || targetTitle.includes('') || targetDescription.includes('')) {
         console.log('❌ [generateAIAnchor] ENCODING ERROR detected - fixing encoding before AI...');
         
@@ -1332,24 +1342,34 @@ export class LinkGenerator {
             const buffer = Buffer.from(sourceText, 'binary');
             sourceText = iconv.decode(buffer, 'windows-1251');
             console.log('✅ [generateAIAnchor] Fixed source text encoding');
+            console.log('  - Fixed source text preview:', sourceText.substring(0, 100));
           }
           
           if (targetTitle.includes('')) {
             const buffer = Buffer.from(targetTitle, 'binary');
             targetTitle = iconv.decode(buffer, 'windows-1251');
             console.log('✅ [generateAIAnchor] Fixed target title encoding');
+            console.log('  - Fixed target title:', targetTitle);
           }
           
           if (targetDescription.includes('')) {
             const buffer = Buffer.from(targetDescription, 'binary');
             targetDescription = iconv.decode(buffer, 'windows-1251');
             console.log('✅ [generateAIAnchor] Fixed target description encoding');
+            console.log('  - Fixed target description:', targetDescription);
           }
         } catch (error) {
           console.log('⚠️ [generateAIAnchor] Could not fix encoding, using original text');
         }
+      } else {
+        console.log('✅ [generateAIAnchor] No encoding issues detected');
       }
 
+      console.log('🤖 [generateAIAnchor] Calling OpenAI with:');
+      console.log('  - Source text length:', sourceText.length);
+      console.log('  - Target title:', targetTitle);
+      console.log('  - Target description:', targetDescription);
+      
       const aiAnchor = await openaiService.generateAnchorText(
         sourceText,
         targetTitle,
@@ -1357,12 +1377,15 @@ export class LinkGenerator {
         8 // maxWords
       );
 
+      console.log('🤖 [generateAIAnchor] OpenAI returned anchor:', aiAnchor);
+
       // Дополнительная проверка что анкор есть в исходном тексте
       if (aiAnchor && !sourceText.toLowerCase().includes(aiAnchor.toLowerCase())) {
         console.log('⚠️ [generateAIAnchor] AI generated anchor not found in source text:', aiAnchor);
         return null;
       }
 
+      console.log('✅ [generateAIAnchor] Returning AI anchor:', aiAnchor);
       return aiAnchor;
     } catch (error) {
       console.error('❌ [generateAIAnchor] Error:', error);
