@@ -1318,8 +1318,37 @@ export class LinkGenerator {
       
       // Ограничиваем длину для OpenAI
       sourceText = sourceText.substring(0, 1000);
-      const targetTitle = targetPage.title || '';
-      const targetDescription = targetPage.description || '';
+      let targetTitle = targetPage.title || '';
+      let targetDescription = targetPage.description || '';
+
+      // ИСПРАВЛЯЕМ КОДИРОВКУ перед отправкой в AI
+      if (sourceText.includes('') || targetTitle.includes('') || targetDescription.includes('')) {
+        console.log('❌ [generateAIAnchor] ENCODING ERROR detected - fixing encoding before AI...');
+        
+        try {
+          const iconv = require('iconv-lite');
+          
+          if (sourceText.includes('')) {
+            const buffer = Buffer.from(sourceText, 'binary');
+            sourceText = iconv.decode(buffer, 'windows-1251');
+            console.log('✅ [generateAIAnchor] Fixed source text encoding');
+          }
+          
+          if (targetTitle.includes('')) {
+            const buffer = Buffer.from(targetTitle, 'binary');
+            targetTitle = iconv.decode(buffer, 'windows-1251');
+            console.log('✅ [generateAIAnchor] Fixed target title encoding');
+          }
+          
+          if (targetDescription.includes('')) {
+            const buffer = Buffer.from(targetDescription, 'binary');
+            targetDescription = iconv.decode(buffer, 'windows-1251');
+            console.log('✅ [generateAIAnchor] Fixed target description encoding');
+          }
+        } catch (error) {
+          console.log('⚠️ [generateAIAnchor] Could not fix encoding, using original text');
+        }
+      }
 
       const aiAnchor = await openaiService.generateAnchorText(
         sourceText,
