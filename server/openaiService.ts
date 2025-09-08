@@ -34,27 +34,55 @@ export class OpenAIService {
         return this.generateFallbackAnchor(targetTitle);
       }
 
-      // КРИТИЧЕСКАЯ ПРОВЕРКА: если в тексте есть ромбы - это проблема кодировки
-      if (sourceText.includes('') || targetTitle.includes('')) {
-        console.log('❌ [OpenAI] ENCODING ERROR detected - diamonds in text, using fallback');
-        return this.generateFallbackAnchor(targetTitle);
+      // КРИТИЧЕСКАЯ ПРОВЕРКА: если в тексте есть ромбы - исправляем кодировку
+      let fixedSourceText = sourceText;
+      let fixedTargetTitle = targetTitle;
+      let fixedTargetDescription = targetDescription;
+      
+      if (sourceText.includes('') || targetTitle.includes('') || targetDescription.includes('')) {
+        console.log('❌ [OpenAI] ENCODING ERROR detected - diamonds in text, fixing encoding...');
+        
+        try {
+          const iconv = require('iconv-lite');
+          
+          if (sourceText.includes('')) {
+            const buffer = Buffer.from(sourceText, 'binary');
+            fixedSourceText = iconv.decode(buffer, 'windows-1251');
+            console.log('✅ [OpenAI] Fixed source text encoding');
+          }
+          
+          if (targetTitle.includes('')) {
+            const buffer = Buffer.from(targetTitle, 'binary');
+            fixedTargetTitle = iconv.decode(buffer, 'windows-1251');
+            console.log('✅ [OpenAI] Fixed target title encoding');
+          }
+          
+          if (targetDescription.includes('')) {
+            const buffer = Buffer.from(targetDescription, 'binary');
+            fixedTargetDescription = iconv.decode(buffer, 'windows-1251');
+            console.log('✅ [OpenAI] Fixed target description encoding');
+          }
+        } catch (error) {
+          console.log('⚠️ [OpenAI] Could not fix encoding, using fallback');
+          return this.generateFallbackAnchor(fixedTargetTitle);
+        }
       }
 
       // КРИТИЧЕСКАЯ ПРОВЕРКА: если текст слишком короткий или бессмысленный
-      if (sourceText.length < 50 || sourceText.split(' ').length < 5) {
+      if (fixedSourceText.length < 50 || fixedSourceText.split(' ').length < 5) {
         console.log('❌ [OpenAI] Source text too short or meaningless, using fallback');
-        return this.generateFallbackAnchor(targetTitle);
+        return this.generateFallbackAnchor(fixedTargetTitle);
       }
 
       const prompt = `
 Ты - эксперт по SEO и внутренней перелинковке. Создай естественный анкор для ссылки.
 
 КОНТЕКСТ:
-Исходный текст (где будет размещена ссылка): "${sourceText}"
+Исходный текст (где будет размещена ссылка): "${fixedSourceText}"
 
 ЦЕЛЕВАЯ СТРАНИЦА:
-- Заголовок: "${targetTitle}"
-- Описание: "${targetDescription}"
+- Заголовок: "${fixedTargetTitle}"
+- Описание: "${fixedTargetDescription}"
 
 ЗАДАЧА:
 1. Найди в исходном тексте фразу 2-6 слов, которая логично связана с темой целевой страницы
@@ -101,25 +129,26 @@ export class OpenAIService {
       // Проверяем на специальный ответ
       if (cleanAnchor === 'НЕТ_ПОДХОДЯЩЕГО_АНКОРА') {
         console.log('⚠️ [OpenAI] No suitable anchor found in source text, using fallback');
-        return this.generateFallbackAnchor(targetTitle);
+        return this.generateFallbackAnchor(fixedTargetTitle);
       }
       
       // Валидация качества анкора
       if (!this.isValidAnchor(cleanAnchor)) {
         console.log('⚠️ [OpenAI] Generated anchor failed validation, using fallback');
-        return this.generateFallbackAnchor(targetTitle);
+        return this.generateFallbackAnchor(fixedTargetTitle);
       }
       
       // Дополнительная проверка релевантности
-      if (!this.isRelevantAnchor(cleanAnchor, targetTitle, sourceText)) {
+      if (!this.isRelevantAnchor(cleanAnchor, fixedTargetTitle, fixedSourceText)) {
         console.log('⚠️ [OpenAI] Generated anchor is not relevant, using fallback');
-        return this.generateFallbackAnchor(targetTitle);
+        return this.generateFallbackAnchor(fixedTargetTitle);
       }
       
       return cleanAnchor;
     } catch (error) {
       console.error('❌ OpenAI anchor generation failed:', error);
-      throw error;
+      // В случае ошибки используем fallback с исправленной кодировкой
+      return this.generateFallbackAnchor(targetTitle);
     }
   }
 
@@ -299,8 +328,22 @@ export class OpenAIService {
       return 'подробнее';
     }
 
+    // Исправляем кодировку если есть ромбики
+    let fixedTitle = targetTitle;
+    if (targetTitle.includes('')) {
+      try {
+        const iconv = require('iconv-lite');
+        const buffer = Buffer.from(targetTitle, 'binary');
+        fixedTitle = iconv.decode(buffer, 'windows-1251');
+        console.log('✅ [generateFallbackAnchor] Fixed title encoding');
+      } catch (error) {
+        console.log('⚠️ [generateFallbackAnchor] Could not fix encoding, using original');
+        fixedTitle = targetTitle;
+      }
+    }
+
     // Извлекаем ключевые слова из заголовка
-    const words = targetTitle.split(/\s+/)
+    const words = fixedTitle.split(/\s+/)
       .filter(word => word.length > 3)
       .filter(word => !/^(для|при|после|перед|во|в|на|с|из|от|до|за|под|над|между|среди|через|без|кроме|вместо|благодаря|согласно|вопреки|несмотря|наряду|вместе|помимо|кроме|включая|исключая|начиная|кончая|заканчивая|продолжая|останавливая|прекращая|начинающий|кончающий|заканчивающий|продолжающий|останавливающий|прекращающий)$/i.test(word))
       .slice(0, 4);
@@ -310,7 +353,7 @@ export class OpenAIService {
     }
 
     // Если не получилось - используем заголовок целиком (обрезанный)
-    return targetTitle.length > 50 ? targetTitle.substring(0, 50) + '...' : targetTitle;
+    return fixedTitle.length > 50 ? fixedTitle.substring(0, 50) + '...' : fixedTitle;
   }
 }
 
