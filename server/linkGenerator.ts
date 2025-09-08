@@ -1430,6 +1430,16 @@ export class LinkGenerator {
       // Дополнительная проверка что анкор есть в исходном тексте
       if (aiAnchor && !sourceText.toLowerCase().includes(aiAnchor.toLowerCase())) {
         console.log('⚠️ [generateAIAnchor] AI generated anchor not found in source text:', aiAnchor);
+        console.log('🔍 [generateAIAnchor] Source text preview:', sourceText.substring(0, 200));
+        console.log('🔍 [generateAIAnchor] Looking for anchor:', aiAnchor);
+        
+        // Проверяем, может быть проблема в кодировке исходного текста
+        if (sourceText.includes('')) {
+          console.log('⚠️ [generateAIAnchor] Source text still contains diamonds, skipping relevance check');
+          // Если в исходном тексте все еще есть ромбики, пропускаем проверку релевантности
+          return aiAnchor;
+        }
+        
         return null;
       }
 
