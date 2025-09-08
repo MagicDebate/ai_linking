@@ -4638,17 +4638,55 @@ class ContentProcessor {
       const page = csvData[i];
       
       try {
-      // Save raw page data first
+      // Fix encoding BEFORE saving to database
+      let fixedContent = page.content || '';
+      let fixedTitle = page.title || '';
+      let fixedDescription = page.description || '';
+      
+      // Check and fix encoding for content
+      if (fixedContent.includes('')) {
+        try {
+          const buffer = Buffer.from(fixedContent, 'binary');
+          fixedContent = buffer.toString('utf8');
+          console.log(`🔧 [cleanHTML] Fixed content encoding for page: ${page.url}`);
+        } catch (error) {
+          console.log(`⚠️ [cleanHTML] Failed to fix content encoding for page: ${page.url}`);
+        }
+      }
+      
+      // Check and fix encoding for title
+      if (fixedTitle.includes('')) {
+        try {
+          const buffer = Buffer.from(fixedTitle, 'binary');
+          fixedTitle = buffer.toString('utf8');
+          console.log(`🔧 [cleanHTML] Fixed title encoding for page: ${page.url}`);
+        } catch (error) {
+          console.log(`⚠️ [cleanHTML] Failed to fix title encoding for page: ${page.url}`);
+        }
+      }
+      
+      // Check and fix encoding for description
+      if (fixedDescription.includes('')) {
+        try {
+          const buffer = Buffer.from(fixedDescription, 'binary');
+          fixedDescription = buffer.toString('utf8');
+          console.log(`🔧 [cleanHTML] Fixed description encoding for page: ${page.url}`);
+        } catch (error) {
+          console.log(`⚠️ [cleanHTML] Failed to fix description encoding for page: ${page.url}`);
+        }
+      }
+      
+      // Save raw page data first with fixed encoding
       const pageRawResult = await db.insert(pagesRaw).values({
         url: page.url,
         jobId,
-        rawHtml: page.content,
-        meta: { title: page.title, description: page.description || '' },
+        rawHtml: fixedContent,
+        meta: { title: fixedTitle, description: fixedDescription },
           importBatchId: crypto.randomUUID()
       }).returning({ id: pagesRaw.id });
       
-      // Now clean the HTML
-      let cleanHtml = page.content || '';
+      // Now clean the HTML with fixed encoding
+      let cleanHtml = fixedContent;
       cleanHtml = cleanHtml.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
       cleanHtml = cleanHtml.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
       cleanHtml = cleanHtml.replace(/<!--[\s\S]*?-->/g, '');
@@ -4667,7 +4705,7 @@ class ContentProcessor {
         id: pageCleanResult[0].id,
         pageRawId: pageRawResult[0].id,
         url: page.url,
-        title: page.title,
+        title: fixedTitle,
         cleanHtml,
         wordCount,
         originalData: page
