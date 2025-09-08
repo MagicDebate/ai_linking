@@ -4298,15 +4298,69 @@ class ContentProcessor {
         throw new Error('embeddings table not found in @shared/tables');
       }
       
-      // Проверяем существующие данные
-      console.log(`🔍 [PROCESS] Checking for existing data...`);
+      // ОЧИСТКА СТАРЫХ ДАННЫХ ДЛЯ ПРОЕКТА
+      console.log(`🧹 [PROCESS] Clearing old data for project ${projectId}...`);
+      await this.updateProgress(jobId, "loading", 0, "Очищаем старые данные...");
+      
+      // Очищаем глобальный кэш
+      console.log(`🧹 [PROCESS] Clearing global cache...`);
+      if ((global as any).uploads) {
+        (global as any).uploads.clear();
+        console.log(`✅ [PROCESS] Cleared global uploads cache`);
+      }
+      if ((global as any).importStore) {
+        (global as any).importStore.clear();
+        console.log(`✅ [PROCESS] Cleared global importStore cache`);
+      }
+      if ((global as any).importJobs) {
+        (global as any).importJobs.clear();
+        console.log(`✅ [PROCESS] Cleared global importJobs cache`);
+      }
+      
+      // Получаем все jobId для этого проекта
+      const projectJobs = await db
+        .select({ jobId: importJobs.jobId })
+        .from(importJobs)
+        .where(eq(importJobs.projectId, projectId));
+      
+      if (projectJobs.length > 0) {
+        const jobIds = projectJobs.map(job => job.jobId);
+        console.log(`🧹 [PROCESS] Found ${jobIds.length} old jobs to clean:`, jobIds);
+        
+        // Удаляем старые данные
+        await db.execute(sql`DELETE FROM embeddings WHERE block_id IN (
+          SELECT b.id FROM blocks b 
+          INNER JOIN pages_clean pc ON b.page_id = pc.id 
+          INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
+          WHERE pr.job_id = ANY(${jobIds})
+        )`);
+        
+        await db.execute(sql`DELETE FROM blocks WHERE page_id IN (
+          SELECT pc.id FROM pages_clean pc 
+          INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
+          WHERE pr.job_id = ANY(${jobIds})
+        )`);
+        
+        await db.execute(sql`DELETE FROM pages_clean WHERE page_raw_id IN (
+          SELECT id FROM pages_raw WHERE job_id = ANY(${jobIds})
+        )`);
+        
+        await db.execute(sql`DELETE FROM pages_raw WHERE job_id = ANY(${jobIds})`);
+        
+        await db.execute(sql`DELETE FROM import_jobs WHERE job_id = ANY(${jobIds})`);
+        
+        console.log(`✅ [PROCESS] Cleared old data for project ${projectId}`);
+      }
+      
+      // Проверяем что данные очищены
+      console.log(`🔍 [PROCESS] Checking for existing data after cleanup...`);
       const existingPagesRaw = await db.select().from(pagesRaw).where(eq(pagesRaw.jobId, jobId));
       const existingPagesClean = await db.select().from(pagesClean).where(eq(pagesClean.pageRawId, existingPagesRaw[0]?.id));
       const existingBlocks = await db.select().from(blocks).where(eq(blocks.pageId, existingPagesClean[0]?.id));
       console.log('🔍 [PROCESS] About to query embeddings table...');
       const existingEmbeddings = await db.select().from(embeddings).where(eq(embeddings.blockId, existingBlocks[0]?.id));
       
-      console.log(`🔍 Existing data check:`, {
+      console.log(`🔍 Existing data check after cleanup:`, {
         pagesRaw: existingPagesRaw.length,
         pagesClean: existingPagesClean.length,
         blocks: existingBlocks.length,
