@@ -1218,27 +1218,34 @@ export class LinkGenerator {
   // Генерация текста анкора (3-шаговый алгоритм)
   private async generateAnchorText(sourcePage: any, targetPage: any, params: GenerationParams): Promise<string> {
     console.log('🔗 [generateAnchorText] Starting anchor generation for:', targetPage.url);
+    console.log('🔗 [generateAnchorText] Source page:', sourcePage.url);
+    console.log('🔗 [generateAnchorText] Target page:', targetPage.url);
     
     try {
       // Шаг A: Естественный анкор из текста
+      console.log('🔍 [generateAnchorText] Step A: Looking for natural anchor...');
       const naturalAnchor = await this.findNaturalAnchor(sourcePage, targetPage, params);
       if (naturalAnchor) {
         console.log('✅ [generateAnchorText] Found natural anchor:', naturalAnchor);
         return naturalAnchor;
       }
+      console.log('⚠️ [generateAnchorText] No natural anchor found');
 
       // Шаг B: Анкор через ИИ
+      console.log('🔍 [generateAnchorText] Step B: Trying AI anchor generation...');
       try {
         const aiAnchor = await this.generateAIAnchor(sourcePage, targetPage, params);
         if (aiAnchor && openaiService.validateAnchorText(aiAnchor, params.stopAnchors)) {
           console.log('✅ [generateAnchorText] Generated AI anchor:', aiAnchor);
           return aiAnchor;
         }
+        console.log('⚠️ [generateAnchorText] AI anchor generation failed or invalid');
       } catch (error) {
-        console.log('⚠️ [generateAnchorText] AI anchor generation failed, using fallback');
+        console.log('⚠️ [generateAnchorText] AI anchor generation failed, using fallback:', error.message);
       }
 
       // Шаг C: Fallback generic/partial
+      console.log('🔍 [generateAnchorText] Step C: Using fallback anchor...');
       const fallbackAnchor = this.generateFallbackAnchor(targetPage, params);
       console.log('✅ [generateAnchorText] Using fallback anchor:', fallbackAnchor);
       return fallbackAnchor;
@@ -1252,6 +1259,8 @@ export class LinkGenerator {
   // Шаг A: Поиск естественного анкора в тексте
   private async findNaturalAnchor(sourcePage: any, targetPage: any, params: GenerationParams): Promise<string | null> {
     try {
+      console.log('🔍 [findNaturalAnchor] Looking for natural anchor in source page:', sourcePage.url);
+      
       // Получаем блоки страницы-донора
       const sourceBlocks = await db
         .select({ text: blocks.text })
@@ -1259,8 +1268,11 @@ export class LinkGenerator {
         .where(eq(blocks.pageId, sourcePage.id));
 
       if (!sourceBlocks.length) {
+        console.log('⚠️ [findNaturalAnchor] No source blocks found');
         return null;
       }
+      
+      console.log('🔍 [findNaturalAnchor] Found', sourceBlocks.length, 'source blocks');
 
       // Ищем н-граммы 2-6 слов в тексте
       const targetKeywords = this.extractKeywords(targetPage.title || '', targetPage.description || '');
