@@ -752,10 +752,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Проверяем на неправильную кодировку (ромбы)
         if (fileContent.includes('�')) {
           console.log('🔧 [ENCODING] UTF-8 failed, trying windows-1251...');
-          // Если есть ромбы, пробуем windows-1251
-          fileContent = buffer.toString('binary');
-          // Конвертируем из windows-1251 в UTF-8
-          fileContent = Buffer.from(fileContent, 'binary').toString('utf-8');
+          // Пробуем исправить кодировку с помощью iconv-lite
+          try {
+            const iconv = require('iconv-lite');
+            fileContent = iconv.decode(buffer, 'windows-1251');
+            console.log('✅ [ENCODING] Successfully converted from windows-1251 to UTF-8');
+          } catch (iconvError) {
+            console.log('⚠️ [ENCODING] iconv-lite failed, trying manual conversion:', iconvError.message);
+            
+            // Альтернативный способ - ручная конвертация
+            try {
+              // Пробуем разные кодировки
+              const encodings = ['windows-1251', 'cp1251', 'iso-8859-1'];
+              let success = false;
+              
+              for (const encoding of encodings) {
+                try {
+                  fileContent = buffer.toString(encoding as BufferEncoding);
+                  if (!fileContent.includes('')) {
+                    console.log(`✅ [ENCODING] Successfully converted using ${encoding}`);
+                    success = true;
+                    break;
+                  }
+                } catch (e) {
+                  // Пробуем следующую кодировку
+                }
+              }
+              
+              if (!success) {
+                console.log('⚠️ [ENCODING] All encoding attempts failed, using original');
+                fileContent = buffer.toString('utf-8');
+              }
+            } catch (manualError) {
+              console.log('⚠️ [ENCODING] Manual conversion failed, using original');
+              fileContent = buffer.toString('utf-8');
+            }
+          }
         }
         
         console.log('🔧 [ENCODING] File content preview (first 100 chars):', fileContent.substring(0, 100));
@@ -4406,10 +4438,42 @@ class ContentProcessor {
       // Проверяем на неправильную кодировку (ромбы)
       if (fileContent.includes('�')) {
         console.log('🔧 [ENCODING] UTF-8 failed, trying windows-1251...');
-        // Если есть ромбы, пробуем windows-1251
-        fileContent = buffer.toString('binary');
-        // Конвертируем из windows-1251 в UTF-8
-        fileContent = Buffer.from(fileContent, 'binary').toString('utf-8');
+        // Пробуем исправить кодировку с помощью iconv-lite
+        try {
+          const iconv = require('iconv-lite');
+          fileContent = iconv.decode(buffer, 'windows-1251');
+          console.log('✅ [ENCODING] Successfully converted from windows-1251 to UTF-8');
+        } catch (iconvError) {
+          console.log('⚠️ [ENCODING] iconv-lite failed, trying manual conversion:', iconvError.message);
+          
+          // Альтернативный способ - ручная конвертация
+          try {
+            // Пробуем разные кодировки
+            const encodings = ['windows-1251', 'cp1251', 'iso-8859-1'];
+            let success = false;
+            
+            for (const encoding of encodings) {
+              try {
+                fileContent = buffer.toString(encoding as BufferEncoding);
+                if (!fileContent.includes('')) {
+                  console.log(`✅ [ENCODING] Successfully converted using ${encoding}`);
+                  success = true;
+                  break;
+                }
+              } catch (e) {
+                // Пробуем следующую кодировку
+              }
+            }
+            
+            if (!success) {
+              console.log('⚠️ [ENCODING] All encoding attempts failed, using original');
+              fileContent = buffer.toString('utf-8');
+            }
+          } catch (manualError) {
+            console.log('⚠️ [ENCODING] Manual conversion failed, using original');
+            fileContent = buffer.toString('utf-8');
+          }
+        }
       }
       
       console.log('🔧 [ENCODING] File content preview (first 100 chars):', fileContent.substring(0, 100));
