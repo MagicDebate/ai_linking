@@ -4498,7 +4498,13 @@ class ContentProcessor {
     
     console.log(`💾 Updating job ${jobId} with data:`, updateData);
     console.log(`📝 Adding log message: ${logMessage}`);
-    await this.storage.updateImportJob(jobId, { ...updateData, logs: [logMessage] });
+    
+    // Ensure logs is always an array of strings
+    const finalUpdateData = { ...updateData };
+    delete finalUpdateData.logs; // Remove any existing logs field
+    finalUpdateData.logs = [logMessage]; // Set logs as array of strings
+    
+    await this.storage.updateImportJob(jobId, finalUpdateData);
     console.log(`✅ Job ${jobId} updated successfully`);
     
     // Дополнительное логирование для завершения

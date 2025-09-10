@@ -546,19 +546,22 @@ export class DatabaseStorage implements IStorage {
         console.log(`updateImportJob: Created missing job ${jobId}`);
       }
       
-      // Apply updates
-      Object.assign(job, updates);
+      // Handle logs separately to prevent type issues
+      const { logs, ...otherUpdates } = updates;
+      
+      // Apply updates (excluding logs)
+      Object.assign(job, otherUpdates);
       
       // Handle logs properly - ensure we only process logs field
-      if (updates.logs !== undefined) {
-        if (Array.isArray(updates.logs)) {
+      if (logs !== undefined) {
+        if (Array.isArray(logs)) {
           // Ensure all elements are strings
-          const stringLogs = updates.logs.filter(log => typeof log === 'string');
+          const stringLogs = logs.filter(log => typeof log === 'string');
           job.logs = [...(job.logs || []), ...stringLogs];
-        } else if (typeof updates.logs === 'string') {
-          job.logs = [...(job.logs || []), updates.logs];
+        } else if (typeof logs === 'string') {
+          job.logs = [...(job.logs || []), logs];
         } else {
-          console.warn(`⚠️ Invalid logs format for job ${jobId}:`, typeof updates.logs, updates.logs);
+          console.warn(`⚠️ Invalid logs format for job ${jobId}:`, typeof logs, logs);
           // Skip invalid logs to prevent database errors
         }
         if (job.logs.length > 1000) {
