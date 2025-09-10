@@ -1194,7 +1194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         blocksDone: dbJob.blocksDone,
         startedAt: dbJob.startedAt,
         finishedAt: dbJob.finishedAt,
-        logs: dbJob.logs?.length || 0
+        logs: dbJob.logs || []
       });
 
       // Verify project ownership
@@ -3199,7 +3199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         blocksDone: job.blocksDone,
         orphanCount: job.orphanCount,
         avgWordCount: job.avgWordCount,
-        logs: job.logs?.length || 0
+        logs: job.logs || []
       });
 
       res.json(job);
