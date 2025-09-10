@@ -191,7 +191,7 @@ export class EmbeddingService {
   private async saveToCache(textHash: string, vector: number[], projectId: string): Promise<void> {
     await db.insert(embeddingCache).values({
       textHash,
-      vector,
+      vector: vector as any, // Cast to any to work with pgvector
       projectId,
       language: 'ru', // По умолчанию русский
       createdAt: new Date(),
@@ -325,7 +325,7 @@ export class EmbeddingService {
   private async saveEmbeddingsToDB(results: EmbeddingResult[], projectId: string, embeddingsTable?: any): Promise<void> {
     const embeddingsToInsert = results.map(result => ({
       blockId: result.blockId,
-      vector: result.vector,
+      vector: result.vector as any, // Cast to any to work with pgvector
       textHash: result.textHash,
       projectId
     }));
