@@ -4358,29 +4358,34 @@ class ContentProcessor {
         const jobIds = projectJobs.map(job => job.jobId);
         console.log(`🧹 [PROCESS] Found ${jobIds.length} old jobs to clean:`, jobIds);
         
-        // Удаляем старые данные
+        // Проверяем что массив не пустой
+        if (jobIds.length === 0) {
+          console.log(`⚠️ [PROCESS] No job IDs to clean, skipping deletion`);
+        } else {
+          // Удаляем старые данные
         await db.execute(sql`DELETE FROM embeddings WHERE block_id IN (
           SELECT b.id FROM blocks b 
           INNER JOIN pages_clean pc ON b.page_id = pc.id 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id = ANY(${jobIds})
+          WHERE pr.job_id = ANY(${jobIds}::text[])
         )`);
         
         await db.execute(sql`DELETE FROM blocks WHERE page_id IN (
           SELECT pc.id FROM pages_clean pc 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id = ANY(${jobIds})
+          WHERE pr.job_id = ANY(${jobIds}::text[])
         )`);
         
         await db.execute(sql`DELETE FROM pages_clean WHERE page_raw_id IN (
-          SELECT id FROM pages_raw WHERE job_id = ANY(${jobIds})
+          SELECT id FROM pages_raw WHERE job_id = ANY(${jobIds}::text[])
         )`);
         
-        await db.execute(sql`DELETE FROM pages_raw WHERE job_id = ANY(${jobIds})`);
+        await db.execute(sql`DELETE FROM pages_raw WHERE job_id = ANY(${jobIds}::text[])`);
         
-        await db.execute(sql`DELETE FROM import_jobs WHERE job_id = ANY(${jobIds})`);
+        await db.execute(sql`DELETE FROM import_jobs WHERE job_id = ANY(${jobIds}::text[])`);
         
         console.log(`✅ [PROCESS] Cleared old data for project ${projectId}`);
+        }
       }
       
       // Проверяем что данные очищены

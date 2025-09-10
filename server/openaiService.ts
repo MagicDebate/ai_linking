@@ -338,5 +338,4 @@ export class OpenAIService {
     return fixedTitle.length > 50 ? fixedTitle.substring(0, 50) + '...' : fixedTitle;
   }
 }
-
 export const openaiService = new OpenAIService();
