@@ -349,7 +349,9 @@ export class DatabaseStorage implements IStorage {
       avgWordCount: jobData.avgWordCount || 0,
       deepPages: jobData.deepPages || 0,
       avgClickDepth: jobData.avgClickDepth || 0.0,
-      logs: Array.isArray(jobData.logs) ? jobData.logs : [`Создан импорт джоб ${jobData.jobId}`],
+      logs: Array.isArray(jobData.logs) 
+        ? jobData.logs.filter(log => typeof log === 'string')
+        : [`Создан импорт джоб ${jobData.jobId}`],
       startedAt: new Date(),
       finishedAt: null
     };
@@ -547,10 +549,12 @@ export class DatabaseStorage implements IStorage {
       // Apply updates
       Object.assign(job, updates);
       
-      // Handle logs properly
-      if (updates.logs) {
+      // Handle logs properly - ensure we only process logs field
+      if (updates.logs !== undefined) {
         if (Array.isArray(updates.logs)) {
-          job.logs = [...(job.logs || []), ...updates.logs];
+          // Ensure all elements are strings
+          const stringLogs = updates.logs.filter(log => typeof log === 'string');
+          job.logs = [...(job.logs || []), ...stringLogs];
         } else if (typeof updates.logs === 'string') {
           job.logs = [...(job.logs || []), updates.logs];
         } else {
@@ -573,8 +577,10 @@ export class DatabaseStorage implements IStorage {
           blocksDone: job.blocksDone
         });
         
-        // Ensure logs is always an array before saving to database
-        const logsArray = Array.isArray(job.logs) ? job.logs : [];
+        // Ensure logs is always an array of strings before saving to database
+        const logsArray = Array.isArray(job.logs) 
+          ? job.logs.filter(log => typeof log === 'string')
+          : [];
         
         const result = await db.update(importJobs)
           .set({
