@@ -549,6 +549,14 @@ export class DatabaseStorage implements IStorage {
       // Handle logs separately to prevent type issues
       const { logs, ...otherUpdates } = updates;
       
+      // Debug logging
+      console.log(`🔍 [updateImportJob] Processing updates for job ${jobId}:`, {
+        logsType: typeof logs,
+        logsIsArray: Array.isArray(logs),
+        logsValue: logs,
+        otherUpdatesKeys: Object.keys(otherUpdates)
+      });
+      
       // Apply updates (excluding logs)
       Object.assign(job, otherUpdates);
       
@@ -558,8 +566,10 @@ export class DatabaseStorage implements IStorage {
           // Ensure all elements are strings
           const stringLogs = logs.filter(log => typeof log === 'string');
           job.logs = [...(job.logs || []), ...stringLogs];
+          console.log(`✅ [updateImportJob] Added ${stringLogs.length} string logs to job ${jobId}`);
         } else if (typeof logs === 'string') {
           job.logs = [...(job.logs || []), logs];
+          console.log(`✅ [updateImportJob] Added 1 string log to job ${jobId}`);
         } else {
           console.warn(`⚠️ Invalid logs format for job ${jobId}:`, typeof logs, logs);
           // Skip invalid logs to prevent database errors

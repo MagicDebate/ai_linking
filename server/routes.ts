@@ -4777,8 +4777,11 @@ class ContentProcessor {
         url: page.url,
         jobId,
         rawHtml: fixedContent,
-        meta: { title: fixedTitle, description: fixedDescription },
-          importBatchId: crypto.randomUUID()
+        meta: { 
+          title: fixedTitle || '', 
+          description: fixedDescription || '' 
+        },
+        importBatchId: crypto.randomUUID()
       }).returning({ id: pagesRaw.id });
       
       // Now clean the HTML with fixed encoding
