@@ -349,7 +349,7 @@ export class DatabaseStorage implements IStorage {
       avgWordCount: jobData.avgWordCount || 0,
       deepPages: jobData.deepPages || 0,
       avgClickDepth: jobData.avgClickDepth || 0.0,
-      logs: [`Создан импорт джоб ${jobData.jobId}`],
+      logs: Array.isArray(jobData.logs) ? jobData.logs : [`Создан импорт джоб ${jobData.jobId}`],
       startedAt: new Date(),
       finishedAt: null
     };
@@ -553,6 +553,9 @@ export class DatabaseStorage implements IStorage {
           job.logs = [...(job.logs || []), ...updates.logs];
         } else if (typeof updates.logs === 'string') {
           job.logs = [...(job.logs || []), updates.logs];
+        } else {
+          console.warn(`⚠️ Invalid logs format for job ${jobId}:`, typeof updates.logs, updates.logs);
+          // Skip invalid logs to prevent database errors
         }
         if (job.logs.length > 1000) {
           job.logs = job.logs.slice(-1000);
@@ -570,6 +573,9 @@ export class DatabaseStorage implements IStorage {
           blocksDone: job.blocksDone
         });
         
+        // Ensure logs is always an array before saving to database
+        const logsArray = Array.isArray(job.logs) ? job.logs : [];
+        
         const result = await db.update(importJobs)
           .set({
             status: job.status,
@@ -582,7 +588,7 @@ export class DatabaseStorage implements IStorage {
             avgWordCount: job.avgWordCount,
             deepPages: job.deepPages,
             avgClickDepth: job.avgClickDepth,
-            logs: job.logs,
+            logs: logsArray,
             errorMessage: job.errorMessage,
             finishedAt: job.finishedAt
           })
