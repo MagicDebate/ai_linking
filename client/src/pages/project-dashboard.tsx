@@ -18,7 +18,8 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
-  Play
+  Play,
+  RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Link } from 'wouter';
