@@ -476,6 +476,30 @@ export class EmbeddingService {
     
     console.log('🧹 Cleaned up old embeddings from cache');
   }
+
+  /**
+   * Полная очистка кэша (память + БД)
+   */
+  clearCache(): void {
+    // Очищаем кэш в памяти
+    this.lruCache.clear();
+    console.log('🧹 [EmbeddingService] Cleared memory cache');
+  }
+
+  /**
+   * Очистка кэша для конкретного проекта
+   */
+  async clearProjectCache(projectId: string): Promise<void> {
+    // Очищаем кэш в памяти (все записи)
+    this.lruCache.clear();
+    
+    // Очищаем кэш в БД для проекта
+    await db
+      .delete(embeddingCache)
+      .where(eq(embeddingCache.projectId, projectId));
+    
+    console.log(`🧹 [EmbeddingService] Cleared cache for project: ${projectId}`);
+  }
 }
 
 

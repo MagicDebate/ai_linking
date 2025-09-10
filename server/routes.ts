@@ -2603,6 +2603,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ========== GENERATION MANAGEMENT ==========
   
+  // Clear embedding cache for project
+  app.post("/api/clear-embedding-cache/:projectId", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      console.log('🧹 [CLEAR CACHE] Starting embedding cache clear for project:', projectId);
+      
+      // Clear embedding cache using EmbeddingService
+      const { EmbeddingService } = await import("./embeddingService");
+      const embeddingService = new EmbeddingService();
+      await embeddingService.clearProjectCache(projectId);
+      
+      console.log('✅ [CLEAR CACHE] Cleared embedding cache for project');
+      
+      res.json({ 
+        success: true, 
+        message: "Embedding cache cleared successfully",
+        projectId: projectId
+      });
+    } catch (error) {
+      console.error("Clear cache error:", error);
+      res.status(500).json({ error: "Failed to clear cache" });
+    }
+  });
+
   // Fix encoding in project data (pages_raw and blocks)
   app.post("/api/fix-encoding-project/:projectId", authenticateToken, async (req: any, res) => {
     try {

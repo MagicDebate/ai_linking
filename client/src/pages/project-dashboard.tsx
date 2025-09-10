@@ -149,6 +149,39 @@ export default function ProjectDashboard() {
     downloadMutation.mutate(runId);
   };
 
+  // Clear cache mutation
+  const clearCacheMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/clear-embedding-cache/${projectId}`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to clear cache');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ 
+        title: "Кэш очищен!", 
+        description: "Кэш эмбеддингов успешно сброшен" 
+      });
+      // Refresh project data
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Ошибка очистки кэша", 
+        description: error instanceof Error ? error.message : "Не удалось очистить кэш",
+        variant: "destructive" 
+      });
+    }
+  });
+
+  const handleClearCache = () => {
+    if (confirm('Вы уверены, что хотите сбросить кэш эмбеддингов? Это может замедлить следующую генерацию.')) {
+      clearCacheMutation.mutate();
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
@@ -215,6 +248,14 @@ export default function ProjectDashboard() {
             >
               <Play className="h-4 w-4 mr-2" />
               Начать перелинковку
+            </Button>
+            <Button 
+              onClick={handleClearCache}
+              variant="outline"
+              className="border-orange-300 text-orange-700 hover:bg-orange-50"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Сбросить кэш
             </Button>
           </div>
         </div>
