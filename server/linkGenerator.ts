@@ -1110,6 +1110,38 @@ export class LinkGenerator {
 
     console.log('🔍 [loadPages] Found pages:', pages.length);
     console.log('🔍 [loadPages] ===== РЕЗУЛЬТАТ ЗАПРОСА =====');
+    
+    // ИСПРАВЛЯЕМ КОДИРОВКУ для всех страниц
+    for (const page of pages) {
+      if (page.title && page.title.includes('')) {
+        try {
+          const encodings = ['windows-1251', 'cp1251', 'iso-8859-1', 'latin1'];
+          let success = false;
+          
+          for (const encoding of encodings) {
+            try {
+              const buffer = Buffer.from(page.title, 'binary');
+              const testText = buffer.toString(encoding as BufferEncoding);
+              if (!testText.includes('')) {
+                page.title = testText;
+                console.log(`✅ [loadPages] Fixed title encoding with ${encoding}:`, page.title.substring(0, 50));
+                success = true;
+                break;
+              }
+            } catch (e) {
+              // Продолжаем с следующей кодировкой
+            }
+          }
+          
+          if (!success) {
+            console.log('⚠️ [loadPages] All encoding attempts failed for title:', page.title.substring(0, 50));
+          }
+        } catch (error) {
+          console.log('⚠️ [loadPages] Title encoding fix failed:', error.message);
+        }
+      }
+    }
+    
     if (pages.length > 0) {
       console.log('🔍 [loadPages] Sample page:', pages[0]);
       console.log('🔍 [loadPages] Orphan pages:', pages.filter((p: any) => p.isOrphan).length);
@@ -1151,6 +1183,43 @@ export class LinkGenerator {
       
       console.log('🔍 [loadPages] Simple pages found:', simplePages.length);
       if (simplePages.length > 0) {
+        // ИСПРАВЛЯЕМ КОДИРОВКУ для простых страниц
+        for (const page of simplePages) {
+          if (page.title && typeof page.title === 'object' && page.title.title) {
+            // Если title это объект meta, извлекаем title
+            const metaTitle = page.title.title;
+            if (metaTitle && metaTitle.includes('')) {
+              try {
+                const encodings = ['windows-1251', 'cp1251', 'iso-8859-1', 'latin1'];
+                let success = false;
+                
+                for (const encoding of encodings) {
+                  try {
+                    const buffer = Buffer.from(metaTitle, 'binary');
+                    const testText = buffer.toString(encoding as BufferEncoding);
+                    if (!testText.includes('')) {
+                      page.title = testText;
+                      console.log(`✅ [loadPages] Fixed simple page title encoding with ${encoding}:`, testText.substring(0, 50));
+                      success = true;
+                      break;
+                    }
+                  } catch (e) {
+                    // Продолжаем с следующей кодировкой
+                  }
+                }
+                
+                if (!success) {
+                  console.log('⚠️ [loadPages] All encoding attempts failed for simple page title:', metaTitle.substring(0, 50));
+                }
+              } catch (error) {
+                console.log('⚠️ [loadPages] Simple page title encoding fix failed:', error.message);
+              }
+            } else {
+              page.title = metaTitle || '';
+            }
+          }
+        }
+        
         console.log('🔍 [loadPages] Sample simple page:', simplePages[0]);
         return simplePages;
       }
