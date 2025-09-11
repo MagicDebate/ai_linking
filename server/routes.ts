@@ -4873,10 +4873,10 @@ class ContentProcessor {
             }
             
             return {
-            pageId: page.id,
-            blockType: block.type,
-              text: blockText,
-            position: i + batchIndex
+              pageId: page.id,
+              blockType: String(block.type || 'p'),
+              text: String(blockText || ''),
+              position: Number(i + batchIndex)
             };
           });
           
@@ -5054,12 +5054,12 @@ class ContentProcessor {
         const targetPageId = urlToPageId.get(linkUrl);
         if (targetPageId) {
           const edgeResult = await db.insert(edges).values({
-            jobId,
-            fromPageId: page.id,
-            toPageId: targetPageId,
-            fromUrl: page.url,
-            toUrl: linkUrl,
-            isInternal: true
+            jobId: String(jobId),
+            fromPageId: String(page.id),
+            toPageId: String(targetPageId),
+            fromUrl: String(page.url || ''),
+            toUrl: String(linkUrl || ''),
+            isInternal: Boolean(true)
           }).returning({ id: edges.id });
           
           edgesList.push(edgeResult[0]);
@@ -5080,13 +5080,13 @@ class ContentProcessor {
       totalDepth += pageDepth;
       
       await db.insert(graphMeta).values({
-        pageId: page.id,
-        jobId,
-        url: page.url,
-        clickDepth: pageDepth,
-        inDegree,
-        outDegree,
-        isOrphan
+        pageId: String(page.id),
+        jobId: String(jobId),
+        url: String(page.url || ''),
+        clickDepth: Number(pageDepth),
+        inDegree: Number(inDegree),
+        outDegree: Number(outDegree),
+        isOrphan: Boolean(isOrphan)
       });
     }
     
