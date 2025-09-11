@@ -4886,6 +4886,15 @@ class ContentProcessor {
               setTimeout(() => reject(new Error('Database insert timeout')), 30000); // 30 секунд
             });
             
+            // Debug logging
+            console.log(`🔍 [DEBUG] batchValues for blocks insert:`, JSON.stringify(batchValues, null, 2));
+            console.log(`🔍 [DEBUG] batchValues types:`, batchValues.map(item => ({
+              pageId: typeof item.pageId,
+              blockType: typeof item.blockType,
+              text: typeof item.text,
+              position: typeof item.position
+            })));
+            
             const insertPromise = db.insert(blocks).values(batchValues).returning({ id: blocks.id });
             const blockResults = await Promise.race([insertPromise, timeoutPromise]) as any[];
             

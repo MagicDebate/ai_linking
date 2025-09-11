@@ -595,6 +595,14 @@ export class DatabaseStorage implements IStorage {
           ? job.logs.filter(log => typeof log === 'string')
           : [];
         
+        // Debug logging
+        console.log(`🔍 [DEBUG] Updating importJobs with logs:`, {
+          logsType: typeof logsArray,
+          logsIsArray: Array.isArray(logsArray),
+          logsLength: logsArray.length,
+          logsSample: logsArray.slice(0, 2)
+        });
+        
         const result = await db.update(importJobs)
           .set({
             status: job.status,
