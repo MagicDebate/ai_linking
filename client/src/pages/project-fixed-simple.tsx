@@ -101,12 +101,12 @@ export default function ProjectFixedSimple() {
   } = useProjectState(projectId);
 
   const { navigateToStep } = useProjectNavigation(projectId, setCurrentStep);
-  // Функция для поиска последнего активного импорта
-  const findLatestActiveImport = async () => {
+  // Функция для поиска последнего импорта (активного или завершенного)
+  const findLatestImport = async () => {
     if (!projectId) return null;
     
     try {
-      console.log('🔍 Searching for latest active import for project:', projectId);
+      console.log('🔍 Searching for latest import for project:', projectId);
       const response = await fetch(`/api/import/jobs/${projectId}`, {
         credentials: 'include'
       });
@@ -114,7 +114,7 @@ export default function ProjectFixedSimple() {
       if (response.ok) {
         const jobs = await response.json();
         if (jobs && jobs.length > 0) {
-          // Ищем активный импорт (running или pending)
+          // Сначала ищем активный импорт (running или pending)
           const activeJob = jobs.find((job: any) => 
             job.status === 'running' || job.status === 'pending'
           );
@@ -122,7 +122,10 @@ export default function ProjectFixedSimple() {
             console.log('✅ Found active import job:', activeJob.jobId);
             return activeJob.jobId;
           } else {
-            console.log('⚠️ No active imports found for project');
+            // Если активного нет, берем последний импорт (включая завершенный)
+            const latestJob = jobs[0]; // jobs отсортированы по дате
+            console.log('✅ Found latest import job (completed):', latestJob.jobId, 'status:', latestJob.status);
+            return latestJob.jobId;
           }
         } else {
           console.log('⚠️ No jobs found for project');
@@ -131,7 +134,7 @@ export default function ProjectFixedSimple() {
         console.log('❌ Failed to fetch jobs for project');
       }
     } catch (error) {
-      console.error('❌ Error finding latest active import:', error);
+      console.error('❌ Error finding latest import:', error);
     }
     return null;
   };
@@ -139,10 +142,10 @@ export default function ProjectFixedSimple() {
   // Определяем jobId: либо из состояния, либо ищем активный импорт
   const [activeJobId, setActiveJobId] = useState<string | null>(projectState?.importJobId || null);
   
-  // Ищем активный импорт при загрузке, если нет в состоянии
+  // Ищем последний импорт при загрузке, если нет в состоянии
   useEffect(() => {
     if (!projectState?.importJobId && projectId) {
-      findLatestActiveImport().then(jobId => {
+      findLatestImport().then(jobId => {
         if (jobId) {
           setActiveJobId(jobId);
           setImportJobId(jobId); // Сохраняем в состояние проекта

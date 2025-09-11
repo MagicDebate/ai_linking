@@ -93,9 +93,19 @@ export function ImportPage() {
       if (response.ok) {
         const jobs = await response.json();
         if (jobs && jobs.length > 0) {
-          const latestJob = jobs[0]; // Предполагаем, что jobs отсортированы по дате
-          console.log('✅ Found latest job:', latestJob.jobId);
-          setJobId(latestJob.jobId);
+          // Сначала ищем активный импорт
+          const activeJob = jobs.find((job: any) => 
+            job.status === 'running' || job.status === 'pending'
+          );
+          if (activeJob) {
+            console.log('✅ Found active job:', activeJob.jobId);
+            setJobId(activeJob.jobId);
+          } else {
+            // Если активного нет, берем последний импорт
+            const latestJob = jobs[0]; // jobs отсортированы по дате
+            console.log('✅ Found latest job (completed):', latestJob.jobId, 'status:', latestJob.status);
+            setJobId(latestJob.jobId);
+          }
         } else {
           console.log('⚠️ No jobs found for project');
         }
