@@ -2831,7 +2831,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           projectId,
           fileName,
           fieldMapping,
-          selectedScenarios,
+          selectedScenarios: Array.isArray(selectedScenarios) ? selectedScenarios : {},
           scopeSettings,
           linkingRules,
           isLastUsed: true
