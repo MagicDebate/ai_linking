@@ -4371,22 +4371,22 @@ class ContentProcessor {
           SELECT b.id FROM blocks b 
           INNER JOIN pages_clean pc ON b.page_id = pc.id 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id = ANY(${jobIds}::text[])
+          WHERE pr.job_id = ANY(${jobIds.map(id => String(id))}::text[])
         )`);
         
         await db.execute(sql`DELETE FROM blocks WHERE page_id IN (
           SELECT pc.id FROM pages_clean pc 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id = ANY(${jobIds}::text[])
+          WHERE pr.job_id = ANY(${jobIds.map(id => String(id))}::text[])
         )`);
         
         await db.execute(sql`DELETE FROM pages_clean WHERE page_raw_id IN (
-          SELECT id FROM pages_raw WHERE job_id = ANY(${jobIds}::text[])
+          SELECT id FROM pages_raw WHERE job_id = ANY(${jobIds.map(id => String(id))}::text[])
         )`);
         
-        await db.execute(sql`DELETE FROM pages_raw WHERE job_id = ANY(${jobIds}::text[])`);
+        await db.execute(sql`DELETE FROM pages_raw WHERE job_id = ANY(${jobIds.map(id => String(id))}::text[])`);
         
-        await db.execute(sql`DELETE FROM import_jobs WHERE job_id = ANY(${jobIds}::text[])`);
+        await db.execute(sql`DELETE FROM import_jobs WHERE job_id = ANY(${jobIds.map(id => String(id))}::text[])`);
         
         console.log(`✅ [PROCESS] Cleared old data for project ${projectId}`);
         }
