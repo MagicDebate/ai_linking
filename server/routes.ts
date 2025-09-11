@@ -4774,14 +4774,14 @@ class ContentProcessor {
       
       // Save raw page data first with fixed encoding
       const pageRawResult = await db.insert(pagesRaw).values({
-        url: page.url,
-        jobId,
-        rawHtml: fixedContent,
+        url: String(page.url || ''),
+        jobId: String(jobId),
+        rawHtml: String(fixedContent || ''),
         meta: { 
-          title: fixedTitle || '', 
-          description: fixedDescription || '' 
+          title: String(fixedTitle || ''), 
+          description: String(fixedDescription || '') 
         },
-        importBatchId: crypto.randomUUID()
+        importBatchId: String(crypto.randomUUID())
       }).returning({ id: pagesRaw.id });
       
       // Now clean the HTML with fixed encoding
@@ -4795,9 +4795,9 @@ class ContentProcessor {
       
       // Save to pages_clean table with valid page_raw_id
       const pageCleanResult = await db.insert(pagesClean).values({
-        pageRawId: pageRawResult[0].id,
-        cleanHtml,
-        wordCount
+        pageRawId: String(pageRawResult[0].id),
+        cleanHtml: String(cleanHtml || ''),
+        wordCount: Number(wordCount || 0)
       }).returning({ id: pagesClean.id });
       
       cleanPages.push({
@@ -4873,7 +4873,7 @@ class ContentProcessor {
             }
             
             return {
-              pageId: page.id,
+              pageId: String(page.id),
               blockType: String(block.type || 'p'),
               text: String(blockText || ''),
               position: Number(i + batchIndex)
