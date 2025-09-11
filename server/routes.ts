@@ -4367,26 +4367,36 @@ class ContentProcessor {
           console.log(`⚠️ [PROCESS] No job IDs to clean, skipping deletion`);
         } else {
           // Удаляем старые данные
+          console.log(`🔍 [DEBUG] jobIds before processing:`, jobIds);
+          console.log(`🔍 [DEBUG] jobIds types:`, jobIds.map(id => typeof id));
+          const stringJobIds = jobIds.map(id => String(id));
+          console.log(`🔍 [DEBUG] stringJobIds:`, stringJobIds);
+          console.log(`🔍 [DEBUG] About to execute DELETE FROM embeddings...`);
+          
         await db.execute(sql`DELETE FROM embeddings WHERE block_id IN (
           SELECT b.id FROM blocks b 
           INNER JOIN pages_clean pc ON b.page_id = pc.id 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id = ANY(${jobIds.map(id => String(id))}::text[])
+          WHERE pr.job_id = ANY(${stringJobIds}::text[])
         )`);
         
+        console.log(`🔍 [DEBUG] About to execute DELETE FROM blocks...`);
         await db.execute(sql`DELETE FROM blocks WHERE page_id IN (
           SELECT pc.id FROM pages_clean pc 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id = ANY(${jobIds.map(id => String(id))}::text[])
+          WHERE pr.job_id = ANY(${stringJobIds}::text[])
         )`);
         
+        console.log(`🔍 [DEBUG] About to execute DELETE FROM pages_clean...`);
         await db.execute(sql`DELETE FROM pages_clean WHERE page_raw_id IN (
-          SELECT id FROM pages_raw WHERE job_id = ANY(${jobIds.map(id => String(id))}::text[])
+          SELECT id FROM pages_raw WHERE job_id = ANY(${stringJobIds}::text[])
         )`);
         
-        await db.execute(sql`DELETE FROM pages_raw WHERE job_id = ANY(${jobIds.map(id => String(id))}::text[])`);
+        console.log(`🔍 [DEBUG] About to execute DELETE FROM pages_raw...`);
+        await db.execute(sql`DELETE FROM pages_raw WHERE job_id = ANY(${stringJobIds}::text[])`);
         
-        await db.execute(sql`DELETE FROM import_jobs WHERE job_id = ANY(${jobIds.map(id => String(id))}::text[])`);
+        console.log(`🔍 [DEBUG] About to execute DELETE FROM import_jobs...`);
+        await db.execute(sql`DELETE FROM import_jobs WHERE job_id = ANY(${stringJobIds}::text[])`);
         
         console.log(`✅ [PROCESS] Cleared old data for project ${projectId}`);
         }
@@ -4898,7 +4908,8 @@ class ContentProcessor {
               text: typeof item.text,
               position: typeof item.position
             })));
-            
+            console.log(`🔍 [DEBUG] About to insert blocks batch ${Math.floor(i / batchSize) + 1}...`);
+
             const insertPromise = db.insert(blocks).values(batchValues).returning({ id: blocks.id });
             const blockResults = await Promise.race([insertPromise, timeoutPromise]) as any[];
             
