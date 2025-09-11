@@ -4377,26 +4377,26 @@ class ContentProcessor {
           SELECT b.id FROM blocks b 
           INNER JOIN pages_clean pc ON b.page_id = pc.id 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id = ANY(${stringJobIds}::text[])
+          WHERE pr.job_id IN (${stringJobIds.map(id => sql`${id}`).join(sql`, `)})
         )`);
         
         console.log(`🔍 [DEBUG] About to execute DELETE FROM blocks...`);
         await db.execute(sql`DELETE FROM blocks WHERE page_id IN (
           SELECT pc.id FROM pages_clean pc 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id = ANY(${stringJobIds}::text[])
+          WHERE pr.job_id IN (${stringJobIds.map(id => sql`${id}`).join(sql`, `)})
         )`);
         
         console.log(`🔍 [DEBUG] About to execute DELETE FROM pages_clean...`);
         await db.execute(sql`DELETE FROM pages_clean WHERE page_raw_id IN (
-          SELECT id FROM pages_raw WHERE job_id = ANY(${stringJobIds}::text[])
+          SELECT id FROM pages_raw WHERE job_id IN (${stringJobIds.map(id => sql`${id}`).join(sql`, `)})
         )`);
         
         console.log(`🔍 [DEBUG] About to execute DELETE FROM pages_raw...`);
-        await db.execute(sql`DELETE FROM pages_raw WHERE job_id = ANY(${stringJobIds}::text[])`);
+        await db.execute(sql`DELETE FROM pages_raw WHERE job_id IN (${stringJobIds.map(id => sql`${id}`).join(sql`, `)})`);
         
         console.log(`🔍 [DEBUG] About to execute DELETE FROM import_jobs...`);
-        await db.execute(sql`DELETE FROM import_jobs WHERE job_id = ANY(${stringJobIds}::text[])`);
+        await db.execute(sql`DELETE FROM import_jobs WHERE job_id IN (${stringJobIds.map(id => sql`${id}`).join(sql`, `)})`);
         
         console.log(`✅ [PROCESS] Cleared old data for project ${projectId}`);
         }
