@@ -659,18 +659,18 @@ export class DatabaseStorage implements IStorage {
     // Save new pages data with a consistent jobId
     if (pagesData.length > 0) {
       const pagesToInsert = pagesData.map((page, index) => ({
-        jobId: batchId, // Use same ID for all pages in this batch
-        url: page.url || `#page-${index + 1}`,
-        rawHtml: page.content || '',
+        jobId: String(batchId), // Use same ID for all pages in this batch
+        url: String(page.url || `#page-${index + 1}`),
+        rawHtml: String(page.content || ''),
         meta: sql`${JSON.stringify({
-          title: page.title || `Страница ${index + 1}`,
-          wordCount: page.wordCount || 0,
-          urlDepth: page.urlDepth || 0,
-          internalLinkCount: page.internalLinkCount || 0,
-          isOrphan: page.isOrphan || false,
-          contentPreview: page.contentPreview || ''
+          title: String(page.title || `Страница ${index + 1}`),
+          wordCount: Number(page.wordCount || 0),
+          urlDepth: Number(page.urlDepth || 0),
+          internalLinkCount: Number(page.internalLinkCount || 0),
+          isOrphan: Boolean(page.isOrphan || false),
+          contentPreview: String(page.contentPreview || '')
         })}`,
-        importBatchId: importBatchId
+        importBatchId: String(importBatchId)
       }));
       
       // Delete existing pages for this project first

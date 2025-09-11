@@ -2701,7 +2701,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (needsUpdate) {
           await db.update(pagesRaw).set({ 
-            meta: { ...meta, title: fixedTitle, description: fixedDescription || '' }
+            meta: { 
+              ...meta, 
+              title: String(fixedTitle || ''), 
+              description: String(fixedDescription || '') 
+            }
           }).where(eq(pagesRaw.id, page.id));
           fixedPagesRaw++;
         }

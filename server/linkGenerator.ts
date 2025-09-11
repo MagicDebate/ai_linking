@@ -921,16 +921,16 @@ export class LinkGenerator {
       }
 
       await db.insert(linkCandidates).values({
-        runId: runId,
-        sourcePageId: sourcePage.id,
-        targetPageId: targetPage.id,
-        sourceUrl: sourcePage.url,
-        targetUrl: targetPage.url,
-        anchorText: fixedAnchorText,
-        type: scenario,
-        status: 'accepted',
-        anchorSource: 'ai', // или 'text' или 'generic' в зависимости от источника
-        confidence: 0.8, // Заглушка
+        runId: String(runId),
+        sourcePageId: String(sourcePage.id),
+        targetPageId: String(targetPage.id),
+        sourceUrl: String(sourcePage.url || ''),
+        targetUrl: String(targetPage.url || ''),
+        anchorText: String(fixedAnchorText || ''),
+        type: String(scenario),
+        status: String('accepted'),
+        anchorSource: String('ai'), // или 'text' или 'generic' в зависимости от источника
+        confidence: Number(0.8), // Заглушка
         positionHint: { pageId: sourcePage.id, blockId: 1, offset: 0 }, // Заглушка
         similarity: 0.75, // Заглушка
         modifiedSentence: fixedModifiedSentence
