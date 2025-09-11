@@ -4799,14 +4799,14 @@ class ContentProcessor {
       
       // Save to pages_clean table with valid page_raw_id
       const pageCleanResult = await db.insert(pagesClean).values({
-        pageRawId: String(pageRawResult[0].id),
+        pageRawId: String(pageRawResult[0]?.id || crypto.randomUUID()),
         cleanHtml: String(cleanHtml || ''),
         wordCount: Number(wordCount || 0)
       }).returning({ id: pagesClean.id });
       
       cleanPages.push({
-        id: pageCleanResult[0].id,
-        pageRawId: pageRawResult[0].id,
+        id: String(pageCleanResult[0]?.id || crypto.randomUUID()),
+        pageRawId: String(pageRawResult[0]?.id || crypto.randomUUID()),
         url: page.url,
         title: fixedTitle,
         cleanHtml,
@@ -4877,7 +4877,7 @@ class ContentProcessor {
             }
             
             return {
-              pageId: String(page.id),
+              pageId: String(page.id || crypto.randomUUID()),
               blockType: String(block.type || 'p'),
               text: String(blockText || ''),
               position: Number(i + batchIndex)
