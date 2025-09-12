@@ -401,26 +401,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         await db.execute(sql`DELETE FROM generation_runs WHERE project_id = ${projectId}`);
         
+        // Convert jobIds array to proper SQL format
+        const stringJobIds = jobIds.map(id => `'${id}'`).join(',');
+        
         await db.execute(sql`DELETE FROM embeddings WHERE block_id IN (
           SELECT b.id FROM blocks b 
           INNER JOIN pages_clean pc ON b.page_id = pc.id 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id = ANY(${jobIds}::text[])
+          WHERE pr.job_id IN (${stringJobIds})
         )`);
         
         await db.execute(sql`DELETE FROM blocks WHERE page_id IN (
           SELECT pc.id FROM pages_clean pc 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id = ANY(${jobIds}::text[])
+          WHERE pr.job_id IN (${stringJobIds})
         )`);
         
         await db.execute(sql`DELETE FROM pages_clean WHERE page_raw_id IN (
-          SELECT id FROM pages_raw WHERE job_id = ANY(${jobIds}::text[])
+          SELECT id FROM pages_raw WHERE job_id IN (${stringJobIds})
         )`);
         
-        await db.execute(sql`DELETE FROM pages_raw WHERE job_id = ANY(${jobIds}::text[])`);
+        await db.execute(sql`DELETE FROM pages_raw WHERE job_id IN (${stringJobIds})`);
         
-        await db.execute(sql`DELETE FROM import_jobs WHERE job_id = ANY(${jobIds}::text[])`);
+        await db.execute(sql`DELETE FROM import_jobs WHERE job_id IN (${stringJobIds})`);
         
         console.log(`✅ [CLEAR-DATA] Cleared all data for project: ${projectId}`);
       }
