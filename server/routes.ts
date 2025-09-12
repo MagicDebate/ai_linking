@@ -3734,7 +3734,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         links: 0
       };
 
-      // 1. Delete link candidates and generation runs
+      // 1. Check and delete link candidates and generation runs
+      const linkCount = await db.execute(sql`
+        SELECT COUNT(*) as count FROM link_candidates 
+        WHERE run_id IN (
+          SELECT run_id FROM generation_runs 
+          WHERE project_id = ${projectId}
+        )
+      `);
+      console.log(`🔍 [CLEAR-ALL-DATA] Found ${linkCount.rows[0]?.count || 0} link candidates to delete`);
+      
       const deletedLinks = await db.execute(sql`
         DELETE FROM link_candidates 
         WHERE run_id IN (
@@ -3776,7 +3785,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedPagesClean.rowCount || 0} clean pages`);
 
-      // 5. Delete pages_raw
+      // 5. Check and delete pages_raw
+      const pagesRawCount = await db.execute(sql`
+        SELECT COUNT(*) as count FROM pages_raw WHERE job_id IN (${jobIdsPlaceholder})
+      `);
+      console.log(`🔍 [CLEAR-ALL-DATA] Found ${pagesRawCount.rows[0]?.count || 0} raw pages to delete`);
+      
       const deletedPagesRaw = await db.execute(sql`
         DELETE FROM pages_raw WHERE job_id IN (${jobIdsPlaceholder})
       `);
@@ -4777,9 +4791,12 @@ class ContentProcessor {
         const jobIds = projectJobs.map(job => job.jobId);
         console.log(`🧹 [PROCESS] Found ${jobIds.length} old jobs to clean:`, jobIds);
         
-        // Convert jobIds array to proper SQL format
-        const stringJobIds = jobIds.map(id => String(id));
-        const jobIdsPlaceholder = stringJobIds.map(id => sql`${id}`).join(sql`, `);
+      // Convert jobIds array to proper SQL format
+      const stringJobIds = jobIds.map(id => String(id));
+      const jobIdsPlaceholder = stringJobIds.map(id => sql`${id}`).join(sql`, `);
+      
+      console.log(`🔍 [CLEAR-ALL-DATA] Job IDs to delete:`, stringJobIds);
+      console.log(`🔍 [CLEAR-ALL-DATA] Job IDs placeholder:`, jobIdsPlaceholder);
         
         // Удаляем старые данные в правильном порядке
         console.log(`🧹 [PROCESS] Deleting old embeddings...`);
