@@ -3496,7 +3496,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eq(importJobs.projectId, projectId),
           eq(importJobs.status, 'completed')
         ))
-        .orderBy(desc(importJobs.createdAt))
+        .orderBy(desc(importJobs.startedAt))
         .limit(1);
 
       if (!latestJob.length) {
@@ -3832,21 +3832,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get all import jobs for this project
-      const importJobs = await db
+      const projectImportJobs = await db
         .select({
           jobId: importJobs.jobId,
           status: importJobs.status,
-          createdAt: importJobs.createdAt,
+          startedAt: importJobs.startedAt,
           finishedAt: importJobs.finishedAt,
-          pagesCount: importJobs.pagesCount,
-          blocksCount: importJobs.blocksCount
+          pagesTotal: importJobs.pagesTotal,
+          blocksDone: importJobs.blocksDone
         })
         .from(importJobs)
         .where(eq(importJobs.projectId, projectId))
-        .orderBy(desc(importJobs.createdAt));
+        .orderBy(desc(importJobs.startedAt));
 
       // Get pages count from graph_meta for each job
-      const jobsWithPages = await Promise.all(importJobs.map(async (job) => {
+      const jobsWithPages = await Promise.all(projectImportJobs.map(async (job) => {
         const pagesCount = await db
           .select({ count: sql<number>`count(*)` })
           .from(graphMeta)
