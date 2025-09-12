@@ -4797,6 +4797,20 @@ class ContentProcessor {
       
       console.log(`🔍 [CLEAR-ALL-DATA] Job IDs to delete:`, stringJobIds);
       console.log(`🔍 [CLEAR-ALL-DATA] Job IDs placeholder:`, jobIdsPlaceholder);
+      
+      // Debug: Check what job IDs exist in pages_raw
+      const existingJobIds = await db.execute(sql`
+        SELECT DISTINCT job_id FROM pages_raw WHERE job_id IN (${jobIdsPlaceholder})
+      `);
+      console.log(`🔍 [CLEAR-ALL-DATA] Existing job IDs in pages_raw:`, existingJobIds.rows);
+      
+      // Debug: Check all job IDs in pages_raw for this project
+      const allJobIdsInPagesRaw = await db.execute(sql`
+        SELECT DISTINCT pr.job_id FROM pages_raw pr
+        INNER JOIN import_jobs ij ON pr.job_id = ij.job_id
+        WHERE ij.project_id = ${projectId}
+      `);
+      console.log(`🔍 [CLEAR-ALL-DATA] All job IDs in pages_raw for project:`, allJobIdsInPagesRaw.rows);
         
         // Удаляем старые данные в правильном порядке
         console.log(`🧹 [PROCESS] Deleting old embeddings...`);
