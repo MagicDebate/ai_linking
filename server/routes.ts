@@ -3757,16 +3757,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       clearedCounts.embeddings = deletedEmbeddings.rowCount || 0;
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.embeddings} embeddings`);
 
-      // 3. Delete blocks
+      // 3. Delete blocks (through pages_clean -> pages_raw -> job_id)
       const deletedBlocks = await db.execute(sql`
-        DELETE FROM blocks WHERE job_id IN (${jobIdsPlaceholder})
+        DELETE FROM blocks WHERE page_id IN (
+          SELECT pc.id FROM pages_clean pc 
+          INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
+          WHERE pr.job_id IN (${jobIdsPlaceholder})
+        )
       `);
       clearedCounts.blocks = deletedBlocks.rowCount || 0;
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.blocks} blocks`);
 
-      // 4. Delete pages_clean
+      // 4. Delete pages_clean (through pages_raw -> job_id)
       const deletedPagesClean = await db.execute(sql`
-        DELETE FROM pages_clean WHERE job_id IN (${jobIdsPlaceholder})
+        DELETE FROM pages_clean WHERE page_raw_id IN (
+          SELECT id FROM pages_raw WHERE job_id IN (${jobIdsPlaceholder})
+        )
       `);
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedPagesClean.rowCount || 0} clean pages`);
 
