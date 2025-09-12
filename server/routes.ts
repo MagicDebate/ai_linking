@@ -3750,9 +3750,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedRuns.rowCount || 0} generation runs`);
 
-      // 2. Delete embeddings
+      // 2. Delete embeddings (by projectId, not job_id)
       const deletedEmbeddings = await db.execute(sql`
-        DELETE FROM embeddings WHERE job_id IN (${jobIdsPlaceholder})
+        DELETE FROM embeddings WHERE project_id = ${projectId}
       `);
       clearedCounts.embeddings = deletedEmbeddings.rowCount || 0;
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.embeddings} embeddings`);
@@ -4778,12 +4778,7 @@ class ContentProcessor {
         // Удаляем старые данные в правильном порядке
         console.log(`🧹 [PROCESS] Deleting old embeddings...`);
         await db.execute(sql`
-          DELETE FROM embeddings WHERE block_id IN (
-            SELECT b.id FROM blocks b 
-            INNER JOIN pages_clean pc ON b.page_id = pc.id 
-            INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-            WHERE pr.job_id IN (${jobIdsPlaceholder})
-          )
+          DELETE FROM embeddings WHERE project_id = ${projectId}
         `);
         
         console.log(`🧹 [PROCESS] Deleting old blocks...`);
