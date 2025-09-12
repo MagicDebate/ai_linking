@@ -3488,7 +3488,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Project not found" });
       }
 
-      // Get pages from graph_meta table with real orphan data
+      // Get the latest import job for this project
+      const latestJob = await db
+        .select({ jobId: importJobs.jobId })
+        .from(importJobs)
+        .where(and(
+          eq(importJobs.projectId, projectId),
+          eq(importJobs.status, 'completed')
+        ))
+        .orderBy(desc(importJobs.createdAt))
+        .limit(1);
+
+      if (!latestJob.length) {
+        return res.json({ 
+          success: true, 
+          pages: [],
+          stats: { totalPages: 0, orphanCount: 0, linkedPages: 0, avgWordCount: 0 }
+        });
+      }
+
+      // Get pages from graph_meta table for the latest import only
       const graphData = await db.execute(sql`
         SELECT gm.url, pr.meta->>'title' as title, pc.word_count, gm.click_depth, 
                gm.out_degree as internal_links_count, gm.is_orphan, gm.in_degree, gm.out_degree,
@@ -3496,8 +3515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM graph_meta gm
         LEFT JOIN pages_clean pc ON gm.page_id = pc.id
         LEFT JOIN pages_raw pr ON pc.page_raw_id = pr.id
-        INNER JOIN import_jobs ij ON gm.job_id = ij.job_id
-        WHERE ij.project_id::text = ${projectId}
+        WHERE gm.job_id = ${latestJob[0].jobId}
         ORDER BY gm.created_at DESC
       `);
       
@@ -3666,6 +3684,183 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Debug pages error:", error);
       res.status(500).json({ error: "Failed to get debug pages" });
+    }
+  });
+
+  // Clear ALL data for a project (nuclear option)
+  app.post("/api/projects/:projectId/clear-all-data", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Validate project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      console.log(`🧹 [CLEAR-ALL-DATA] Starting complete data cleanup for project: ${projectId}`);
+
+      // Get all job IDs for this project
+      const projectJobs = await db
+        .select({ jobId: importJobs.jobId })
+        .from(importJobs)
+        .where(eq(importJobs.projectId, projectId));
+
+      const jobIds = projectJobs.map(job => job.jobId);
+      console.log(`🧹 [CLEAR-ALL-DATA] Found ${jobIds.length} import jobs to clean`);
+
+      if (jobIds.length === 0) {
+        return res.json({ 
+          success: true, 
+          message: "No data to clear - project is already empty",
+          clearedJobs: 0,
+          clearedPages: 0,
+          clearedBlocks: 0,
+          clearedEmbeddings: 0,
+          clearedLinks: 0
+        });
+      }
+
+      // Convert jobIds to string array for SQL IN clause
+      const stringJobIds = jobIds.map(id => String(id));
+      const jobIdsPlaceholder = stringJobIds.map(id => sql`${id}`).join(sql`, `);
+
+      // Delete in correct order (respecting foreign key constraints)
+      let clearedCounts = {
+        jobs: 0,
+        pages: 0,
+        blocks: 0,
+        embeddings: 0,
+        links: 0
+      };
+
+      // 1. Delete link candidates and generation runs
+      const deletedLinks = await db.execute(sql`
+        DELETE FROM link_candidates 
+        WHERE run_id IN (
+          SELECT run_id FROM generation_runs 
+          WHERE project_id = ${projectId}
+        )
+      `);
+      clearedCounts.links = deletedLinks.rowCount || 0;
+      console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.links} link candidates`);
+
+      const deletedRuns = await db.execute(sql`
+        DELETE FROM generation_runs WHERE project_id = ${projectId}
+      `);
+      console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedRuns.rowCount || 0} generation runs`);
+
+      // 2. Delete embeddings
+      const deletedEmbeddings = await db.execute(sql`
+        DELETE FROM embeddings WHERE job_id IN (${jobIdsPlaceholder})
+      `);
+      clearedCounts.embeddings = deletedEmbeddings.rowCount || 0;
+      console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.embeddings} embeddings`);
+
+      // 3. Delete blocks
+      const deletedBlocks = await db.execute(sql`
+        DELETE FROM blocks WHERE job_id IN (${jobIdsPlaceholder})
+      `);
+      clearedCounts.blocks = deletedBlocks.rowCount || 0;
+      console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.blocks} blocks`);
+
+      // 4. Delete pages_clean
+      const deletedPagesClean = await db.execute(sql`
+        DELETE FROM pages_clean WHERE job_id IN (${jobIdsPlaceholder})
+      `);
+      console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedPagesClean.rowCount || 0} clean pages`);
+
+      // 5. Delete pages_raw
+      const deletedPagesRaw = await db.execute(sql`
+        DELETE FROM pages_raw WHERE job_id IN (${jobIdsPlaceholder})
+      `);
+      clearedCounts.pages = deletedPagesRaw.rowCount || 0;
+      console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.pages} raw pages`);
+
+      // 6. Delete graph_meta
+      const deletedGraphMeta = await db.execute(sql`
+        DELETE FROM graph_meta WHERE job_id IN (${jobIdsPlaceholder})
+      `);
+      console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedGraphMeta.rowCount || 0} graph meta entries`);
+
+      // 7. Delete import jobs
+      const deletedJobs = await db.execute(sql`
+        DELETE FROM import_jobs WHERE job_id IN (${jobIdsPlaceholder})
+      `);
+      clearedCounts.jobs = deletedJobs.rowCount || 0;
+      console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.jobs} import jobs`);
+
+      // 8. Delete project import configs
+      const deletedConfigs = await db.execute(sql`
+        DELETE FROM project_import_configs WHERE project_id = ${projectId}
+      `);
+      console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedConfigs.rowCount || 0} import configs`);
+
+      console.log(`✅ [CLEAR-ALL-DATA] Complete cleanup finished for project: ${projectId}`);
+
+      res.json({
+        success: true,
+        message: `Complete data cleanup finished for project ${projectId}`,
+        clearedJobs: clearedCounts.jobs,
+        clearedPages: clearedCounts.pages,
+        clearedBlocks: clearedCounts.blocks,
+        clearedEmbeddings: clearedCounts.embeddings,
+        clearedLinks: clearedCounts.links
+      });
+
+    } catch (error) {
+      console.error("Clear all project data error:", error);
+      res.status(500).json({ error: "Failed to clear project data" });
+    }
+  });
+
+  // Debug endpoint to check import jobs for a project
+  app.get("/api/debug/imports/:projectId", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Validate project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get all import jobs for this project
+      const importJobs = await db
+        .select({
+          jobId: importJobs.jobId,
+          status: importJobs.status,
+          createdAt: importJobs.createdAt,
+          finishedAt: importJobs.finishedAt,
+          pagesCount: importJobs.pagesCount,
+          blocksCount: importJobs.blocksCount
+        })
+        .from(importJobs)
+        .where(eq(importJobs.projectId, projectId))
+        .orderBy(desc(importJobs.createdAt));
+
+      // Get pages count from graph_meta for each job
+      const jobsWithPages = await Promise.all(importJobs.map(async (job) => {
+        const pagesCount = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(graphMeta)
+          .where(eq(graphMeta.jobId, job.jobId));
+        
+        return {
+          ...job,
+          actualPagesCount: pagesCount[0]?.count || 0
+        };
+      }));
+
+      res.json({
+        success: true,
+        projectId,
+        totalJobs: jobsWithPages.length,
+        jobs: jobsWithPages
+      });
+    } catch (error) {
+      console.error("Debug imports error:", error);
+      res.status(500).json({ error: "Failed to get debug imports" });
     }
   });
 
@@ -4563,63 +4758,78 @@ class ContentProcessor {
         console.log(`✅ [PROCESS] Cleared global importJobs cache`);
       }
       
-      // Получаем все jobId для этого проекта
+      // Получаем все jobId для этого проекта (кроме текущего)
       const projectJobs = await db
         .select({ jobId: importJobs.jobId })
         .from(importJobs)
-        .where(eq(importJobs.projectId, projectId));
+        .where(and(
+          eq(importJobs.projectId, projectId),
+          sql`job_id != ${jobId}` // Исключаем текущий job
+        ));
       
       if (projectJobs.length > 0) {
         const jobIds = projectJobs.map(job => job.jobId);
         console.log(`🧹 [PROCESS] Found ${jobIds.length} old jobs to clean:`, jobIds);
         
-        // Проверяем что массив не пустой
-        if (jobIds.length === 0) {
-          console.log(`⚠️ [PROCESS] No job IDs to clean, skipping deletion`);
-        } else {
-          // Удаляем старые данные
         // Convert jobIds array to proper SQL format
-        const stringJobIds = jobIds.map(id => `'${id}'`).join(',');
+        const stringJobIds = jobIds.map(id => String(id));
+        const jobIdsPlaceholder = stringJobIds.map(id => sql`${id}`).join(sql`, `);
         
-        await db.execute(sql`DELETE FROM embeddings WHERE block_id IN (
-          SELECT b.id FROM blocks b 
-          INNER JOIN pages_clean pc ON b.page_id = pc.id 
-          INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id IN (${stringJobIds})
-        )`);
+        // Удаляем старые данные в правильном порядке
+        console.log(`🧹 [PROCESS] Deleting old embeddings...`);
+        await db.execute(sql`
+          DELETE FROM embeddings WHERE block_id IN (
+            SELECT b.id FROM blocks b 
+            INNER JOIN pages_clean pc ON b.page_id = pc.id 
+            INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
+            WHERE pr.job_id IN (${jobIdsPlaceholder})
+          )
+        `);
         
-        await db.execute(sql`DELETE FROM blocks WHERE page_id IN (
-          SELECT pc.id FROM pages_clean pc 
-          INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id IN (${stringJobIds})
-        )`);
+        console.log(`🧹 [PROCESS] Deleting old blocks...`);
+        await db.execute(sql`
+          DELETE FROM blocks WHERE page_id IN (
+            SELECT pc.id FROM pages_clean pc 
+            INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
+            WHERE pr.job_id IN (${jobIdsPlaceholder})
+          )
+        `);
         
-        await db.execute(sql`DELETE FROM pages_clean WHERE page_raw_id IN (
-          SELECT id FROM pages_raw WHERE job_id IN (${stringJobIds})
-        )`);
+        console.log(`🧹 [PROCESS] Deleting old pages_clean...`);
+        await db.execute(sql`
+          DELETE FROM pages_clean WHERE page_raw_id IN (
+            SELECT id FROM pages_raw WHERE job_id IN (${jobIdsPlaceholder})
+          )
+        `);
         
-        await db.execute(sql`DELETE FROM pages_raw WHERE job_id IN (${stringJobIds})`);
+        console.log(`🧹 [PROCESS] Deleting old pages_raw...`);
+        await db.execute(sql`
+          DELETE FROM pages_raw WHERE job_id IN (${jobIdsPlaceholder})
+        `);
         
-        await db.execute(sql`DELETE FROM import_jobs WHERE job_id IN (${stringJobIds})`);
+        console.log(`🧹 [PROCESS] Deleting old graph_meta...`);
+        await db.execute(sql`
+          DELETE FROM graph_meta WHERE job_id IN (${jobIdsPlaceholder})
+        `);
         
-        console.log(`✅ [PROCESS] Cleared old data for project ${projectId}`);
-        }
+        console.log(`🧹 [PROCESS] Deleting old import_jobs...`);
+        await db.execute(sql`
+          DELETE FROM import_jobs WHERE job_id IN (${jobIdsPlaceholder})
+        `);
+        
+        console.log(`✅ [PROCESS] Cleared ${jobIds.length} old jobs for project ${projectId}`);
+      } else {
+        console.log(`✅ [PROCESS] No old jobs to clean for project ${projectId}`);
       }
       
-      // Проверяем что данные очищены
+      // Проверяем что данные очищены (должно быть 0 для текущего job)
       console.log(`🔍 [PROCESS] Checking for existing data after cleanup...`);
       const existingPagesRaw = await db.select().from(pagesRaw).where(eq(pagesRaw.jobId, jobId));
-      const existingPagesClean = await db.select().from(pagesClean).where(eq(pagesClean.pageRawId, existingPagesRaw[0]?.id));
-      const existingBlocks = await db.select().from(blocks).where(eq(blocks.pageId, existingPagesClean[0]?.id));
-      console.log('🔍 [PROCESS] About to query embeddings table...');
-      const existingEmbeddings = await db.select().from(embeddings).where(eq(embeddings.blockId, existingBlocks[0]?.id));
+      console.log(`🔍 [PROCESS] Existing pages_raw for current job: ${existingPagesRaw.length}`);
       
-      console.log(`🔍 Existing data check after cleanup:`, {
-        pagesRaw: existingPagesRaw.length,
-        pagesClean: existingPagesClean.length,
-        blocks: existingBlocks.length,
-        embeddings: existingEmbeddings.length
-      });
+      if (existingPagesRaw.length > 0) {
+        console.log(`⚠️ [PROCESS] Found existing data for current job - this should not happen!`);
+      }
       
       // Phase 1: Load CSV data (0-15%)
     console.log(`📥 Phase 1: Loading CSV data...`);
