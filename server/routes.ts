@@ -149,12 +149,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // If all attempts failed, try a more aggressive approach
             if (!success) {
               try {
-                // Try to fix by replacing diamonds with common Russian words
-                const commonWords = ['панические', 'атаки', 'тревога', 'страх', 'лечение', 'терапия', 'психолог', 'помощь'];
-                const words = fixedAnchorText.split('').filter(char => char !== '').join('');
-                if (words.length > 0) {
-                  fixedAnchorText = words;
-                  console.log(`✅ [FIX ENCODING CANDIDATES] Fixed anchor text by removing diamonds:`, fixedAnchorText);
+                // Try to fix by converting from UTF-8 to Windows-1251 and back
+                const buffer = Buffer.from(fixedAnchorText, 'utf8');
+                const testText = buffer.toString('windows-1251');
+                if (!testText.includes('') && testText.length > 0) {
+                  fixedAnchorText = testText;
+                  console.log(`✅ [FIX ENCODING CANDIDATES] Fixed anchor text with UTF-8 to Windows-1251:`, fixedAnchorText);
                   needsUpdate = true;
                   success = true;
                 }
