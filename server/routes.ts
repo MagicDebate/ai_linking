@@ -123,9 +123,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (fixedAnchorText && fixedAnchorText.includes('')) {
           console.log('🔧 [FIX ENCODING CANDIDATES] Fixing anchor text:', fixedAnchorText);
           try {
-            const buffer = Buffer.from(fixedAnchorText, 'binary');
-            fixedAnchorText = buffer.toString('utf-8');
-            needsUpdate = true;
+            // Try different encoding fixes
+            const encodings = ['windows-1251', 'cp1251', 'iso-8859-1', 'latin1'];
+            let success = false;
+            
+            for (const encoding of encodings) {
+              try {
+                const buffer = Buffer.from(fixedAnchorText, 'binary');
+                const testText = buffer.toString(encoding as BufferEncoding);
+                if (!testText.includes('')) {
+                  fixedAnchorText = testText;
+                  console.log(`✅ [FIX ENCODING CANDIDATES] Fixed anchor text with ${encoding}:`, fixedAnchorText);
+                  needsUpdate = true;
+                  success = true;
+                  break;
+                }
+              } catch (e) {
+                // Continue with next encoding
+              }
+            }
+            
+            if (!success) {
+              console.log('⚠️ [FIX ENCODING CANDIDATES] All encoding attempts failed for anchor text:', fixedAnchorText);
+            }
           } catch (error) {
             console.log('⚠️ [FIX ENCODING CANDIDATES] Could not fix anchor text:', fixedAnchorText);
           }
