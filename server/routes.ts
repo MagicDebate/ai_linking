@@ -242,7 +242,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(blocks)
         .innerJoin(pagesClean, eq(blocks.pageId, pagesClean.id))
         .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
-        .where(eq(pagesRaw.projectId, projectId));
+        .innerJoin(importJobs, eq(pagesRaw.jobId, importJobs.jobId))
+        .where(eq(importJobs.projectId, projectId));
       
       let fixedBlocks = 0;
       
@@ -269,7 +270,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const projectPages = await db
         .select({ id: pagesRaw.id, meta: pagesRaw.meta })
         .from(pagesRaw)
-        .where(eq(pagesRaw.projectId, projectId));
+        .innerJoin(importJobs, eq(pagesRaw.jobId, importJobs.jobId))
+        .where(eq(importJobs.projectId, projectId));
       
       let fixedPages = 0;
       
