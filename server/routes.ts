@@ -3490,7 +3490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get pages from graph_meta table with real orphan data
       const graphData = await db.execute(sql`
-        SELECT gm.url, pr.meta->>'title' as title, gm.word_count, gm.click_depth, 
+        SELECT gm.url, pr.meta->>'title' as title, pc.word_count, gm.click_depth, 
                gm.internal_links_count, gm.is_orphan, gm.in_degree, gm.out_degree,
                pc.clean_html as content
         FROM graph_meta gm
