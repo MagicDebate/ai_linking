@@ -976,8 +976,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               for (const encoding of encodings) {
                 try {
-                  fileContent = buffer.toString(encoding as BufferEncoding);
-                  if (!fileContent.includes('')) {
+                  const testContent = buffer.toString(encoding as BufferEncoding);
+                  
+                  // Проверяем, что результат не содержит ромбов и содержит русские буквы
+                  if (!testContent.includes('') && /[а-яё]/i.test(testContent)) {
+                    fileContent = testContent;
                     console.log(`✅ [ENCODING] Successfully converted using ${encoding}`);
                     success = true;
                     break;
