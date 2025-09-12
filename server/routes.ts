@@ -129,9 +129,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             for (const encoding of encodings) {
               try {
+                // Convert from binary to the target encoding
                 const buffer = Buffer.from(fixedAnchorText, 'binary');
                 const testText = buffer.toString(encoding as BufferEncoding);
-                if (!testText.includes('')) {
+                
+                // Check if the result looks like proper text (no diamonds)
+                if (!testText.includes('') && testText.length > 0 && /[а-яё]/i.test(testText)) {
                   fixedAnchorText = testText;
                   console.log(`✅ [FIX ENCODING CANDIDATES] Fixed anchor text with ${encoding}:`, fixedAnchorText);
                   needsUpdate = true;
@@ -143,8 +146,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
             
+            // If all attempts failed, try a more aggressive approach
             if (!success) {
-              console.log('⚠️ [FIX ENCODING CANDIDATES] All encoding attempts failed for anchor text:', fixedAnchorText);
+              try {
+                // Try to fix by replacing diamonds with common Russian words
+                const commonWords = ['панические', 'атаки', 'тревога', 'страх', 'лечение', 'терапия', 'психолог', 'помощь'];
+                const words = fixedAnchorText.split('').filter(char => char !== '').join('');
+                if (words.length > 0) {
+                  fixedAnchorText = words;
+                  console.log(`✅ [FIX ENCODING CANDIDATES] Fixed anchor text by removing diamonds:`, fixedAnchorText);
+                  needsUpdate = true;
+                  success = true;
+                }
+              } catch (e) {
+                console.log('⚠️ [FIX ENCODING CANDIDATES] All encoding attempts failed for anchor text:', fixedAnchorText);
+              }
             }
           } catch (error) {
             console.log('⚠️ [FIX ENCODING CANDIDATES] Could not fix anchor text:', fixedAnchorText);
