@@ -204,9 +204,23 @@ export class EmbeddingService {
    * PLACEHOLDER: В реальной реализации здесь будет вызов модели
    */
   private async generateEmbedding(text: string): Promise<number[]> {
+    // FIX ENCODING: Исправляем кодировку перед генерацией эмбеддинга
+    let fixedText = text;
+    if (text.includes('')) {
+      try {
+        console.log('🔧 [EMBEDDING] Fixing encoding for text with diamonds');
+        const buffer = Buffer.from(text, 'binary');
+        fixedText = buffer.toString('utf-8');
+        console.log('✅ [EMBEDDING] Successfully fixed encoding');
+      } catch (error) {
+        console.log('⚠️ [EMBEDDING] Failed to fix encoding, using original text');
+        fixedText = text;
+      }
+    }
+    
     // PLACEHOLDER: Заменяем на реальную модель (например, S-BERT MiniLM)
     // const model = await loadModel();
-    // const embedding = await model.embed(text);
+    // const embedding = await model.embed(fixedText);
     // return embedding;
     
     // Временная заглушка - создаем случайный вектор

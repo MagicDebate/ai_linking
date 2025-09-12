@@ -229,6 +229,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Fix encoding in database blocks and pages
+  app.post("/api/fix-encoding-database/:projectId", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      console.log(`🔧 [FIX-ENCODING-DB] Starting database encoding fix for project: ${projectId}`);
+      
+      // Get all blocks for this project
+      const projectBlocks = await db
+        .select({ id: blocks.id, text: blocks.text })
+        .from(blocks)
+        .innerJoin(pagesClean, eq(blocks.pageId, pagesClean.id))
+        .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
+        .where(eq(pagesRaw.projectId, projectId));
+      
+      let fixedBlocks = 0;
+      
+      for (const block of projectBlocks) {
+        if (block.text && block.text.includes('')) {
+          try {
+            const buffer = Buffer.from(block.text, 'binary');
+            const fixedText = buffer.toString('utf-8');
+            if (!fixedText.includes('')) {
+              await db
+                .update(blocks)
+                .set({ text: fixedText })
+                .where(eq(blocks.id, block.id));
+              fixedBlocks++;
+              console.log(`🔧 [FIX-ENCODING-DB] Fixed block text: ${block.id}`);
+            }
+          } catch (error) {
+            console.log(`⚠️ [FIX-ENCODING-DB] Failed to fix block: ${block.id}`);
+          }
+        }
+      }
+      
+      // Get all pages for this project
+      const projectPages = await db
+        .select({ id: pagesRaw.id, meta: pagesRaw.meta })
+        .from(pagesRaw)
+        .where(eq(pagesRaw.projectId, projectId));
+      
+      let fixedPages = 0;
+      
+      for (const page of projectPages) {
+        if (page.meta && typeof page.meta === 'object') {
+          let needsUpdate = false;
+          const newMeta = { ...page.meta };
+          
+          // Fix title encoding
+          if (newMeta.title && newMeta.title.includes('')) {
+            try {
+              const buffer = Buffer.from(newMeta.title, 'binary');
+              const fixedTitle = buffer.toString('utf-8');
+              if (!fixedTitle.includes('')) {
+                newMeta.title = fixedTitle;
+                needsUpdate = true;
+                console.log(`🔧 [FIX-ENCODING-DB] Fixed page title: ${page.id}`);
+              }
+            } catch (error) {
+              console.log(`⚠️ [FIX-ENCODING-DB] Failed to fix page title: ${page.id}`);
+            }
+          }
+          
+          // Fix description encoding
+          if (newMeta.description && newMeta.description.includes('')) {
+            try {
+              const buffer = Buffer.from(newMeta.description, 'binary');
+              const fixedDescription = buffer.toString('utf-8');
+              if (!fixedDescription.includes('')) {
+                newMeta.description = fixedDescription;
+                needsUpdate = true;
+                console.log(`🔧 [FIX-ENCODING-DB] Fixed page description: ${page.id}`);
+              }
+            } catch (error) {
+              console.log(`⚠️ [FIX-ENCODING-DB] Failed to fix page description: ${page.id}`);
+            }
+          }
+          
+          if (needsUpdate) {
+            await db
+              .update(pagesRaw)
+              .set({ meta: newMeta })
+              .where(eq(pagesRaw.id, page.id));
+            fixedPages++;
+          }
+        }
+      }
+      
+      console.log(`✅ [FIX-ENCODING-DB] Fixed ${fixedBlocks} blocks and ${fixedPages} pages for project: ${projectId}`);
+      
+      res.json({
+        success: true,
+        message: `Fixed encoding for ${fixedBlocks} blocks and ${fixedPages} pages`,
+        fixedBlocks,
+        fixedPages
+      });
+      
+    } catch (error) {
+      console.error("Fix encoding database error:", error);
+      res.status(500).json({ error: "Failed to fix encoding in database" });
+    }
+  });
+
   // Setup Google OAuth
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -1194,7 +1298,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         blocksDone: dbJob.blocksDone,
         startedAt: dbJob.startedAt,
         finishedAt: dbJob.finishedAt,
-        logs: dbJob.logs || []
+        logs: dbJob.logs?.length || 0
       });
 
       // Verify project ownership
@@ -2701,11 +2805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (needsUpdate) {
           await db.update(pagesRaw).set({ 
-            meta: { 
-              ...meta, 
-              title: String(fixedTitle || ''), 
-              description: String(fixedDescription || '') 
-            }
+            meta: { ...meta, title: fixedTitle, description: fixedDescription || '' }
           }).where(eq(pagesRaw.id, page.id));
           fixedPagesRaw++;
         }
@@ -2835,7 +2935,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           projectId,
           fileName,
           fieldMapping,
-          selectedScenarios: Array.isArray(selectedScenarios) ? selectedScenarios : {},
+          selectedScenarios,
           scopeSettings,
           linkingRules,
           isLastUsed: true
@@ -3203,7 +3303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         blocksDone: job.blocksDone,
         orphanCount: job.orphanCount,
         avgWordCount: job.avgWordCount,
-        logs: job.logs || []
+        logs: job.logs?.length || 0
       });
 
       res.json(job);
@@ -4367,36 +4467,26 @@ class ContentProcessor {
           console.log(`⚠️ [PROCESS] No job IDs to clean, skipping deletion`);
         } else {
           // Удаляем старые данные
-          console.log(`🔍 [DEBUG] jobIds before processing:`, jobIds);
-          console.log(`🔍 [DEBUG] jobIds types:`, jobIds.map(id => typeof id));
-          const stringJobIds = jobIds.map(id => String(id));
-          console.log(`🔍 [DEBUG] stringJobIds:`, stringJobIds);
-          console.log(`🔍 [DEBUG] About to execute DELETE FROM embeddings...`);
-          
         await db.execute(sql`DELETE FROM embeddings WHERE block_id IN (
           SELECT b.id FROM blocks b 
           INNER JOIN pages_clean pc ON b.page_id = pc.id 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id IN (${stringJobIds.map(id => sql`${id}`).join(sql`, `)})
+          WHERE pr.job_id = ANY(${jobIds}::text[])
         )`);
         
-        console.log(`🔍 [DEBUG] About to execute DELETE FROM blocks...`);
         await db.execute(sql`DELETE FROM blocks WHERE page_id IN (
           SELECT pc.id FROM pages_clean pc 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id IN (${stringJobIds.map(id => sql`${id}`).join(sql`, `)})
+          WHERE pr.job_id = ANY(${jobIds}::text[])
         )`);
         
-        console.log(`🔍 [DEBUG] About to execute DELETE FROM pages_clean...`);
         await db.execute(sql`DELETE FROM pages_clean WHERE page_raw_id IN (
-          SELECT id FROM pages_raw WHERE job_id IN (${stringJobIds.map(id => sql`${id}`).join(sql`, `)})
+          SELECT id FROM pages_raw WHERE job_id = ANY(${jobIds}::text[])
         )`);
         
-        console.log(`🔍 [DEBUG] About to execute DELETE FROM pages_raw...`);
-        await db.execute(sql`DELETE FROM pages_raw WHERE job_id IN (${stringJobIds.map(id => sql`${id}`).join(sql`, `)})`);
+        await db.execute(sql`DELETE FROM pages_raw WHERE job_id = ANY(${jobIds}::text[])`);
         
-        console.log(`🔍 [DEBUG] About to execute DELETE FROM import_jobs...`);
-        await db.execute(sql`DELETE FROM import_jobs WHERE job_id IN (${stringJobIds.map(id => sql`${id}`).join(sql`, `)})`);
+        await db.execute(sql`DELETE FROM import_jobs WHERE job_id = ANY(${jobIds}::text[])`);
         
         console.log(`✅ [PROCESS] Cleared old data for project ${projectId}`);
         }
@@ -4512,13 +4602,7 @@ class ContentProcessor {
     
     console.log(`💾 Updating job ${jobId} with data:`, updateData);
     console.log(`📝 Adding log message: ${logMessage}`);
-    
-    // Ensure logs is always an array of strings
-    const finalUpdateData = { ...updateData };
-    delete finalUpdateData.logs; // Remove any existing logs field
-    finalUpdateData.logs = [logMessage]; // Set logs as array of strings
-    
-    await this.storage.updateImportJob(jobId, finalUpdateData);
+    await this.storage.updateImportJob(jobId, { ...updateData, logs: [logMessage] });
     console.log(`✅ Job ${jobId} updated successfully`);
     
     // Дополнительное логирование для завершения
@@ -4788,14 +4872,11 @@ class ContentProcessor {
       
       // Save raw page data first with fixed encoding
       const pageRawResult = await db.insert(pagesRaw).values({
-        url: String(page.url || ''),
-        jobId: String(jobId),
-        rawHtml: String(fixedContent || ''),
-        meta: { 
-          title: String(fixedTitle || ''), 
-          description: String(fixedDescription || '') 
-        },
-        importBatchId: String(crypto.randomUUID())
+        url: page.url,
+        jobId,
+        rawHtml: fixedContent,
+        meta: { title: fixedTitle, description: fixedDescription },
+          importBatchId: crypto.randomUUID()
       }).returning({ id: pagesRaw.id });
       
       // Now clean the HTML with fixed encoding
@@ -4809,14 +4890,14 @@ class ContentProcessor {
       
       // Save to pages_clean table with valid page_raw_id
       const pageCleanResult = await db.insert(pagesClean).values({
-        pageRawId: String(pageRawResult[0]?.id || crypto.randomUUID()),
-        cleanHtml: String(cleanHtml || ''),
-        wordCount: Number(wordCount || 0)
+        pageRawId: pageRawResult[0].id,
+        cleanHtml,
+        wordCount
       }).returning({ id: pagesClean.id });
       
       cleanPages.push({
-        id: String(pageCleanResult[0]?.id || crypto.randomUUID()),
-        pageRawId: String(pageRawResult[0]?.id || crypto.randomUUID()),
+        id: pageCleanResult[0].id,
+        pageRawId: pageRawResult[0].id,
         url: page.url,
         title: fixedTitle,
         cleanHtml,
@@ -4887,10 +4968,10 @@ class ContentProcessor {
             }
             
             return {
-              pageId: String(page.id || crypto.randomUUID()),
-              blockType: String(block.type || 'p'),
-              text: String(blockText || ''),
-              position: Number(i + batchIndex)
+            pageId: page.id,
+            blockType: block.type,
+              text: blockText,
+            position: i + batchIndex
             };
           });
           
@@ -4900,16 +4981,6 @@ class ContentProcessor {
               setTimeout(() => reject(new Error('Database insert timeout')), 30000); // 30 секунд
             });
             
-            // Debug logging
-            console.log(`🔍 [DEBUG] batchValues for blocks insert:`, JSON.stringify(batchValues, null, 2));
-            console.log(`🔍 [DEBUG] batchValues types:`, batchValues.map(item => ({
-              pageId: typeof item.pageId,
-              blockType: typeof item.blockType,
-              text: typeof item.text,
-              position: typeof item.position
-            })));
-            console.log(`🔍 [DEBUG] About to insert blocks batch ${Math.floor(i / batchSize) + 1}...`);
-
             const insertPromise = db.insert(blocks).values(batchValues).returning({ id: blocks.id });
             const blockResults = await Promise.race([insertPromise, timeoutPromise]) as any[];
             
@@ -5078,12 +5149,12 @@ class ContentProcessor {
         const targetPageId = urlToPageId.get(linkUrl);
         if (targetPageId) {
           const edgeResult = await db.insert(edges).values({
-            jobId: String(jobId),
-            fromPageId: String(page.id),
-            toPageId: String(targetPageId),
-            fromUrl: String(page.url || ''),
-            toUrl: String(linkUrl || ''),
-            isInternal: Boolean(true)
+            jobId,
+            fromPageId: page.id,
+            toPageId: targetPageId,
+            fromUrl: page.url,
+            toUrl: linkUrl,
+            isInternal: true
           }).returning({ id: edges.id });
           
           edgesList.push(edgeResult[0]);
@@ -5104,13 +5175,13 @@ class ContentProcessor {
       totalDepth += pageDepth;
       
       await db.insert(graphMeta).values({
-        pageId: String(page.id),
-        jobId: String(jobId),
-        url: String(page.url || ''),
-        clickDepth: Number(pageDepth),
-        inDegree: Number(inDegree),
-        outDegree: Number(outDegree),
-        isOrphan: Boolean(isOrphan)
+        pageId: page.id,
+        jobId,
+        url: page.url,
+        clickDepth: pageDepth,
+        inDegree,
+        outDegree,
+        isOrphan
       });
     }
     
