@@ -371,6 +371,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Clear all project data
+  app.post("/api/projects/:projectId/clear-data", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      console.log(`🧹 [CLEAR-DATA] Starting data cleanup for project: ${projectId}`);
+      
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      
+      // Get all jobIds for this project
+      const projectJobs = await db
+        .select({ jobId: importJobs.jobId })
+        .from(importJobs)
+        .where(eq(importJobs.projectId, projectId));
+      
+      if (projectJobs.length > 0) {
+        const jobIds = projectJobs.map(job => job.jobId);
+        console.log(`🧹 [CLEAR-DATA] Found ${jobIds.length} jobs to clean:`, jobIds);
+        
+        // Delete all data for this project
+        await db.execute(sql`DELETE FROM link_candidates WHERE run_id IN (
+          SELECT run_id FROM generation_runs WHERE project_id = ${projectId}
+        )`);
+        
+        await db.execute(sql`DELETE FROM generation_runs WHERE project_id = ${projectId}`);
+        
+        await db.execute(sql`DELETE FROM embeddings WHERE block_id IN (
+          SELECT b.id FROM blocks b 
+          INNER JOIN pages_clean pc ON b.page_id = pc.id 
+          INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
+          WHERE pr.job_id = ANY(${jobIds}::text[])
+        )`);
+        
+        await db.execute(sql`DELETE FROM blocks WHERE page_id IN (
+          SELECT pc.id FROM pages_clean pc 
+          INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
+          WHERE pr.job_id = ANY(${jobIds}::text[])
+        )`);
+        
+        await db.execute(sql`DELETE FROM pages_clean WHERE page_raw_id IN (
+          SELECT id FROM pages_raw WHERE job_id = ANY(${jobIds}::text[])
+        )`);
+        
+        await db.execute(sql`DELETE FROM pages_raw WHERE job_id = ANY(${jobIds}::text[])`);
+        
+        await db.execute(sql`DELETE FROM import_jobs WHERE job_id = ANY(${jobIds}::text[])`);
+        
+        console.log(`✅ [CLEAR-DATA] Cleared all data for project: ${projectId}`);
+      }
+      
+      res.json({
+        success: true,
+        message: `Cleared all data for project ${projectId}`,
+        clearedJobs: projectJobs.length
+      });
+      
+    } catch (error) {
+      console.error("Clear project data error:", error);
+      res.status(500).json({ error: "Failed to clear project data" });
+    }
+  });
+
   // Setup Google OAuth
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
