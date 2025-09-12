@@ -3490,11 +3490,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get pages from graph_meta table with real orphan data
       const graphData = await db.execute(sql`
-        SELECT gm.url, gm.title, gm.word_count, gm.click_depth, 
+        SELECT gm.url, pr.meta->>'title' as title, gm.word_count, gm.click_depth, 
                gm.internal_links_count, gm.is_orphan, gm.in_degree, gm.out_degree,
                pc.clean_html as content
         FROM graph_meta gm
         LEFT JOIN pages_clean pc ON gm.page_id = pc.id
+        LEFT JOIN pages_raw pr ON pc.page_raw_id = pr.id
         INNER JOIN import_jobs ij ON gm.job_id = ij.job_id
         WHERE ij.project_id::text = ${projectId}
         ORDER BY gm.created_at DESC
