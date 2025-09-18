@@ -59,6 +59,12 @@ export function useGenerationProgress(runId: string | null) {
     refetchInterval: (data) => {
       // Stop polling when generation is complete
       if (data?.status === 'draft' || data?.status === 'published' || data?.status === 'failed' || data?.status === 'canceled') {
+        console.log('🛑 [useGenerationProgress] Stopping polling - status:', data.status, 'phase:', data.phase);
+        return false;
+      }
+      // Also stop if phase is completed regardless of status
+      if (data?.phase === 'completed') {
+        console.log('🛑 [useGenerationProgress] Stopping polling - phase completed');
         return false;
       }
       return 2000; // Poll every 2 seconds while running

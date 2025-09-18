@@ -154,6 +154,22 @@ export default function ProjectFixedSimple() {
     }
   }, [projectId, projectState?.importJobId]);
 
+  // Периодически проверяем новые импорты каждые 3 секунды
+  useEffect(() => {
+    if (!projectId) return;
+    
+    const interval = setInterval(async () => {
+      const latestJobId = await findLatestImport();
+      if (latestJobId && latestJobId !== activeJobId) {
+        console.log('🔄 Found new import job:', latestJobId);
+        setActiveJobId(latestJobId);
+        setImportJobId(latestJobId);
+      }
+    }, 3000);
+    
+    return () => clearInterval(interval);
+  }, [projectId, activeJobId]);
+
   // Обновляем activeJobId при изменении projectState.importJobId
   useEffect(() => {
     if (projectState?.importJobId) {

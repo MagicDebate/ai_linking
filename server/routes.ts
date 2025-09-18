@@ -2887,20 +2887,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let fixedTitle = meta?.title;
         let fixedDescription = meta?.description;
         
-        if (fixedTitle && fixedTitle.includes('')) {
+        if (fixedTitle && (fixedTitle.includes('') || fixedTitle.includes('�'))) {
           try {
-            // Используем iconv-lite для правильной конвертации
-            const iconv = require('iconv-lite');
-            const buffer = Buffer.from(fixedTitle, 'binary');
-            fixedTitle = iconv.decode(buffer, 'windows-1251');
-            needsUpdate = true;
-            console.log('✅ [FIX ENCODING PROJECT] Fixed title:', fixedTitle.substring(0, 50));
+            // Используем нативные методы Node.js
+            const encodings = ['windows-1251', 'cp1251', 'iso-8859-1'];
+            let success = false;
+            for (const encoding of encodings) {
+              try {
+                const buffer = Buffer.from(fixedTitle, 'binary');
+                const testText = buffer.toString(encoding as BufferEncoding);
+                if (!testText.includes('') && !testText.includes('�') && /[а-яё]/i.test(testText)) {
+                  fixedTitle = testText;
+                  needsUpdate = true;
+                  success = true;
+                  console.log(`✅ [FIX ENCODING PROJECT] Fixed title with ${encoding}:`, fixedTitle.substring(0, 50));
+                  break;
+                }
+              } catch (e) { /* continue */ }
+            }
+            if (!success) {
+              console.log('⚠️ [FIX ENCODING PROJECT] Could not fix title:', fixedTitle);
+            }
           } catch (error) {
             console.log('⚠️ [FIX ENCODING PROJECT] Could not fix title:', fixedTitle);
           }
         }
         
-        if (fixedDescription && fixedDescription.includes('')) {
+        if (fixedDescription && (fixedDescription.includes('') || fixedDescription.includes('�'))) {
           try {
             // Используем iconv-lite для правильной конвертации
             const iconv = require('iconv-lite');
@@ -2928,7 +2941,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let fixedBlocks = 0;
       for (const block of blocksData) {
-        if (block.text && block.text.includes('')) {
+        if (block.text && (block.text.includes('') || block.text.includes('�'))) {
           try {
             // Используем iconv-lite для правильной конвертации
             const iconv = require('iconv-lite');

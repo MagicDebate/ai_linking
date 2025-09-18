@@ -921,16 +921,16 @@ export class LinkGenerator {
       }
 
       await db.insert(linkCandidates).values({
-        runId: String(runId),
-        sourcePageId: String(sourcePage.id),
-        targetPageId: String(targetPage.id),
-        sourceUrl: String(sourcePage.url || ''),
-        targetUrl: String(targetPage.url || ''),
-        anchorText: String(fixedAnchorText || ''),
-        type: String(scenario),
-        status: String('accepted'),
-        anchorSource: String('ai'), // или 'text' или 'generic' в зависимости от источника
-        confidence: Number(0.8), // Заглушка
+        runId: runId,
+        sourcePageId: sourcePage.id,
+        targetPageId: targetPage.id,
+        sourceUrl: sourcePage.url,
+        targetUrl: targetPage.url,
+        anchorText: fixedAnchorText,
+        type: scenario,
+        status: 'accepted',
+        anchorSource: 'ai', // или 'text' или 'generic' в зависимости от источника
+        confidence: 0.8, // Заглушка
         positionHint: { pageId: sourcePage.id, blockId: 1, offset: 0 }, // Заглушка
         similarity: 0.75, // Заглушка
         modifiedSentence: fixedModifiedSentence
@@ -1110,38 +1110,6 @@ export class LinkGenerator {
 
     console.log('🔍 [loadPages] Found pages:', pages.length);
     console.log('🔍 [loadPages] ===== РЕЗУЛЬТАТ ЗАПРОСА =====');
-    
-    // ИСПРАВЛЯЕМ КОДИРОВКУ для всех страниц
-    for (const page of pages) {
-      if (page.title && page.title.includes('')) {
-        try {
-          const encodings = ['windows-1251', 'cp1251', 'iso-8859-1', 'latin1'];
-          let success = false;
-          
-          for (const encoding of encodings) {
-            try {
-              const buffer = Buffer.from(page.title, 'binary');
-              const testText = buffer.toString(encoding as BufferEncoding);
-              if (!testText.includes('')) {
-                page.title = testText;
-                console.log(`✅ [loadPages] Fixed title encoding with ${encoding}:`, page.title.substring(0, 50));
-                success = true;
-                break;
-              }
-            } catch (e) {
-              // Продолжаем с следующей кодировкой
-            }
-          }
-          
-          if (!success) {
-            console.log('⚠️ [loadPages] All encoding attempts failed for title:', page.title.substring(0, 50));
-          }
-        } catch (error) {
-          console.log('⚠️ [loadPages] Title encoding fix failed:', error.message);
-        }
-      }
-    }
-    
     if (pages.length > 0) {
       console.log('🔍 [loadPages] Sample page:', pages[0]);
       console.log('🔍 [loadPages] Orphan pages:', pages.filter((p: any) => p.isOrphan).length);
@@ -1183,43 +1151,6 @@ export class LinkGenerator {
       
       console.log('🔍 [loadPages] Simple pages found:', simplePages.length);
       if (simplePages.length > 0) {
-        // ИСПРАВЛЯЕМ КОДИРОВКУ для простых страниц
-        for (const page of simplePages) {
-          if (page.title && typeof page.title === 'object' && page.title.title) {
-            // Если title это объект meta, извлекаем title
-            const metaTitle = page.title.title;
-            if (metaTitle && metaTitle.includes('')) {
-              try {
-                const encodings = ['windows-1251', 'cp1251', 'iso-8859-1', 'latin1'];
-                let success = false;
-                
-                for (const encoding of encodings) {
-                  try {
-                    const buffer = Buffer.from(metaTitle, 'binary');
-                    const testText = buffer.toString(encoding as BufferEncoding);
-                    if (!testText.includes('')) {
-                      page.title = testText;
-                      console.log(`✅ [loadPages] Fixed simple page title encoding with ${encoding}:`, testText.substring(0, 50));
-                      success = true;
-                      break;
-                    }
-                  } catch (e) {
-                    // Продолжаем с следующей кодировкой
-                  }
-                }
-                
-                if (!success) {
-                  console.log('⚠️ [loadPages] All encoding attempts failed for simple page title:', metaTitle.substring(0, 50));
-                }
-              } catch (error) {
-                console.log('⚠️ [loadPages] Simple page title encoding fix failed:', error.message);
-              }
-            } else {
-              page.title = metaTitle || '';
-            }
-          }
-        }
-        
         console.log('🔍 [loadPages] Sample simple page:', simplePages[0]);
         return simplePages;
       }
@@ -1417,96 +1348,31 @@ export class LinkGenerator {
         console.log('❌ [generateAIAnchor] ENCODING ERROR detected - fixing encoding before AI...');
         
         try {
-          // Используем встроенные методы Node.js для исправления кодировки
+          // Попробуем исправить кодировку с помощью iconv-lite
+          const iconv = require('iconv-lite');
+          
           if (sourceText.includes('')) {
-            try {
-              // Пробуем разные кодировки
-              const encodings = ['windows-1251', 'cp1251', 'iso-8859-1', 'latin1'];
-              let success = false;
-              
-              for (const encoding of encodings) {
-                try {
-                  const buffer = Buffer.from(sourceText, 'binary');
-                  const testText = buffer.toString(encoding as BufferEncoding);
-                  if (!testText.includes('')) {
-                    sourceText = testText;
-                    console.log(`✅ [generateAIAnchor] Fixed source text encoding with ${encoding}`);
-                    console.log('  - Fixed source text preview:', sourceText.substring(0, 100));
-                    success = true;
-                    break;
-                  }
-                } catch (e) {
-                  // Продолжаем с следующей кодировкой
-                }
-              }
-              
-              if (!success) {
-                console.log('⚠️ [generateAIAnchor] All encoding attempts failed for source text');
-              }
-            } catch (error) {
-              console.log('⚠️ [generateAIAnchor] Source text encoding fix failed:', error.message);
-            }
+            const buffer = Buffer.from(sourceText, 'binary');
+            sourceText = iconv.decode(buffer, 'windows-1251');
+            console.log('✅ [generateAIAnchor] Fixed source text encoding with iconv-lite');
+            console.log('  - Fixed source text preview:', sourceText.substring(0, 100));
           }
           
           if (targetTitle.includes('')) {
-            try {
-              const encodings = ['windows-1251', 'cp1251', 'iso-8859-1', 'latin1'];
-              let success = false;
-              
-              for (const encoding of encodings) {
-                try {
-                  const buffer = Buffer.from(targetTitle, 'binary');
-                  const testText = buffer.toString(encoding as BufferEncoding);
-                  if (!testText.includes('')) {
-                    targetTitle = testText;
-                    console.log(`✅ [generateAIAnchor] Fixed target title encoding with ${encoding}`);
-                    console.log('  - Fixed target title:', targetTitle);
-                    success = true;
-                    break;
-                  }
-                } catch (e) {
-                  // Продолжаем с следующей кодировкой
-                }
-              }
-              
-              if (!success) {
-                console.log('⚠️ [generateAIAnchor] All encoding attempts failed for target title');
-              }
-            } catch (error) {
-              console.log('⚠️ [generateAIAnchor] Target title encoding fix failed:', error.message);
-            }
+            const buffer = Buffer.from(targetTitle, 'binary');
+            targetTitle = iconv.decode(buffer, 'windows-1251');
+            console.log('✅ [generateAIAnchor] Fixed target title encoding with iconv-lite');
+            console.log('  - Fixed target title:', targetTitle);
           }
           
           if (targetDescription.includes('')) {
-            try {
-              const encodings = ['windows-1251', 'cp1251', 'iso-8859-1', 'latin1'];
-              let success = false;
-              
-              for (const encoding of encodings) {
-                try {
-                  const buffer = Buffer.from(targetDescription, 'binary');
-                  const testText = buffer.toString(encoding as BufferEncoding);
-                  if (!testText.includes('')) {
-                    targetDescription = testText;
-                    console.log(`✅ [generateAIAnchor] Fixed target description encoding with ${encoding}`);
-                    console.log('  - Fixed target description:', targetDescription);
-                    success = true;
-                    break;
-                  }
-                } catch (e) {
-                  // Продолжаем с следующей кодировкой
-                }
-              }
-              
-              if (!success) {
-                console.log('⚠️ [generateAIAnchor] All encoding attempts failed for target description');
-              }
-            } catch (error) {
-              console.log('⚠️ [generateAIAnchor] Target description encoding fix failed:', error.message);
-            }
+            const buffer = Buffer.from(targetDescription, 'binary');
+            targetDescription = iconv.decode(buffer, 'windows-1251');
+            console.log('✅ [generateAIAnchor] Fixed target description encoding with iconv-lite');
+            console.log('  - Fixed target description:', targetDescription);
           }
         } catch (error) {
-          console.log('⚠️ [generateAIAnchor] Encoding fix failed:', error.message);
+          console.log('⚠️ [generateAIAnchor] iconv-lite failed, trying alternative method:', error.message);
           
           // Альтернативный способ - исправляем кодировку вручную
           if (sourceText.includes('')) {
@@ -1587,36 +1453,7 @@ export class LinkGenerator {
 
   // Шаг C: Fallback анкор
   private generateFallbackAnchor(targetPage: any, params: GenerationParams): string {
-    let title = String(targetPage.title || '');
-    
-    // Исправляем кодировку заголовка
-    if (title.includes('')) {
-      try {
-        const encodings = ['windows-1251', 'cp1251', 'iso-8859-1', 'latin1'];
-        let success = false;
-        
-        for (const encoding of encodings) {
-          try {
-            const buffer = Buffer.from(title, 'binary');
-            const testText = buffer.toString(encoding as BufferEncoding);
-            if (!testText.includes('')) {
-              title = testText;
-              console.log(`✅ [generateFallbackAnchor] Fixed title encoding with ${encoding}`);
-              success = true;
-              break;
-            }
-          } catch (e) {
-            // Продолжаем с следующей кодировкой
-          }
-        }
-        
-        if (!success) {
-          console.log('⚠️ [generateFallbackAnchor] All encoding attempts failed for title');
-        }
-      } catch (error) {
-        console.log('⚠️ [generateFallbackAnchor] Title encoding fix failed:', error.message);
-      }
-    }
+    const title = String(targetPage.title || '');
     
     // Извлекаем ключевые слова из заголовка
     const words = title.split(/\s+/)
