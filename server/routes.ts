@@ -5008,43 +5008,42 @@ class ContentProcessor {
       fileContent = buffer.toString('utf-8');
       
       // Проверяем на неправильную кодировку (ромбы)
-      if (fileContent.includes('�')) {
+      if (fileContent.includes('�') || fileContent.includes('')) {
         console.log('🔧 [ENCODING] UTF-8 failed, trying windows-1251...');
         // Пробуем исправить кодировку с помощью iconv-lite
+        // Используем только нативные методы Node.js (iconv-lite не работает в compiled коде)
+        console.log('🔧 [ENCODING] Using native Node.js encoding conversion...');
+        
         try {
-          const iconv = require('iconv-lite');
-          fileContent = iconv.decode(buffer, 'windows-1251');
-          console.log('✅ [ENCODING] Successfully converted from windows-1251 to UTF-8');
-        } catch (iconvError) {
-          console.log('⚠️ [ENCODING] iconv-lite failed, trying manual conversion:', iconvError.message);
+          const encodings = ['windows-1251', 'cp1251', 'iso-8859-1'];
+          let success = false;
           
-          // Альтернативный способ - ручная конвертация
-          try {
-            // Пробуем разные кодировки
-            const encodings = ['windows-1251', 'cp1251', 'iso-8859-1'];
-            let success = false;
-            
-            for (const encoding of encodings) {
-              try {
-                fileContent = buffer.toString(encoding as BufferEncoding);
-                if (!fileContent.includes('')) {
-                  console.log(`✅ [ENCODING] Successfully converted using ${encoding}`);
-                  success = true;
-                  break;
-                }
-              } catch (e) {
-                // Пробуем следующую кодировку
+          for (const encoding of encodings) {
+            try {
+              const testContent = buffer.toString(encoding as BufferEncoding);
+              console.log(`🔧 [ENCODING] Testing ${encoding} - contains diamonds:`, testContent.includes('�') || testContent.includes(''));
+              console.log(`🔧 [ENCODING] Testing ${encoding} - has cyrillic:`, /[а-яё]/i.test(testContent));
+              console.log(`🔧 [ENCODING] Testing ${encoding} - preview:`, testContent.substring(0, 100));
+              
+              if (!testContent.includes('') && !testContent.includes('�') && /[а-яё]/i.test(testContent)) {
+                fileContent = testContent;
+                console.log(`✅ [ENCODING] Successfully converted using ${encoding}`);
+                success = true;
+                break;
               }
+            } catch (e) {
+              console.log(`⚠️ [ENCODING] ${encoding} failed:`, e.message);
             }
-            
-            if (!success) {
-              console.log('⚠️ [ENCODING] All encoding attempts failed, using original');
-              fileContent = buffer.toString('utf-8');
-            }
-          } catch (manualError) {
-            console.log('⚠️ [ENCODING] Manual conversion failed, using original');
-            fileContent = buffer.toString('utf-8');
           }
+          
+          if (!success) {
+            console.log('⚠️ [ENCODING] All encoding attempts failed, using original UTF-8');
+            console.log('🔧 [ENCODING] Original content preview:', fileContent.substring(0, 100));
+            // Оставляем fileContent как есть (UTF-8 с ромбиками)
+          }
+        } catch (manualError) {
+          console.log('⚠️ [ENCODING] Manual conversion failed:', manualError.message);
+          fileContent = buffer.toString('utf-8');
         }
       }
       
