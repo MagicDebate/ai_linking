@@ -130,14 +130,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             for (const encoding of encodings) {
               try {
                 // Convert from binary to the target encoding
-                const buffer = Buffer.from(fixedAnchorText, 'binary');
+            const buffer = Buffer.from(fixedAnchorText, 'binary');
                 const testText = buffer.toString(encoding as BufferEncoding);
                 
                 // Check if the result looks like proper text (no diamonds)
                 if (!testText.includes('') && testText.length > 0 && /[а-яё]/i.test(testText)) {
                   fixedAnchorText = testText;
                   console.log(`✅ [FIX ENCODING CANDIDATES] Fixed anchor text with ${encoding}:`, fixedAnchorText);
-                  needsUpdate = true;
+            needsUpdate = true;
                   success = true;
                   break;
                 }
@@ -3511,7 +3511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const graphData = await db.execute(sql`
         SELECT gm.url, pr.meta->>'title' as title, pc.word_count, gm.click_depth, 
                gm.out_degree as internal_links_count, gm.is_orphan, gm.in_degree, gm.out_degree,
-               pc.clean_html as content
+               pc.clean_html as content, pr.job_id
         FROM graph_meta gm
         LEFT JOIN pages_clean pc ON gm.page_id = pc.id
         LEFT JOIN pages_raw pr ON pc.page_raw_id = pr.id
@@ -3529,6 +3529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           urlDepth: row.click_depth || 0,
           internalLinkCount: row.internal_links_count || 0,
           isOrphan: row.is_orphan || false,
+          jobId: row.job_id,
           contentPreview: (row.content || '').substring(0, 150)
         }));
         
@@ -4821,8 +4822,8 @@ class ContentProcessor {
         console.log(`🧹 [PROCESS] Deleting old blocks...`);
         await db.execute(sql`
           DELETE FROM blocks WHERE page_id IN (
-            SELECT pc.id FROM pages_clean pc 
-            INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
+          SELECT pc.id FROM pages_clean pc 
+          INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
             WHERE pr.job_id IN (${jobIdsPlaceholder})
           )
         `);
