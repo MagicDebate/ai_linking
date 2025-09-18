@@ -3757,7 +3757,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       clearedCounts.embeddings = deletedEmbeddings.rowCount || 0;
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.embeddings} embeddings`);
 
-      // 3. Delete blocks (through pages_clean -> pages_raw -> import_jobs)
+      // 3. Delete graph_meta FIRST (it references pages_clean)
+      const deletedGraphMeta = await db.execute(sql`
+        DELETE FROM graph_meta WHERE job_id IN (
+          SELECT job_id FROM import_jobs WHERE project_id = ${projectId}
+        )
+      `);
+      console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedGraphMeta.rowCount || 0} graph meta entries`);
+
+      // 4. Delete blocks (through pages_clean -> pages_raw -> import_jobs)
       const deletedBlocks = await db.execute(sql`
         DELETE FROM blocks WHERE page_id IN (
           SELECT pc.id FROM pages_clean pc 
@@ -3769,7 +3777,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       clearedCounts.blocks = deletedBlocks.rowCount || 0;
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.blocks} blocks`);
 
-      // 4. Delete pages_clean (through pages_raw -> import_jobs)
+      // 5. Delete pages_clean (through pages_raw -> import_jobs)
       const deletedPagesClean = await db.execute(sql`
         DELETE FROM pages_clean WHERE page_raw_id IN (
           SELECT pr.id FROM pages_raw pr
@@ -3779,7 +3787,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedPagesClean.rowCount || 0} clean pages`);
 
-      // 5. Delete pages_raw (through import_jobs)
+      // 6. Delete pages_raw (through import_jobs)
       const deletedPagesRaw = await db.execute(sql`
         DELETE FROM pages_raw WHERE job_id IN (
           SELECT job_id FROM import_jobs WHERE project_id = ${projectId}
@@ -3787,14 +3795,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
       clearedCounts.pages = deletedPagesRaw.rowCount || 0;
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.pages} raw pages`);
-
-      // 6. Delete graph_meta (through import_jobs)
-      const deletedGraphMeta = await db.execute(sql`
-        DELETE FROM graph_meta WHERE job_id IN (
-          SELECT job_id FROM import_jobs WHERE project_id = ${projectId}
-        )
-      `);
-      console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedGraphMeta.rowCount || 0} graph meta entries`);
 
       // 7. Delete import jobs by project_id
       const deletedJobs = await db.execute(sql`
