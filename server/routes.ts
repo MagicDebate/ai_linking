@@ -3725,6 +3725,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Convert jobIds to string array for SQL IN clause
       const stringJobIds = jobIds.map(id => String(id));
       const jobIdsPlaceholder = stringJobIds.map(id => sql`${id}`).join(sql`, `);
+      
+      // DEBUG: Log the job IDs we're trying to delete
+      console.log(`🔍 [CLEAR-ALL-DATA] Job IDs to delete:`, stringJobIds);
+      console.log(`🔍 [CLEAR-ALL-DATA] Job IDs placeholder:`, jobIdsPlaceholder);
 
       // Delete in correct order (respecting foreign key constraints)
       let clearedCounts = {
