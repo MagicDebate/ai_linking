@@ -3765,6 +3765,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `);
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedGraphMeta.rowCount || 0} graph meta entries`);
 
+      // 3.5. Delete edges (it also references pages_clean)
+      const deletedEdges = await db.execute(sql`
+        DELETE FROM edges WHERE from_page_id IN (
+          SELECT pc.id FROM pages_clean pc 
+          INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
+          INNER JOIN import_jobs ij ON pr.job_id = ij.job_id
+          WHERE ij.project_id = ${projectId}
+        ) OR to_page_id IN (
+          SELECT pc.id FROM pages_clean pc 
+          INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
+          INNER JOIN import_jobs ij ON pr.job_id = ij.job_id
+          WHERE ij.project_id = ${projectId}
+        )
+      `);
+      console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedEdges.rowCount || 0} edges`);
+
       // 4. Delete blocks (through pages_clean -> pages_raw -> import_jobs)
       const deletedBlocks = await db.execute(sql`
         DELETE FROM blocks WHERE page_id IN (
