@@ -3701,35 +3701,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`🧹 [CLEAR-ALL-DATA] Starting complete data cleanup for project: ${projectId}`);
 
-      // Get all job IDs for this project
-      const projectJobs = await db
-        .select({ jobId: importJobs.jobId })
-        .from(importJobs)
-        .where(eq(importJobs.projectId, projectId));
-
-      const jobIds = projectJobs.map(job => job.jobId);
-      console.log(`🧹 [CLEAR-ALL-DATA] Found ${jobIds.length} import jobs to clean`);
-      console.log(`🔍 [CLEAR-ALL-DATA] Job IDs array:`, jobIds);
-
-      if (jobIds.length === 0) {
-        return res.json({ 
-          success: true, 
-          message: "No data to clear - project is already empty",
-          clearedJobs: 0,
-          clearedPages: 0,
-          clearedBlocks: 0,
-          clearedEmbeddings: 0,
-          clearedLinks: 0
-        });
+      // Clear global caches first
+      console.log(`🧹 [CLEAR-ALL-DATA] Clearing global caches...`);
+      if ((global as any).uploads) {
+        (global as any).uploads.clear();
+        console.log(`✅ [CLEAR-ALL-DATA] Cleared global uploads cache`);
       }
-
-      // Convert jobIds to string array for SQL IN clause
-      const stringJobIds = jobIds.map(id => String(id));
-      const jobIdsPlaceholder = stringJobIds.map(id => `'${id}'`).join(', ');
-      
-      // DEBUG: Log the job IDs we're trying to delete
-      console.log(`🔍 [CLEAR-ALL-DATA] Job IDs to delete:`, stringJobIds);
-      console.log(`🔍 [CLEAR-ALL-DATA] Job IDs placeholder:`, jobIdsPlaceholder);
+      if ((global as any).importStore) {
+        (global as any).importStore.clear();
+        console.log(`✅ [CLEAR-ALL-DATA] Cleared global importStore cache`);
+      }
+      if ((global as any).importJobs) {
+        (global as any).importJobs.clear();
+        console.log(`✅ [CLEAR-ALL-DATA] Cleared global importJobs cache`);
+      }
 
       // Delete in correct order (respecting foreign key constraints)
       let clearedCounts = {
@@ -3772,46 +3757,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       clearedCounts.embeddings = deletedEmbeddings.rowCount || 0;
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.embeddings} embeddings`);
 
-      // 3. Delete blocks (through pages_clean -> pages_raw -> job_id)
+      // 3. Delete blocks (through pages_clean -> pages_raw -> import_jobs)
       const deletedBlocks = await db.execute(sql`
         DELETE FROM blocks WHERE page_id IN (
           SELECT pc.id FROM pages_clean pc 
           INNER JOIN pages_raw pr ON pc.page_raw_id = pr.id 
-          WHERE pr.job_id IN (${jobIdsPlaceholder})
+          INNER JOIN import_jobs ij ON pr.job_id = ij.job_id
+          WHERE ij.project_id = ${projectId}
         )
       `);
       clearedCounts.blocks = deletedBlocks.rowCount || 0;
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.blocks} blocks`);
 
-      // 4. Delete pages_clean (through pages_raw -> job_id)
+      // 4. Delete pages_clean (through pages_raw -> import_jobs)
       const deletedPagesClean = await db.execute(sql`
         DELETE FROM pages_clean WHERE page_raw_id IN (
-          SELECT id FROM pages_raw WHERE job_id IN (${jobIdsPlaceholder})
+          SELECT pr.id FROM pages_raw pr
+          INNER JOIN import_jobs ij ON pr.job_id = ij.job_id
+          WHERE ij.project_id = ${projectId}
         )
       `);
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedPagesClean.rowCount || 0} clean pages`);
 
-      // 5. Check and delete pages_raw
-      const pagesRawCount = await db.execute(sql`
-        SELECT COUNT(*) as count FROM pages_raw WHERE job_id IN (${jobIdsPlaceholder})
-      `);
-      console.log(`🔍 [CLEAR-ALL-DATA] Found ${pagesRawCount.rows[0]?.count || 0} raw pages to delete`);
-      
+      // 5. Delete pages_raw (through import_jobs)
       const deletedPagesRaw = await db.execute(sql`
-        DELETE FROM pages_raw WHERE job_id IN (${jobIdsPlaceholder})
+        DELETE FROM pages_raw WHERE job_id IN (
+          SELECT job_id FROM import_jobs WHERE project_id = ${projectId}
+        )
       `);
       clearedCounts.pages = deletedPagesRaw.rowCount || 0;
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.pages} raw pages`);
 
-      // 6. Delete graph_meta
+      // 6. Delete graph_meta (through import_jobs)
       const deletedGraphMeta = await db.execute(sql`
-        DELETE FROM graph_meta WHERE job_id IN (${jobIdsPlaceholder})
+        DELETE FROM graph_meta WHERE job_id IN (
+          SELECT job_id FROM import_jobs WHERE project_id = ${projectId}
+        )
       `);
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${deletedGraphMeta.rowCount || 0} graph meta entries`);
 
-      // 7. Delete import jobs
+      // 7. Delete import jobs by project_id
       const deletedJobs = await db.execute(sql`
-        DELETE FROM import_jobs WHERE job_id IN (${jobIdsPlaceholder})
+        DELETE FROM import_jobs WHERE project_id = ${projectId}
       `);
       clearedCounts.jobs = deletedJobs.rowCount || 0;
       console.log(`🧹 [CLEAR-ALL-DATA] Deleted ${clearedCounts.jobs} import jobs`);
