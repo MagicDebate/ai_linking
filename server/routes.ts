@@ -3725,7 +3725,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Convert jobIds to string array for SQL IN clause
       const stringJobIds = jobIds.map(id => String(id));
-      const jobIdsPlaceholder = stringJobIds.map(id => sql`${id}`).join(sql`, `);
+      const jobIdsPlaceholder = stringJobIds.map(id => `'${id}'`).join(', ');
       
       // DEBUG: Log the job IDs we're trying to delete
       console.log(`🔍 [CLEAR-ALL-DATA] Job IDs to delete:`, stringJobIds);
