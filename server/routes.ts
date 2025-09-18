@@ -4998,60 +4998,51 @@ class ContentProcessor {
       throw new Error("Import data or file path not found");
     }
 
-    // Исправляем кодировку - FIX ENCODING ISSUE
+    // ПРАВИЛЬНОЕ ОПРЕДЕЛЕНИЕ КОДИРОВКИ ФАЙЛА
     let fileContent: string;
-    try {
-      // Попробуем разные кодировки
-      const buffer = fs.readFileSync(importData.filePath);
-      
-      // Сначала пробуем UTF-8
-      fileContent = buffer.toString('utf-8');
-      
-      // Проверяем на неправильную кодировку (ромбы)
-      if (fileContent.includes('�') || fileContent.includes('')) {
-        console.log('🔧 [ENCODING] UTF-8 failed, trying windows-1251...');
-        // Пробуем исправить кодировку с помощью iconv-lite
-        // Используем только нативные методы Node.js (iconv-lite не работает в compiled коде)
-        console.log('🔧 [ENCODING] Using native Node.js encoding conversion...');
+    const buffer = fs.readFileSync(importData.filePath);
+    
+    console.log('🔧 [ENCODING] Detecting file encoding...');
+    
+    // Пробуем кодировки по порядку приоритета
+    const encodings = ['utf-8', 'windows-1251', 'cp1251', 'iso-8859-1'];
+    let detectedEncoding = 'utf-8';
+    
+    for (const encoding of encodings) {
+      try {
+        const testContent = buffer.toString(encoding as BufferEncoding);
+        console.log(`🔧 [ENCODING] Testing ${encoding}:`);
+        console.log(`  - Has diamonds: ${testContent.includes('�') || testContent.includes('')}`);
+        console.log(`  - Has cyrillic: ${/[а-яё]/i.test(testContent)}`);
+        console.log(`  - Preview: ${testContent.substring(0, 100)}`);
         
-        try {
-          const encodings = ['windows-1251', 'cp1251', 'iso-8859-1'];
-          let success = false;
-          
-          for (const encoding of encodings) {
-            try {
-              const testContent = buffer.toString(encoding as BufferEncoding);
-              console.log(`🔧 [ENCODING] Testing ${encoding} - contains diamonds:`, testContent.includes('�') || testContent.includes(''));
-              console.log(`🔧 [ENCODING] Testing ${encoding} - has cyrillic:`, /[а-яё]/i.test(testContent));
-              console.log(`🔧 [ENCODING] Testing ${encoding} - preview:`, testContent.substring(0, 100));
-              
-              if (!testContent.includes('') && !testContent.includes('�') && /[а-яё]/i.test(testContent)) {
-                fileContent = testContent;
-                console.log(`✅ [ENCODING] Successfully converted using ${encoding}`);
-                success = true;
-                break;
-              }
-            } catch (e) {
-              console.log(`⚠️ [ENCODING] ${encoding} failed:`, e.message);
-            }
-          }
-          
-          if (!success) {
-            console.log('⚠️ [ENCODING] All encoding attempts failed, using original UTF-8');
-            console.log('🔧 [ENCODING] Original content preview:', fileContent.substring(0, 100));
-            // Оставляем fileContent как есть (UTF-8 с ромбиками)
-          }
-        } catch (manualError) {
-          console.log('⚠️ [ENCODING] Manual conversion failed:', manualError.message);
-          fileContent = buffer.toString('utf-8');
+        // Если нет ромбиков и есть кириллица - это правильная кодировка
+        if (!testContent.includes('�') && !testContent.includes('') && /[а-яё]/i.test(testContent)) {
+          fileContent = testContent;
+          detectedEncoding = encoding;
+          console.log(`✅ [ENCODING] Detected encoding: ${encoding}`);
+          break;
         }
+        // Если это UTF-8 и нет ромбиков - тоже подходит
+        else if (encoding === 'utf-8' && !testContent.includes('�') && !testContent.includes('')) {
+          fileContent = testContent;
+          detectedEncoding = encoding;
+          console.log(`✅ [ENCODING] File is already UTF-8`);
+          break;
+        }
+      } catch (e) {
+        console.log(`⚠️ [ENCODING] ${encoding} failed:`, e.message);
       }
-      
-      console.log('🔧 [ENCODING] File content preview (first 100 chars):', fileContent.substring(0, 100));
-    } catch (error) {
-      console.error('❌ [ENCODING] Error reading file:', error);
-      fileContent = fs.readFileSync(importData.filePath, 'utf-8');
     }
+    
+    // Если не нашли подходящую кодировку, используем UTF-8 как fallback
+    if (!fileContent) {
+      fileContent = buffer.toString('utf-8');
+      console.log('⚠️ [ENCODING] No suitable encoding found, using UTF-8 as fallback');
+    }
+    
+    console.log(`🔧 [ENCODING] Final encoding: ${detectedEncoding}`);
+    console.log(`🔧 [ENCODING] Final content preview: ${fileContent.substring(0, 100)}`);
     const fieldMapping = JSON.parse(importData.fieldMapping || '{}');
     
     const csvRows = this.parseCSV(fileContent);
