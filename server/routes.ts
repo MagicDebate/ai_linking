@@ -3709,6 +3709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const jobIds = projectJobs.map(job => job.jobId);
       console.log(`🧹 [CLEAR-ALL-DATA] Found ${jobIds.length} import jobs to clean`);
+      console.log(`🔍 [CLEAR-ALL-DATA] Job IDs array:`, jobIds);
 
       if (jobIds.length === 0) {
         return res.json({ 
