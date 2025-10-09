@@ -1,0 +1,4 @@
+url	title	content
+https://example.com/page1	Tab-separated page 1	Content with tabs as delimiter
+https://example.com/page2	Tab-separated page 2	More content here
+https://example.com/page3	Tab-separated page 3	Final content

@@ -27,6 +27,7 @@ import crypto from "crypto";
 import type { AuthRequest } from "./auth";
 import { importQueue, embeddingQueue, linkGenerationQueue } from "./queue";
 import { embeddingService } from "./embeddingService";
+import { parseCSV as parseCSVWithEncoding } from "./csvParser";
 
 // Rate limiting for auth endpoints
 const authLimiter = rateLimit({
@@ -377,76 +378,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileSize = req.file.size;
 
       // Parse file based on extension
-      const fileContent = fs.readFileSync(filePath, 'utf-8');
       let headers: string[] = [];
       let rows: string[][] = [];
 
       if (fileName.endsWith('.csv')) {
-        // Parse CSV
-        const lines = fileContent.split('\n').filter(line => line.trim());
+        // Read file as buffer to support different encodings
+        const fileBuffer = fs.readFileSync(filePath);
         
-        if (lines.length === 0) {
-          return res.status(400).json({ message: "CSV file is empty" });
-        }
-
-        // Proper CSV parsing with multiline support - FIXED VERSION
-        const properCSVParse = (csvText: string) => {
-          const results: string[][] = [];
-          let currentRow: string[] = [];
-          let currentField = '';
-          let inQuotes = false;
-          let i = 0;
-          
-          while (i < csvText.length) {
-            const char = csvText[i];
-            const nextChar = csvText[i + 1];
-            
-            if (char === '"') {
-              if (inQuotes && nextChar === '"') {
-                // Escaped quote inside quoted field
-                currentField += '"';
-                i += 2;
-                continue;
-              } else {
-                // Toggle quote state
-                inQuotes = !inQuotes;
-              }
-            } else if (char === ',' && !inQuotes) {
-              // End of field
-              currentRow.push(currentField);
-              currentField = '';
-            } else if ((char === '\n' || char === '\r') && !inQuotes) {
-              // End of row (only if not inside quotes)
-              currentRow.push(currentField);
-              if (currentRow.length > 0 && currentRow.some(field => field.trim().length > 0)) {
-                results.push(currentRow.map(field => field.trim()));
-              }
-              currentRow = [];
-              currentField = '';
-              // Handle CRLF
-              if (char === '\r' && nextChar === '\n') i++;
-            } else {
-              // Regular character or newline inside quotes
-              currentField += char;
-            }
-            i++;
-          }
-          
-          // Handle last row if exists
-          if (currentField.length > 0 || currentRow.length > 0) {
-            currentRow.push(currentField);
-            if (currentRow.length > 0 && currentRow.some(field => field.trim().length > 0)) {
-              results.push(currentRow.map(field => field.trim()));
-            }
-          }
-          
-          console.log(`🎯 CSV parsed correctly: ${results.length} records (including header)`);
-          return results;
-        };
+        // Parse CSV with automatic delimiter and encoding detection
+        const parsed = parseCSVWithEncoding(fileBuffer);
         
-        const parsed = properCSVParse(fileContent);
         if (parsed.length === 0) {
-          return res.status(400).json({ message: "CSV parsing failed" });
+          return res.status(400).json({ message: "CSV file is empty or parsing failed" });
         }
         
         headers = parsed[0].map(h => h.trim());
@@ -463,7 +406,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log(`📋 Preview data rows:`, rows.slice(0, 2));
       } else if (fileName.endsWith('.json')) {
-        // Parse JSON
+        // Parse JSON - read as UTF-8 string
+        const fileContent = fs.readFileSync(filePath, 'utf-8');
         try {
           const jsonData = JSON.parse(fileContent);
           if (Array.isArray(jsonData) && jsonData.length > 0) {
@@ -490,57 +434,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Project not found" });
       }
 
-      // Parse full CSV data using the same proper parser
+      // Parse full CSV data using the new parser with encoding support
       let fullData: any[] = [];
       if (fileName.endsWith('.csv')) {
-        // Use the same parsing function
-        const properCSVParse = (csvText: string) => {
-          const results: string[][] = [];
-          let currentRow: string[] = [];
-          let currentField = '';
-          let inQuotes = false;
-          let i = 0;
-          
-          while (i < csvText.length) {
-            const char = csvText[i];
-            const nextChar = csvText[i + 1];
-            
-            if (char === '"') {
-              if (inQuotes && nextChar === '"') {
-                currentField += '"';
-                i += 2;
-                continue;
-              } else {
-                inQuotes = !inQuotes;
-              }
-            } else if (char === ',' && !inQuotes) {
-              currentRow.push(currentField.trim());
-              currentField = '';
-            } else if ((char === '\n' || char === '\r') && !inQuotes) {
-              currentRow.push(currentField.trim());
-              if (currentRow.some(field => field.length > 0)) {
-                results.push(currentRow);
-              }
-              currentRow = [];
-              currentField = '';
-              if (char === '\r' && nextChar === '\n') i++;
-            } else {
-              currentField += char;
-            }
-            i++;
-          }
-          
-          if (currentField || currentRow.length > 0) {
-            currentRow.push(currentField.trim());
-            if (currentRow.some(field => field.length > 0)) {
-              results.push(currentRow);
-            }
-          }
-          
-          return results;
-        };
-        
-        const parsed = properCSVParse(fileContent);
+        // Read file as buffer and use new parser
+        const fileBuffer = fs.readFileSync(filePath);
+        const parsed = parseCSVWithEncoding(fileBuffer);
         const dataRows = parsed.slice(1);
         
         fullData = dataRows.map(row => {
@@ -551,6 +450,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return rowObject;
         });
       } else if (fileName.endsWith('.json')) {
+        const fileContent = fs.readFileSync(filePath, 'utf-8');
         const jsonData = JSON.parse(fileContent);
         fullData = Array.isArray(jsonData) ? jsonData : [];
       }
@@ -2576,10 +2476,11 @@ class ContentProcessor {
       throw new Error("Import data or file path not found");
     }
 
-    const fileContent = fs.readFileSync(importData.filePath, 'utf-8');
+    // Read file as buffer to support different encodings
+    const fileBuffer = fs.readFileSync(importData.filePath);
     const fieldMapping = JSON.parse(importData.fieldMapping || '{}');
     
-    const csvRows = this.parseCSV(fileContent);
+    const csvRows = parseCSVWithEncoding(fileBuffer);
     const headers = csvRows[0];
     const dataRows = csvRows.slice(1);
     
@@ -2606,51 +2507,6 @@ class ContentProcessor {
     return validData;
   }
 
-  private parseCSV(csvText: string): string[][] {
-    const results: string[][] = [];
-    let currentRow: string[] = [];
-    let currentField = '';
-    let inQuotes = false;
-    let i = 0;
-    
-    while (i < csvText.length) {
-      const char = csvText[i];
-      const nextChar = csvText[i + 1];
-      
-      if (char === '"') {
-        if (inQuotes && nextChar === '"') {
-          currentField += '"';
-          i += 2;
-          continue;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === ',' && !inQuotes) {
-        currentRow.push(currentField.trim());
-        currentField = '';
-      } else if ((char === '\n' || char === '\r') && !inQuotes) {
-        currentRow.push(currentField.trim());
-        if (currentRow.some(field => field.length > 0)) {
-          results.push(currentRow);
-        }
-        currentRow = [];
-        currentField = '';
-        if (char === '\r' && nextChar === '\n') i++;
-      } else {
-        currentField += char;
-      }
-      i++;
-    }
-    
-    if (currentField || currentRow.length > 0) {
-      currentRow.push(currentField.trim());
-      if (currentRow.some(field => field.length > 0)) {
-        results.push(currentRow);
-      }
-    }
-    
-    return results;
-  }
 
   private async cleanHTML(csvData: any[], jobId: string) {
     const cleanPages = [];
@@ -2986,57 +2842,9 @@ async function processImportJob(jobId: string, projectId: string, uploadId: stri
       throw new Error('CSV file not found');
     }
     
-    const csvContent = fs.default.readFileSync(csvFilePath, 'utf-8');
-    
-    // Use proper CSV parser (same as in upload)
-    const properCSVParse = (csvText: string) => {
-      const results: string[][] = [];
-      let currentRow: string[] = [];
-      let currentField = '';
-      let inQuotes = false;
-      let i = 0;
-      
-      while (i < csvText.length) {
-        const char = csvText[i];
-        const nextChar = csvText[i + 1];
-        
-        if (char === '"') {
-          if (inQuotes && nextChar === '"') {
-            currentField += '"';
-            i += 2;
-            continue;
-          } else {
-            inQuotes = !inQuotes;
-          }
-        } else if (char === ',' && !inQuotes) {
-          currentRow.push(currentField);
-          currentField = '';
-        } else if ((char === '\n' || char === '\r') && !inQuotes) {
-          currentRow.push(currentField);
-          if (currentRow.length > 0 && currentRow.some(field => field.trim().length > 0)) {
-            results.push(currentRow.map(field => field.trim()));
-          }
-          currentRow = [];
-          currentField = '';
-          if (char === '\r' && nextChar === '\n') i++;
-        } else {
-          currentField += char;
-        }
-        i++;
-      }
-      
-      if (currentField.length > 0 || currentRow.length > 0) {
-        currentRow.push(currentField);
-        if (currentRow.length > 0 && currentRow.some(field => field.trim().length > 0)) {
-          results.push(currentRow.map(field => field.trim()));
-        }
-      }
-      
-      console.log(`🎯 CSV properly parsed: ${results.length} records (including header)`);
-      return results;
-    };
-    
-    const parsed = properCSVParse(csvContent);
+    // Read CSV with encoding support and automatic delimiter detection
+    const csvBuffer = fs.default.readFileSync(csvFilePath);
+    const parsed = parseCSVWithEncoding(csvBuffer);
     if (parsed.length === 0) {
       throw new Error('CSV parsing failed');
     }
