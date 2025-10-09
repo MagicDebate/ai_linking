@@ -510,6 +510,7 @@ export class LinkGenerator {
         targetUrl: targetPage.url,
         anchorText: anchorText,
         scenario: scenario,
+        position: 0, // Position will be calculated during HTML insertion
         isRejected: false,
         rejectionReason: null
       });
