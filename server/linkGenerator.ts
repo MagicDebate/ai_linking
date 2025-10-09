@@ -148,6 +148,17 @@ export class LinkGenerator {
   // ГЛАВНАЯ ФУНКЦИЯ ГЕНЕРАЦИИ С ПРЕДОСТАВЛЕННЫМ runId
   async generateLinksWithRunId(runId: string, params: GenerationParams): Promise<string> {
     try {
+      // КРИТИЧНО: очищаем пулы перед каждым запуском
+      this.candidatePool.clear();
+      this.stats = {
+        totalGenerated: 0,
+        totalRejected: 0,
+        duplicatesRemoved: 0,
+        cannibalBlocks: 0,
+        stopAnchorsApplied: 0,
+        similarityMatches: 0,
+        quotaExceeded: 0
+      };
 
       console.log('🚀 Starting SPEC-COMPLIANT scenario-based link generation...');
       console.log('📋 Active scenarios:', {
