@@ -43,11 +43,8 @@ export class EmbeddingService {
   private readonly maxCacheSize = 20000; // 20k эмбеддингов в памяти
 
   constructor() {
-    // Автонастройка размера батча при старте (асинхронно, с обработкой ошибок)
-    this.autoAdjustBatchSize().catch(err => {
-      console.warn('⚠️ Could not auto-adjust batch size:', err.message);
-      console.log('Using default batch size:', this.batchConfig.batchSize);
-    });
+    // Автонастройка размера батча отключена для совместимости с Replit
+    console.log('✅ Using default batch size:', this.batchConfig.batchSize);
   }
 
   /**
