@@ -284,28 +284,40 @@ export class LinkGenerator {
     }
   }
 
+  // Добавить кандидата в пул
+  private addCandidate(candidate: LinkCandidate) {
+    const donorId = candidate.sourcePage.id;
+    if (!this.candidatePool.has(donorId)) {
+      this.candidatePool.set(donorId, []);
+    }
+    this.candidatePool.get(donorId)!.push(candidate);
+  }
+
   // ORPHAN FIX: поднимает сиротские страницы
   private async executeOrphanFixScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
-    let generated = 0, rejected = 0;
-
     // Получаем сиротские страницы
     const orphanPages = pages.filter(page => page.isOrphan);
 
     for (const orphanPage of orphanPages) {
       // Ищем похожие страницы через cosine similarity
-      const similarPages = await this.findSimilarPagesByCosine(orphanPage, pages, 5, 0.70); // Пониженный порог для сирот
+      const similarPagesWithScores = await this.findSimilarPagesByCosineWithScores(orphanPage, pages, 5, 0.70);
       
-      for (const similarPage of similarPages) {
-        const result = await this.tryCreateLink(runId, similarPage, orphanPage, 'orphan_fix', params);
-        if (result.created) {
-          generated++;
-        } else {
-          rejected++;
-        }
+      for (const { page: similarPage, score } of similarPagesWithScores) {
+        // Генерируем анкор
+        const anchorText = await this.generateAnchorText(similarPage, orphanPage, params);
+        
+        // Добавляем кандидата в пул (не создаем сразу)
+        this.addCandidate({
+          sourcePage: similarPage,
+          targetPage: orphanPage,
+          anchorText,
+          scenario: 'orphan_fix',
+          relevanceScore: score
+        });
       }
     }
 
-    return { generated, rejected };
+    return { generated: 0, rejected: 0 }; // Счетчики будут обновлены после финального отбора
   }
 
   // HEAD CONSOLIDATION: консолидирует головные страницы
@@ -435,8 +447,8 @@ export class LinkGenerator {
     return { generated, rejected };
   }
 
-  // НОВЫЙ МЕТОД: Поиск похожих страниц через cosine similarity
-  private async findSimilarPagesByCosine(sourcePage: any, allPages: any[], limit: number, threshold: number): Promise<any[]> {
+  // НОВЫЙ МЕТОД: Поиск похожих страниц через cosine similarity (с scores)
+  private async findSimilarPagesByCosineWithScores(sourcePage: any, allPages: any[], limit: number, threshold: number): Promise<Array<{ page: any, score: number }>> {
     console.log(`🔍 Finding similar pages for ${sourcePage.url} (threshold: ${threshold})`);
     
     // Получаем блоки исходной страницы
@@ -461,37 +473,42 @@ export class LinkGenerator {
         threshold
       );
 
-             // Группируем результаты по страницам
-       for (const similarBlock of similarBlocks) {
-         // Получаем pageId из blockId
-         const targetBlock = await db
-           .select({ pageId: blocks.pageId })
-           .from(blocks)
-           .where(eq(blocks.id, similarBlock.blockId))
-           .limit(1);
-         
-         if (targetBlock.length > 0) {
-           const targetPage = allPages.find(p => p.id === targetBlock[0].pageId);
-           if (targetPage && targetPage.id !== sourcePage.id) {
-             const existing = similarities.find(s => s.page.id === targetPage.id);
-             if (existing) {
-               existing.score = Math.max(existing.score, similarBlock.pageScore);
-             } else {
-               similarities.push({
-                 page: targetPage,
-                 score: similarBlock.pageScore
-               });
-             }
-           }
-         }
-       }
+      // Группируем результаты по страницам
+      for (const similarBlock of similarBlocks) {
+        // Получаем pageId из blockId
+        const targetBlock = await db
+          .select({ pageId: blocks.pageId })
+          .from(blocks)
+          .where(eq(blocks.id, similarBlock.blockId))
+          .limit(1);
+        
+        if (targetBlock.length > 0) {
+          const targetPage = allPages.find(p => p.id === targetBlock[0].pageId);
+          if (targetPage && targetPage.id !== sourcePage.id) {
+            const existing = similarities.find(s => s.page.id === targetPage.id);
+            if (existing) {
+              existing.score = Math.max(existing.score, similarBlock.pageScore);
+            } else {
+              similarities.push({
+                page: targetPage,
+                score: similarBlock.pageScore
+              });
+            }
+          }
+        }
+      }
     }
 
     // Сортируем по score и берем top limit
     return similarities
       .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
-      .map(s => s.page);
+      .slice(0, limit);
+  }
+
+  // Поиск похожих страниц (без scores для обратной совместимости)
+  private async findSimilarPagesByCosine(sourcePage: any, allPages: any[], limit: number, threshold: number): Promise<any[]> {
+    const results = await this.findSimilarPagesByCosineWithScores(sourcePage, allPages, limit, threshold);
+    return results.map(r => r.page);
   }
 
   // Попытка создать ссылку с проверкой всех политик
