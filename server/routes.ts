@@ -908,6 +908,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get generation run status
+  app.get("/api/generate/status/:runId", authenticateToken, async (req: any, res) => {
+    try {
+      const { runId } = req.params;
+      
+      // Get run status from database
+      const run = await db
+        .select()
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, runId))
+        .limit(1);
+
+      if (run.length === 0) {
+        return res.status(404).json({ error: "Generation run not found" });
+      }
+
+      const runData = run[0];
+
+      // Verify project belongs to user
+      const project = await storage.getProjectById(runData.projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      res.json({
+        status: runData.status,
+        phase: runData.phase,
+        percent: runData.percent,
+        generated: runData.generated,
+        rejected: runData.rejected,
+        errorMessage: runData.errorMessage
+      });
+    } catch (error) {
+      console.error("Generation status error:", error);
+      res.status(500).json({ error: "Failed to get generation status" });
+    }
+  });
+
   // Start link generation with full SEO profile parameters
   app.post("/api/generate/start", authenticateToken, async (req: any, res) => {
     try {
@@ -1001,14 +1039,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         policies: generationParams.policies
       });
 
-      // Start generation in background
-      generator.generateLinks(generationParams).then((runId: string) => {
+      // Create runId here so we can return it immediately
+      const runId = crypto.randomUUID();
+      
+      // Create initial run record in database
+      await db
+        .insert(generationRuns)
+        .values({
+          runId,
+          projectId,
+          importId: 'default-import',
+          status: 'running',
+          phase: 'initialization',
+          percent: 0,
+          generated: 0,
+          rejected: 0
+        });
+
+      // Start generation in background (don't await)
+      generator.generateLinksWithRunId(runId, generationParams).then(() => {
         console.log(`✅ Generation completed with runId: ${runId}`);
       }).catch((error: any) => {
         console.error("Generation failed:", error);
       });
 
-      res.json({ success: true, message: "Generation started" });
+      res.json({ success: true, message: "Generation started", runId });
     } catch (error) {
       console.error("Generation start error:", error);
       res.status(500).json({ error: "Failed to start generation" });

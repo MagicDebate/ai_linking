@@ -327,6 +327,9 @@ export default function ProjectUnifiedSpec() {
   // Состояние импорта
   const [importJobId, setImportJobId] = useState<string | null>(null);
   
+  // Состояние генерации
+  const [generationRunId, setGenerationRunId] = useState<string | null>(null);
+  
   // Запрос статуса импорта с автообновлением
   const { data: importStatus, isLoading: importStatusLoading } = useQuery({
     queryKey: ['/api/import/status', importJobId],
@@ -341,6 +344,23 @@ export default function ProjectUnifiedSpec() {
       // Обновляем каждую секунду пока импорт активен
       const status = query.state.data?.status;
       return status === 'running' ? 1000 : false;
+    }
+  });
+
+  // Запрос статуса генерации с автообновлением
+  const { data: generationStatus, isLoading: generationStatusLoading } = useQuery({
+    queryKey: ['/api/generate/status', generationRunId],
+    queryFn: async () => {
+      if (!generationRunId) return null;
+      const response = await fetch(`/api/generate/status/${generationRunId}`);
+      if (!response.ok) throw new Error('Failed to get generation status');
+      return response.json();
+    },
+    enabled: !!generationRunId && currentStep === 5,
+    refetchInterval: (query) => {
+      // Обновляем каждую секунду пока генерация активна
+      const status = query.state.data?.status;
+      return (status === 'running') ? 1000 : false;
     }
   });
 
@@ -365,6 +385,27 @@ export default function ProjectUnifiedSpec() {
     }
   }, [importStatus, currentStep, importJobId]);
 
+  // Отображение уведомлений о статусе генерации
+  useEffect(() => {
+    console.log('🔄 Generation status check:', { 
+      generationStatus, 
+      currentStep, 
+      generationRunId,
+      statusCheck: generationStatus?.status 
+    });
+    
+    if (generationStatus?.status === 'draft' && currentStep === 5) {
+      toast({ title: "Генерация завершена успешно!" });
+      // НЕ переходим автоматически - только по кнопке
+    } else if (generationStatus && generationStatus.status === 'failed' && currentStep === 5) {
+      toast({ 
+        title: "Ошибка генерации", 
+        description: generationStatus.errorMessage || "Неизвестная ошибка",
+        variant: "destructive" 
+      });
+    }
+  }, [generationStatus, currentStep, generationRunId]);
+
   // Мутация запуска генерации ссылок с полным SEO профилем
   const generateLinksMutation = useMutation({
     mutationFn: async () => {
@@ -386,9 +427,11 @@ export default function ProjectUnifiedSpec() {
       
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('✅ Generation started:', data);
       toast({ title: "Генерация ссылок запущена!" });
-      setCurrentStep(6); // Переходим к следующему шагу
+      setGenerationRunId(data.runId); // Сохраняем runId для отслеживания
+      setCurrentStep(5); // Переходим к экрану прогресса генерации
     },
     onError: (error: any) => {
       toast({ title: "Ошибка генерации", description: error.message, variant: "destructive" });
@@ -1521,41 +1564,101 @@ export default function ProjectUnifiedSpec() {
                 </div>
               )}
 
-              {/* Шаг 4: Настройка области генерации */}
-              {currentStep === 4 && (
-                <div className="text-center space-y-6">
-                  <div className="space-y-4">
-                    <Settings className="h-16 w-16 text-blue-600 mx-auto" />
-                    <h3 className="text-xl font-semibold text-gray-900">
-                      Настройка области генерации
+              {/* Шаг 5: Прогресс генерации ссылок */}
+              {currentStep === 5 && (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                      Генерация ссылок
                     </h3>
                     <p className="text-gray-600">
-                      Выберите scope для создания внутренних ссылок и запустите генерацию.
+                      Создаем внутренние ссылки на основе ваших настроек SEO
                     </p>
                   </div>
 
-                  <div className="flex justify-center gap-4">
+                  <div className="bg-gray-50 rounded-lg p-6">
+                    {(!generationRunId || generationStatusLoading || !generationStatus) ? (
+                      <div className="text-center space-y-4">
+                        <Loader2 className="h-12 w-12 text-green-600 mx-auto animate-spin" />
+                        <p className="text-green-600 font-medium">
+                          Запускаем генерацию ссылок...
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {/* Прогресс бар */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium text-gray-700">
+                              {generationStatus.phase || 'Генерация...'}
+                            </span>
+                            <span className="text-green-600 font-medium">
+                              {generationStatus.percent || 0}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div 
+                              className="bg-green-600 h-3 rounded-full transition-all duration-500 ease-out"
+                              style={{ width: `${generationStatus.percent || 0}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Статистика */}
+                        <div className="grid grid-cols-2 gap-4 text-center">
+                          <div className="bg-white rounded-lg p-4">
+                            <div className="text-2xl font-bold text-green-600">
+                              {generationStatus.generated || 0}
+                            </div>
+                            <div className="text-sm text-gray-600">Ссылок создано</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-4">
+                            <div className="text-2xl font-bold text-gray-900">
+                              {generationStatus.rejected || 0}
+                            </div>
+                            <div className="text-sm text-gray-600">Отклонено</div>
+                          </div>
+                        </div>
+
+                        {/* Статус завершения */}
+                        {generationStatus.status === 'draft' && (
+                          <div className="text-center">
+                            <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-2" />
+                            <p className="text-green-700 font-medium">
+                              Генерация завершена! Нажмите "Далее" чтобы просмотреть черновик.
+                            </p>
+                          </div>
+                        )}
+
+                        {generationStatus.status === 'failed' && (
+                          <div className="text-center">
+                            <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-2" />
+                            <p className="text-red-700 font-medium">
+                              Ошибка генерации: {generationStatus.errorMessage}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Кнопки управления */}
+                  <div className="flex justify-between">
                     <Button variant="outline" onClick={() => setCurrentStep(2)}>
                       <ArrowLeft className="h-4 w-4 mr-2" />
-                      Назад к SEO профилю
+                      Назад к настройкам
                     </Button>
-                    <Button 
-                      onClick={() => generateLinksMutation.mutate()}
-                      disabled={generateLinksMutation.isPending}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      {generateLinksMutation.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Запускаем генерацию...
-                        </>
-                      ) : (
-                        <>
-                          <Settings className="h-4 w-4 mr-2" />
-                          Запустить генерацию ссылок
-                        </>
-                      )}
-                    </Button>
+                    
+                    {generationStatus?.status === 'draft' && (
+                      <Button 
+                        onClick={() => setCurrentStep(6)}
+                        className="bg-green-600 hover:bg-green-700"
+                        data-testid="button-view-draft"
+                      >
+                        Далее: Просмотр черновика
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}

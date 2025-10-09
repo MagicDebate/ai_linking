@@ -82,9 +82,9 @@ export class LinkGenerator {
     this.projectId = projectId;
   }
 
-  // ГЛАВНАЯ ФУНКЦИЯ ГЕНЕРАЦИИ ПО СЦЕНАРИЯМ
+  // ГЛАВНАЯ ФУНКЦИЯ ГЕНЕРАЦИИ ПО СЦЕНАРИЯМ (для обратной совместимости)
   async generateLinks(params: GenerationParams): Promise<string> {
-    const runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const runId = crypto.randomUUID();
 
     try {
       // Создаем запись о запуске
@@ -100,6 +100,29 @@ export class LinkGenerator {
           generated: 0,
           rejected: 0
         });
+
+      // Вызываем главную логику
+      return await this.generateLinksWithRunId(runId, params);
+    } catch (error) {
+      console.error('❌ Link generation failed:', error);
+      
+      // Update run with error status
+      await db
+        .update(generationRuns)
+        .set({
+          status: 'failed',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          finishedAt: new Date()
+        })
+        .where(eq(generationRuns.runId, runId));
+      
+      throw error;
+    }
+  }
+
+  // ГЛАВНАЯ ФУНКЦИЯ ГЕНЕРАЦИИ С ПРЕДОСТАВЛЕННЫМ runId
+  async generateLinksWithRunId(runId: string, params: GenerationParams): Promise<string> {
+    try {
 
       console.log('🚀 Starting SPEC-COMPLIANT scenario-based link generation...');
       console.log('📋 Active scenarios:', {
