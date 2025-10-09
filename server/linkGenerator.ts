@@ -246,7 +246,7 @@ export class LinkGenerator {
       totalRejected = 0;
       
       // Для каждого донора выбираем лучшие ссылки
-      for (const [donorId, candidates] of this.candidatePool.entries()) {
+      for (const [donorId, candidates] of Array.from(this.candidatePool.entries())) {
         const { selected, rejected } = await this.selectLinksForDonor(
           donorId,
           candidates,
