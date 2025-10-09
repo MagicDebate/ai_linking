@@ -349,7 +349,35 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    console.log(`updateImportJob: updated ${jobId} - phase: ${job.phase}, percent: ${job.percent}`);
+    // CRITICAL: Save to database as well!
+    const dbUpdates: any = {};
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.phase !== undefined) dbUpdates.phase = updates.phase;
+    if (updates.percent !== undefined) dbUpdates.percent = updates.percent;
+    if (updates.pagesTotal !== undefined) dbUpdates.pagesTotal = updates.pagesTotal;
+    if (updates.pagesDone !== undefined) dbUpdates.pagesDone = updates.pagesDone;
+    if (updates.blocksDone !== undefined) dbUpdates.blocksDone = updates.blocksDone;
+    if (updates.orphanCount !== undefined) dbUpdates.orphanCount = updates.orphanCount;
+    if (updates.avgWordCount !== undefined) dbUpdates.avgWordCount = updates.avgWordCount;
+    if (updates.deepPages !== undefined) dbUpdates.deepPages = updates.deepPages;
+    if (updates.avgClickDepth !== undefined) dbUpdates.avgClickDepth = updates.avgClickDepth;
+    if (updates.errorMessage !== undefined) dbUpdates.errorMessage = updates.errorMessage;
+    if (updates.finishedAt !== undefined) dbUpdates.finishedAt = updates.finishedAt;
+    if (updates.importDuration !== undefined) dbUpdates.importDuration = updates.importDuration;
+    
+    // Handle logs array for database
+    if (job.logs && job.logs.length > 0) {
+      dbUpdates.logs = job.logs;
+    }
+    
+    // Update database
+    if (Object.keys(dbUpdates).length > 0) {
+      await db.update(importJobs)
+        .set(dbUpdates)
+        .where(eq(importJobs.jobId, jobId));
+    }
+    
+    console.log(`updateImportJob: updated ${jobId} in DB and memory - phase: ${job.phase}, percent: ${job.percent}`);
     return job;
   }
 
