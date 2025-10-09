@@ -1501,10 +1501,11 @@ export default function ProjectUnifiedSpec() {
                     {/* Показываем кнопку перехода только когда импорт завершен */}
                     {importStatus?.status === 'completed' && (
                       <Button 
-                        onClick={() => setCurrentStep(4)} // Переходим к настройке области генерации
+                        onClick={() => setCurrentStep(2)} // Переходим к настройке SEO профиля
                         className="bg-blue-600 hover:bg-blue-700"
+                        data-testid="button-continue-to-seo"
                       >
-                        {!importJobId ? 'Пропустить импорт' : 'Перейти к SEO профилю'}
+                        {!importJobId ? 'Пропустить импорт' : 'Далее: Настройка SEO профиля'}
                         <ArrowRight className="h-4 w-4 ml-2" />
                       </Button>
                     )}
