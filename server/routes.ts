@@ -632,7 +632,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stats: {
           totalPages: jobData.pagesTotal || 0,
           totalBlocks: jobData.blocksDone || 0,  
-          totalWords: jobData.avgWordCount || 0
+          totalWords: jobData.avgWordCount || 0,
+          orphanCount: jobData.orphanCount || 0,
+          avgClickDepth: jobData.avgClickDepth || 0,
+          deepPages: jobData.deepPages || 0
         },
         errors: jobData.logs || []
       });

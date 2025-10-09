@@ -355,7 +355,7 @@ export default function ProjectUnifiedSpec() {
     }
   });
 
-  // Автоматический переход на следующий шаг после завершения импорта
+  // Отображение уведомлений о статусе импорта (БЕЗ автоматического перехода)
   useEffect(() => {
     console.log('🔄 Import status check:', { 
       importStatus, 
@@ -366,7 +366,7 @@ export default function ProjectUnifiedSpec() {
     
     if (importStatus?.status === 'completed' && currentStep === 3) {
       toast({ title: "Импорт завершен успешно!" });
-      setTimeout(() => setCurrentStep(4), 1000);
+      // НЕ переходим автоматически - только по кнопке
     } else if (importStatus && importStatus.status === 'failed' && currentStep === 3) {
       toast({ 
         title: "Ошибка импорта", 
@@ -1405,12 +1405,30 @@ export default function ProjectUnifiedSpec() {
                             <div className="text-sm text-gray-600">Блоков контента</div>
                           </div>
                           <div className="bg-white rounded-lg p-4">
-                            <div className="text-2xl font-bold text-gray-900">
-                              {importStatus.stats?.totalWords || 0}
+                            <div className="text-2xl font-bold text-orange-600">
+                              {importStatus.stats?.orphanCount || 0}
                             </div>
-                            <div className="text-sm text-gray-600">Слов проанализировано</div>
+                            <div className="text-sm text-gray-600">Страниц-сирот</div>
                           </div>
                         </div>
+
+                        {/* Дополнительная статистика при завершении */}
+                        {importStatus.status === 'completed' && (
+                          <div className="grid grid-cols-2 gap-4 text-center">
+                            <div className="bg-white rounded-lg p-4 border border-gray-200">
+                              <div className="text-xl font-bold text-blue-600">
+                                {importStatus.stats?.avgClickDepth?.toFixed(1) || '1.0'}
+                              </div>
+                              <div className="text-sm text-gray-600">Средняя глубина клика</div>
+                            </div>
+                            <div className="bg-white rounded-lg p-4 border border-gray-200">
+                              <div className="text-xl font-bold text-purple-600">
+                                {importStatus.stats?.deepPages || 0}
+                              </div>
+                              <div className="text-sm text-gray-600">Глубоких страниц ({'>'}3)</div>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Детали текущей фазы */}
                         {importStatus.currentItem && (
@@ -1449,7 +1467,7 @@ export default function ProjectUnifiedSpec() {
                           <div className="text-center">
                             <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-2" />
                             <p className="text-green-700 font-medium">
-                              Импорт завершен успешно! Переходим к настройке области генерации.
+                              Импорт завершен успешно! Нажмите "Далее" чтобы продолжить.
                             </p>
                           </div>
                         )}
@@ -1480,10 +1498,10 @@ export default function ProjectUnifiedSpec() {
                       Назад к маппингу
                     </Button>
                     
-                    {/* Показываем кнопку перехода только когда импорт завершен ИЛИ если jobId не установлен */}
-                    {(importStatus?.status === 'completed' || !importJobId) && (
+                    {/* Показываем кнопку перехода только когда импорт завершен */}
+                    {importStatus?.status === 'completed' && (
                       <Button 
-                        onClick={() => setCurrentStep(2)} // Переходим к SEO профилю после импорта
+                        onClick={() => setCurrentStep(4)} // Переходим к настройке области генерации
                         className="bg-blue-600 hover:bg-blue-700"
                       >
                         {!importJobId ? 'Пропустить импорт' : 'Перейти к SEO профилю'}
