@@ -236,7 +236,62 @@ export class LinkGenerator {
         await this.updateProgress(runId, 'generating', progressBase, totalGenerated, totalRejected);
       }
 
-      // Final phase (80-100%)
+      // ФИНАЛЬНЫЙ ОТБОР: применяем maxLinks и приоритизацию (80-90%)
+      console.log(`\n🎯 Starting final selection with maxLinks=${params.maxLinks}...`);
+      console.log(`📊 Candidate pool size: ${this.candidatePool.size} donors, ${Array.from(this.candidatePool.values()).reduce((sum, arr) => sum + arr.length, 0)} total candidates`);
+      
+      await this.updateProgress(runId, 'selecting best links', 80, 0, 0);
+      
+      totalGenerated = 0;
+      totalRejected = 0;
+      
+      // Для каждого донора выбираем лучшие ссылки
+      for (const [donorId, candidates] of this.candidatePool.entries()) {
+        const { selected, rejected } = await this.selectLinksForDonor(
+          donorId,
+          candidates,
+          params.maxLinks,
+          params
+        );
+
+        // Вставляем выбранные ссылки в БД
+        for (const candidate of selected) {
+          await db.insert(linkCandidates).values({
+            runId: runId,
+            sourcePageId: candidate.sourcePage.id,
+            targetPageId: candidate.targetPage.id,
+            sourceUrl: candidate.sourcePage.url,
+            targetUrl: candidate.targetPage.url,
+            anchorText: candidate.anchorText,
+            scenario: candidate.scenario,
+            position: 0, // Will be calculated during HTML insertion
+            isRejected: false,
+            rejectionReason: null
+          });
+          totalGenerated++;
+        }
+
+        // Вставляем отклоненные ссылки
+        for (const { candidate, reason } of rejected) {
+          await db.insert(linkCandidates).values({
+            runId: runId,
+            sourcePageId: candidate.sourcePage.id,
+            targetPageId: candidate.targetPage.id,
+            sourceUrl: candidate.sourcePage.url,
+            targetUrl: candidate.targetPage.url,
+            anchorText: candidate.anchorText,
+            scenario: candidate.scenario,
+            position: 0,
+            isRejected: true,
+            rejectionReason: reason
+          });
+          totalRejected++;
+        }
+      }
+
+      console.log(`✅ Final selection complete: ${totalGenerated} generated, ${totalRejected} rejected`);
+
+      // Final phase (90-100%)
       await this.updateProgress(runId, 'finalizing', 90, totalGenerated, totalRejected);
       
       // Final statistics
