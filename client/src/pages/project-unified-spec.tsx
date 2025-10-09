@@ -275,22 +275,11 @@ export default function ProjectUnifiedSpec() {
     },
     onSuccess: async () => {
       toast({ title: "Настройки сохранены!" });
-      setCurrentStep(3); // Переходим на шаг импорта
-      // Запускаем импорт автоматически
-      console.log('🚀 Trying to start import with uploadId:', csvPreview?.uploadId);
-      if (csvPreview?.uploadId) {
-        // Небольшая задержка чтобы UI обновился
-        setTimeout(() => {
-          startImportMutation.mutate();
-        }, 100);
-      } else {
-        console.error('❌ No uploadId available for import');
-        toast({ 
-          title: "Ошибка", 
-          description: "Не найден ID загрузки. Попробуйте загрузить CSV снова.",
-          variant: "destructive" 
-        });
-      }
+      // После сохранения профиля запускаем генерацию ссылок
+      console.log('🚀 Profile saved, starting link generation...');
+      setTimeout(() => {
+        generateLinksMutation.mutate();
+      }, 100);
     },
     onError: (error: any) => {
       toast({ title: "Ошибка", description: error.message, variant: "destructive" });
@@ -1321,19 +1310,23 @@ export default function ProjectUnifiedSpec() {
                   <div className="flex justify-between">
                     <Button
                       variant="outline"
-                      onClick={() => setCurrentStep(1)}
+                      onClick={() => setCurrentStep(3)}
+                      data-testid="button-back-to-import"
                     >
                       <ArrowLeft className="h-4 w-4 mr-2" />
-                      Назад к загрузке CSV
+                      Назад к импорту
                     </Button>
                     <Button
-                      onClick={() => profileMutation.mutate(seoProfile)}
-                      disabled={profileMutation.isPending || startImportMutation.isPending}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      onClick={() => {
+                        profileMutation.mutate(seoProfile);
+                      }}
+                      disabled={profileMutation.isPending || generateLinksMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700"
+                      data-testid="button-save-and-generate"
                     >
-                      {profileMutation.isPending ? "Сохраняем..." : 
-                       startImportMutation.isPending ? "Запускаем импорт..." :
-                       "Сохранить и запустить импорт"}
+                      {profileMutation.isPending ? "Сохраняем профиль..." : 
+                       generateLinksMutation.isPending ? "Запускаем генерацию..." :
+                       "Сохранить и запустить генерацию"}
                       <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
                   </div>
