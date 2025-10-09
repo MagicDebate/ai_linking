@@ -57,6 +57,26 @@ interface GenerationParams {
   };
 }
 
+// Кандидат на создание ссылки
+interface LinkCandidate {
+  sourcePage: any;
+  targetPage: any;
+  anchorText: string;
+  scenario: string;
+  relevanceScore: number; // cosine similarity или другая метрика
+  freshness?: number; // timestamp для freshness push
+}
+
+// Приоритеты сценариев (больше = важнее)
+const SCENARIO_PRIORITIES: Record<string, number> = {
+  'orphan_fix': 100,           // Высший приоритет - сиротские страницы нужно связать
+  'commercial_routing': 90,    // Высокий - деньги важны
+  'depth_lift': 80,            // Средне-высокий - глубокие страницы
+  'head_consolidation': 70,    // Средний - консолидация хабов
+  'freshness_push': 60,        // Средне-низкий - свежий контент
+  'cluster_cross_link': 50     // Низкий - перелинковка внутри кластеров
+};
+
 // Статистика генерации
 interface GenerationStats {
   totalGenerated: number;
@@ -65,6 +85,7 @@ interface GenerationStats {
   cannibalBlocks: number;
   stopAnchorsApplied: number;
   similarityMatches: number;
+  quotaExceeded: number; // Новая метрика
 }
 
 export class LinkGenerator {
@@ -75,8 +96,12 @@ export class LinkGenerator {
     duplicatesRemoved: 0,
     cannibalBlocks: 0,
     stopAnchorsApplied: 0,
-    similarityMatches: 0
+    similarityMatches: 0,
+    quotaExceeded: 0
   };
+  
+  // Пул кандидатов для каждой страницы-донора
+  private candidatePool: Map<string, LinkCandidate[]> = new Map();
 
   constructor(projectId: string) {
     this.projectId = projectId;
