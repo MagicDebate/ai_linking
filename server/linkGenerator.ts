@@ -511,6 +511,84 @@ export class LinkGenerator {
     return results.map(r => r.page);
   }
 
+  // Отбор лучших ссылок для одного донора с учетом maxLinks
+  private async selectLinksForDonor(
+    donorId: string,
+    candidates: LinkCandidate[],
+    maxLinks: number,
+    params: GenerationParams
+  ): Promise<{ selected: LinkCandidate[], rejected: Array<{candidate: LinkCandidate, reason: string}> }> {
+    const selected: LinkCandidate[] = [];
+    const rejected: Array<{candidate: LinkCandidate, reason: string}> = [];
+
+    // Фильтрация по политикам (дубликаты, каннибализация, стоп-анкоры)
+    const filtered: LinkCandidate[] = [];
+    for (const candidate of candidates) {
+      // Проверка self-link
+      if (candidate.sourcePage.id === candidate.targetPage.id) {
+        rejected.push({ candidate, reason: 'Self-link not allowed' });
+        continue;
+      }
+
+      // Проверка дубликатов
+      if (params.policies.removeDuplicates) {
+        const isDuplicate = await this.isDuplicateLink(candidate.sourcePage.url, candidate.targetPage.url);
+        if (isDuplicate) {
+          this.stats.duplicatesRemoved++;
+          rejected.push({ candidate, reason: 'Duplicate link removed' });
+          continue;
+        }
+      }
+
+      // Проверка каннибализации
+      const isCannibal = await this.checkCannibalization(candidate.sourcePage.url, candidate.targetPage.url, params);
+      if (isCannibal) {
+        this.stats.cannibalBlocks++;
+        rejected.push({ candidate, reason: 'Cannibalization blocked' });
+        continue;
+      }
+
+      // Проверка стоп-листа
+      if (this.isStopAnchor(candidate.anchorText, params.stopAnchors)) {
+        this.stats.stopAnchorsApplied++;
+        rejected.push({ candidate, reason: 'Anchor in stop list' });
+        continue;
+      }
+
+      filtered.push(candidate);
+    }
+
+    // Ранжирование: приоритет сценария > релевантность > свежесть
+    const ranked = filtered.sort((a, b) => {
+      // 1. Приоритет сценария (больше = важнее)
+      const priorityDiff = (SCENARIO_PRIORITIES[b.scenario] || 0) - (SCENARIO_PRIORITIES[a.scenario] || 0);
+      if (priorityDiff !== 0) return priorityDiff;
+
+      // 2. Релевантность (больше = лучше)
+      const relevanceDiff = b.relevanceScore - a.relevanceScore;
+      if (Math.abs(relevanceDiff) > 0.01) return relevanceDiff;
+
+      // 3. Свежесть (новее = лучше)
+      if (a.freshness && b.freshness) {
+        return b.freshness - a.freshness;
+      }
+
+      return 0;
+    });
+
+    // Выбираем топ-N
+    for (let i = 0; i < ranked.length; i++) {
+      if (i < maxLinks) {
+        selected.push(ranked[i]);
+      } else {
+        this.stats.quotaExceeded++;
+        rejected.push({ candidate: ranked[i], reason: 'Quota exceeded (maxLinks)' });
+      }
+    }
+
+    return { selected, rejected };
+  }
+
   // Попытка создать ссылку с проверкой всех политик
   private async tryCreateLink(runId: string, sourcePage: any, targetPage: any, scenario: string, params: GenerationParams): Promise<{ created: boolean, reason?: string, anchor?: string }> {
     try {
