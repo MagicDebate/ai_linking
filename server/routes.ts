@@ -35,6 +35,8 @@ const authLimiter = rateLimit({
   message: { message: "Too many authentication attempts, please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip validation for Replit proxy environment
+  validate: { trustProxy: false, xForwardedForHeader: false },
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {

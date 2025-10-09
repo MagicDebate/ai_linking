@@ -6,6 +6,10 @@ import { setupVite, serveStatic, log } from "./vite";
 import "./queue";
 
 const app = express();
+
+// Trust proxy for Replit environment (handles X-Forwarded-For headers)
+app.set('trust proxy', true);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
