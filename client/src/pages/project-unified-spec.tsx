@@ -348,9 +348,10 @@ export default function ProjectUnifiedSpec() {
       return response.json();
     },
     enabled: !!importJobId && currentStep === 3,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Обновляем каждую секунду пока импорт активен
-      return data?.status === 'running' ? 1000 : false;
+      const status = query.state.data?.status;
+      return status === 'running' ? 1000 : false;
     }
   });
 
