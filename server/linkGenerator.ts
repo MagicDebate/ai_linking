@@ -3,6 +3,10 @@ import { linkCandidates, generationRuns, pageEmbeddings, pagesClean, graphMeta, 
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import { embeddingService } from './embeddingService';
 import { linkGenerationQueue } from './queue';
+import OpenAI from 'openai';
+
+// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Интерфейс параметров генерации (точно по UI)
 interface GenerationParams {
@@ -369,14 +373,11 @@ export class LinkGenerator {
       const similarPagesWithScores = await this.findSimilarPagesByCosineWithScores(orphanPage, pages, 5, 0.70);
       
       for (const { page: similarPage, score } of similarPagesWithScores) {
-        // Генерируем анкор
-        const anchorText = await this.generateAnchorText(similarPage, orphanPage, params);
-        
-        // Добавляем кандидата в пул (не создаем сразу)
+        // НЕ генерируем анкор здесь - только после отбора топ-N!
         this.addCandidate({
           sourcePage: similarPage,
           targetPage: orphanPage,
-          anchorText,
+          anchorText: '', // Пустой, заполним после отбора
           scenario: 'orphan_fix',
           relevanceScore: score
         });
@@ -396,14 +397,11 @@ export class LinkGenerator {
       const similarPagesWithScores = await this.findSimilarPagesByCosineWithScores(hubPage, pages, 3, 0.78);
       
       for (const { page: similarPage, score } of similarPagesWithScores) {
-        // Генерируем анкор
-        const anchorText = await this.generateAnchorText(similarPage, hubPage, params);
-        
-        // Добавляем кандидата в пул
+        // НЕ генерируем анкор здесь - только после отбора топ-N!
         this.addCandidate({
           sourcePage: similarPage,
           targetPage: hubPage,
-          anchorText,
+          anchorText: '', // Заполним после отбора топ-N
           scenario: 'head_consolidation',
           relevanceScore: score
         });
@@ -421,14 +419,11 @@ export class LinkGenerator {
       const similarPagesWithScores = await this.findSimilarPagesByCosineWithScores(page1, pages, 3, 0.78);
       
       for (const { page: page2, score } of similarPagesWithScores) {
-        // Генерируем анкор
-        const anchorText = await this.generateAnchorText(page1, page2, params);
-        
-        // Добавляем кандидата в пул
+        // НЕ генерируем анкор здесь - только после отбора топ-N!
         this.addCandidate({
           sourcePage: page1,
           targetPage: page2,
-          anchorText,
+          anchorText: '', // Заполним после отбора топ-N
           scenario: 'cluster_cross_link',
           relevanceScore: score
         });
@@ -449,14 +444,11 @@ export class LinkGenerator {
       const relevantDonorsWithScores = await this.findSimilarPagesByCosineWithScores(moneyPage, potentialDonors, 5, 0.70);
       
       for (const { page: donorPage, score } of relevantDonorsWithScores) {
-        // Генерируем анкор
-        const anchorText = await this.generateAnchorText(donorPage, moneyPage, params);
-        
-        // Добавляем кандидата в пул
+        // НЕ генерируем анкор здесь - только после отбора топ-N!
         this.addCandidate({
           sourcePage: donorPage,
           targetPage: moneyPage,
-          anchorText,
+          anchorText: '', // Заполним после отбора топ-N
           scenario: 'commercial_routing',
           relevanceScore: score
         });
@@ -477,14 +469,11 @@ export class LinkGenerator {
       const similarPagesWithScores = await this.findSimilarPagesByCosineWithScores(deepPage, shallowPages, 3, 0.70);
       
       for (const { page: similarPage, score } of similarPagesWithScores) {
-        // Генерируем анкор
-        const anchorText = await this.generateAnchorText(similarPage, deepPage, params);
-        
-        // Добавляем кандидата в пул
+        // НЕ генерируем анкор здесь - только после отбора топ-N!
         this.addCandidate({
           sourcePage: similarPage,
           targetPage: deepPage,
-          anchorText,
+          anchorText: '', // Заполним после отбора топ-N
           scenario: 'depth_lift',
           relevanceScore: score
         });
@@ -515,14 +504,11 @@ export class LinkGenerator {
       const freshnessTimestamp = new Date(freshPage.publishedAt || freshPage.createdAt).getTime();
         
       for (const { page: donorPage, score } of relevantDonorsWithScores) {
-        // Генерируем анкор
-        const anchorText = await this.generateAnchorText(donorPage, freshPage, params);
-        
-        // Добавляем кандидата в пул с меткой свежести
+        // НЕ генерируем анкор здесь - только после отбора топ-N!
         this.addCandidate({
           sourcePage: donorPage,
           targetPage: freshPage,
-          anchorText,
+          anchorText: '', // Заполним после отбора топ-N
           scenario: 'freshness_push',
           relevanceScore: score,
           freshness: freshnessTimestamp
@@ -597,6 +583,110 @@ export class LinkGenerator {
     return results.map(r => r.page);
   }
 
+  // Поиск естественного анкора в контенте исходной страницы
+  private async findNaturalAnchor(sourcePage: any, targetPage: any): Promise<string | null> {
+    try {
+      // Получаем контент исходной страницы
+      const sourceContent = await db
+        .select({
+          content: sql<string>`COALESCE(${pagesRaw.meta}->>'content', ${pagesRaw.meta}->>'post_content', ${pagesRaw.rawHtml}, '')`
+        })
+        .from(pagesRaw)
+        .where(eq(pagesRaw.url, sourcePage.url))
+        .limit(1);
+
+      if (sourceContent.length === 0 || !sourceContent[0].content) return null;
+
+      const content = sourceContent[0].content;
+      const targetTitle = targetPage.title || '';
+      const targetKeywords = targetTitle.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
+
+      // Ищем предложения, содержащие ключевые слова целевой страницы
+      const sentences = content.split(/[.!?]\s+/);
+      
+      for (const sentence of sentences) {
+        const lowerSentence = sentence.toLowerCase();
+        const matchCount = targetKeywords.filter((kw: string) => lowerSentence.includes(kw)).length;
+        
+        // Если найдено 2+ ключевых слова, извлекаем фразу
+        if (matchCount >= 2) {
+          const words = sentence.split(/\s+/);
+          // Берем 3-7 слов как естественный анкор
+          const anchorLength = Math.min(7, Math.max(3, words.length / 2));
+          const naturalAnchor = words.slice(0, anchorLength).join(' ');
+          
+          if (naturalAnchor.length > 10 && naturalAnchor.length < 100) {
+            return naturalAnchor.trim();
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error finding natural anchor:', error);
+      return null;
+    }
+  }
+
+  // Рерайт предложения через OpenAI для встраивания анкора
+  private async rewriteSentenceWithOpenAI(sourcePage: any, targetPage: any, params: GenerationParams): Promise<{ anchor: string, modifiedSentence: string }> {
+    try {
+      // Получаем контент исходной страницы
+      const sourceContent = await db
+        .select({
+          content: sql<string>`COALESCE(${pagesRaw.meta}->>'content', ${pagesRaw.meta}->>'post_content', ${pagesRaw.rawHtml}, '')`
+        })
+        .from(pagesRaw)
+        .where(eq(pagesRaw.url, sourcePage.url))
+        .limit(1);
+
+      if (sourceContent.length === 0) {
+        return { anchor: targetPage.title || 'читать далее', modifiedSentence: '' };
+      }
+
+      const content = sourceContent[0].content;
+      const sentences = content.split(/[.!?]\s+/).filter((s: string) => s.length > 20);
+      const randomSentence = sentences[Math.floor(Math.random() * Math.min(10, sentences.length))] || content.substring(0, 200);
+
+      const targetTitle = targetPage.title || targetPage.url;
+      const exactPercent = params.exactAnchorPercent || 20;
+      const useExact = Math.random() * 100 < exactPercent;
+
+      const prompt = useExact
+        ? `Перепиши следующее предложение так, чтобы в него естественно встроилась фраза "${targetTitle}". Верни JSON:
+        {"anchor": "точная фраза для анкора", "sentence": "переписанное предложение с вставленной фразой"}
+        
+        Исходное предложение: "${randomSentence}"`
+        : `Перепиши следующее предложение так, чтобы в него естественно встроилась ссылка на тему "${targetTitle}". Создай подходящий анкорный текст (не точное совпадение). Верни JSON:
+        {"anchor": "анкорный текст", "sentence": "переписанное предложение"}
+        
+        Исходное предложение: "${randomSentence}"`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+        messages: [
+          { role: "system", content: "Ты SEO-эксперт. Создаешь естественные анкорные тексты для внутренних ссылок." },
+          { role: "user", content: prompt }
+        ],
+        response_format: { type: "json_object" },
+        max_completion_tokens: 256
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || '{}');
+      return {
+        anchor: result.anchor || targetTitle,
+        modifiedSentence: result.sentence || randomSentence
+      };
+    } catch (error) {
+      console.error('OpenAI rewrite error:', error);
+      // Fallback к простому анкору
+      return {
+        anchor: targetPage.title || 'узнать больше',
+        modifiedSentence: ''
+      };
+    }
+  }
+
   // Отбор лучших ссылок для одного донора с учетом maxLinks
   private async selectLinksForDonor(
     donorId: string,
@@ -634,12 +724,8 @@ export class LinkGenerator {
         continue;
       }
 
-      // Проверка стоп-листа
-      if (this.isStopAnchor(candidate.anchorText, params.stopAnchors)) {
-        this.stats.stopAnchorsApplied++;
-        rejected.push({ candidate, reason: 'Anchor in stop list' });
-        continue;
-      }
+      // НЕ проверяем стоп-анкоры здесь, т.к. anchorText пустой
+      // Проверка будет после генерации
 
       filtered.push(candidate);
     }
@@ -662,10 +748,29 @@ export class LinkGenerator {
       return 0;
     });
 
-    // Выбираем топ-N
+    // Выбираем топ-N и ГЕНЕРИРУЕМ АНКОРЫ ТОЛЬКО ДЛЯ НИХ (экономия токенов!)
     for (let i = 0; i < ranked.length; i++) {
       if (i < maxLinks) {
-        selected.push(ranked[i]);
+        const candidate = ranked[i];
+        
+        // Генерация анкора: сначала ищем естественный, потом рерайт через OpenAI
+        let anchor = await this.findNaturalAnchor(candidate.sourcePage, candidate.targetPage);
+        let modifiedSentence = '';
+        
+        if (!anchor) {
+          const result = await this.rewriteSentenceWithOpenAI(candidate.sourcePage, candidate.targetPage, params);
+          anchor = result.anchor;
+          modifiedSentence = result.modifiedSentence;
+        }
+
+        // Проверка стоп-листа ПОСЛЕ генерации
+        if (this.isStopAnchor(anchor, params.stopAnchors)) {
+          this.stats.stopAnchorsApplied++;
+          anchor = 'подробнее'; // Generic fallback
+        }
+
+        candidate.anchorText = anchor;
+        selected.push(candidate);
       } else {
         this.stats.quotaExceeded++;
         rejected.push({ candidate: ranked[i], reason: 'Quota exceeded (maxLinks)' });
