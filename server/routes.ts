@@ -1039,6 +1039,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         policies: generationParams.policies
       });
 
+      // Get the latest import for this project to link the generation run
+      const latestImport = await db
+        .select({ id: importJobs.importId })
+        .from(importJobs)
+        .where(eq(importJobs.projectId, projectId))
+        .orderBy(desc(importJobs.startedAt))
+        .limit(1);
+
+      if (!latestImport.length) {
+        return res.status(400).json({ error: "No import found for this project. Please import data first." });
+      }
+
+      const importId = latestImport[0].id;
+
       // Create runId here so we can return it immediately
       const runId = crypto.randomUUID();
       
@@ -1048,7 +1062,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .values({
           runId,
           projectId,
-          importId: 'default-import',
+          importId,
           status: 'running',
           phase: 'initialization',
           percent: 0,
