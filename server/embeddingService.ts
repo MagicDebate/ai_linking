@@ -365,12 +365,14 @@ export class EmbeddingService {
 
     // Вычисляем cosine similarity
     const similarities: SimilarityResult[] = [];
+    const allSimilarities: number[] = []; // Для статистики
     
     for (const embedding of allEmbeddings) {
       if (embedding.blockId === sourceBlockId) continue; // Пропускаем сам блок
       
       const targetVector = embedding.vector as number[];
       const similarity = this.cosineSimilarity(sourceVector, targetVector);
+      allSimilarities.push(similarity); // Собираем все значения
       
       if (similarity >= threshold) {
         // Вычисляем structural bonus
@@ -386,6 +388,13 @@ export class EmbeddingService {
           structuralBonus
         });
       }
+    }
+
+    // Логируем статистику
+    if (allSimilarities.length > 0) {
+      const maxSim = Math.max(...allSimilarities);
+      const avgSim = allSimilarities.reduce((a, b) => a + b, 0) / allSimilarities.length;
+      console.log(`  📊 Similarity stats: max=${maxSim.toFixed(3)}, avg=${avgSim.toFixed(3)}, passed=${similarities.length}/${allSimilarities.length}`);
     }
 
     // Сортируем по similarity и берем topK
