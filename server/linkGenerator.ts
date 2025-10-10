@@ -94,6 +94,7 @@ interface GenerationStats {
 
 export class LinkGenerator {
   private projectId: string;
+  private jobId: string | null = null; // НОВОЕ: для фильтрации блоков по импорту
   private stats: GenerationStats = {
     totalGenerated: 0,
     totalRejected: 0,
@@ -565,6 +566,7 @@ export class LinkGenerator {
       const similarBlocks = await embeddingService.findSimilarBlocks(
         sourceBlock.id,
         this.projectId,
+        this.jobId, // ПЕРЕДАЕМ jobId для фильтрации!
         10, // topK
         threshold
       );
@@ -842,7 +844,8 @@ export class LinkGenerator {
       return [];
     }
 
-    const jobId = latestJob[0].jobId;
+    this.jobId = latestJob[0].jobId; // СОХРАНЯЕМ jobId для фильтрации блоков
+    console.log(`📋 Using jobId: ${this.jobId} for link generation`);
 
     const pages = await db
       .select({
@@ -860,7 +863,7 @@ export class LinkGenerator {
       .from(pagesClean)
       .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
       .leftJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
-      .where(eq(pagesRaw.jobId, jobId));
+      .where(eq(pagesRaw.jobId, this.jobId));
 
     return pages;
   }

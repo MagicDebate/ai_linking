@@ -333,11 +333,12 @@ export class EmbeddingService {
    */
   async findSimilarBlocks(
     sourceBlockId: string, 
-    projectId: string, 
+    projectId: string,
+    jobId: string | null, 
     topK: number = 10, 
     threshold: number = 0.72
   ): Promise<SimilarityResult[]> {
-    console.log(`🔍 Finding similar blocks for ${sourceBlockId} (topK: ${topK}, threshold: ${threshold})`);
+    console.log(`🔍 Finding similar blocks for ${sourceBlockId} (jobId: ${jobId}, topK: ${topK}, threshold: ${threshold})`);
     
     // Получаем вектор исходного блока
     const sourceEmbedding = await db
@@ -353,7 +354,19 @@ export class EmbeddingService {
 
     const sourceVector = sourceEmbedding[0].vector as number[];
 
-    // Получаем все эмбеддинги проекта
+    // Получаем эмбеддинги с ФИЛЬТРАЦИЕЙ ПО JOBID
+    // Сначала собираем блоки только из нужного импорта
+    const blockIdsFromJob = jobId ? await db
+      .select({ blockId: blocks.id })
+      .from(blocks)
+      .innerJoin(pagesClean, eq(blocks.pageId, pagesClean.id))
+      .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
+      .where(eq(pagesRaw.jobId, jobId))
+      .then(res => res.map(r => r.blockId)) : [];
+
+    console.log(`  📋 Filtering to ${blockIdsFromJob.length} blocks from jobId: ${jobId}`);
+
+    // Теперь получаем эмбеддинги только для этих блоков
     const allEmbeddings = await db
       .select({
         blockId: embeddings.blockId,
@@ -361,7 +374,14 @@ export class EmbeddingService {
         textHash: embeddings.textHash
       })
       .from(embeddings)
-      .where(eq(embeddings.projectId, projectId));
+      .where(
+        jobId 
+          ? and(
+              eq(embeddings.projectId, projectId),
+              sql`${embeddings.blockId} = ANY(${blockIdsFromJob})`
+            )
+          : eq(embeddings.projectId, projectId)
+      );
 
     // Вычисляем cosine similarity
     const similarities: SimilarityResult[] = [];
