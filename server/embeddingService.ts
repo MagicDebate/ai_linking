@@ -367,21 +367,28 @@ export class EmbeddingService {
     console.log(`  📋 Filtering to ${blockIdsFromJob.length} blocks from jobId: ${jobId}`);
 
     // Теперь получаем эмбеддинги только для этих блоков
-    const allEmbeddings = await db
-      .select({
-        blockId: embeddings.blockId,
-        vector: embeddings.vector,
-        textHash: embeddings.textHash
-      })
-      .from(embeddings)
-      .where(
-        jobId 
-          ? and(
+    const allEmbeddings = jobId && blockIdsFromJob.length > 0
+      ? await db
+          .select({
+            blockId: embeddings.blockId,
+            vector: embeddings.vector,
+            textHash: embeddings.textHash
+          })
+          .from(embeddings)
+          .where(
+            and(
               eq(embeddings.projectId, projectId),
-              sql`${embeddings.blockId} = ANY(${blockIdsFromJob})`
+              inArray(embeddings.blockId, blockIdsFromJob) // ИСПОЛЬЗУЕМ inArray вместо ANY
             )
-          : eq(embeddings.projectId, projectId)
-      );
+          )
+      : await db
+          .select({
+            blockId: embeddings.blockId,
+            vector: embeddings.vector,
+            textHash: embeddings.textHash
+          })
+          .from(embeddings)
+          .where(eq(embeddings.projectId, projectId));
 
     // Вычисляем cosine similarity
     const similarities: SimilarityResult[] = [];
