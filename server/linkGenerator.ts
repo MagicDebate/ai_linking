@@ -634,7 +634,13 @@ export class LinkGenerator {
       if (sourceContent.length === 0 || !sourceContent[0].content) return null;
 
       const content = sourceContent[0].content;
-      const targetTitle = targetPage.title || '';
+      // БЕЗОПАСНОЕ извлечение title (может быть строкой или объектом)
+      const targetTitle = typeof targetPage.title === 'string' 
+        ? targetPage.title 
+        : (targetPage.title?.title || targetPage.title?.rendered || '');
+      
+      if (!targetTitle) return null;
+      
       const targetKeywords = targetTitle.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
 
       // Ищем предложения, содержащие ключевые слова целевой страницы
@@ -797,6 +803,11 @@ export class LinkGenerator {
           const result = await this.rewriteSentenceWithOpenAI(candidate.sourcePage, candidate.targetPage, params);
           anchor = result.anchor;
           modifiedSentence = result.modifiedSentence;
+        }
+
+        // БЕЗОПАСНАЯ проверка: anchor должен быть строкой
+        if (!anchor || typeof anchor !== 'string') {
+          anchor = 'подробнее'; // Fallback если генерация провалилась
         }
 
         // Проверка стоп-листа ПОСЛЕ генерации
@@ -1002,6 +1013,7 @@ export class LinkGenerator {
 
   // Проверка стоп-листа анкоров
   private isStopAnchor(anchorText: string, stopAnchors: string[]): boolean {
+    if (!anchorText || typeof anchorText !== 'string') return false;
     const lowerAnchor = anchorText.toLowerCase();
     return stopAnchors.some(stop => lowerAnchor.includes(stop.toLowerCase()));
   }
