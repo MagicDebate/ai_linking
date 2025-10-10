@@ -946,6 +946,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get draft links for review
+  app.get("/api/projects/:projectId/draft-links", authenticateToken, async (req: any, res) => {
+    try {
+      const { projectId } = req.params;
+      
+      // Validate project belongs to user
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get latest generation run
+      const generationRun = await db
+        .select()
+        .from(generationRuns)
+        .where(eq(generationRuns.projectId, projectId))
+        .orderBy(desc(generationRuns.startedAt))
+        .limit(1);
+
+      if (!generationRun.length) {
+        return res.json({ links: [] });
+      }
+
+      const runId = generationRun[0].runId;
+
+      // Get all link candidates with page titles
+      const candidates = await db
+        .select({
+          id: linkCandidates.id,
+          sourceUrl: linkCandidates.sourceUrl,
+          targetUrl: linkCandidates.targetUrl,
+          anchorText: linkCandidates.anchorText,
+          scenario: linkCandidates.scenario,
+          originalSentence: linkCandidates.originalSentence,
+          modifiedSentence: linkCandidates.modifiedSentence,
+          isRejected: linkCandidates.isRejected,
+          rejectionReason: linkCandidates.rejectionReason,
+          sourcePageId: linkCandidates.sourcePageId,
+          targetPageId: linkCandidates.targetPageId
+        })
+        .from(linkCandidates)
+        .where(eq(linkCandidates.runId, runId))
+        .orderBy(linkCandidates.sourceUrl);
+
+      // Get page titles for source and target pages
+      const pageIds = Array.from(new Set([
+        ...candidates.map(c => c.sourcePageId),
+        ...candidates.map(c => c.targetPageId)
+      ].filter(Boolean)));
+
+      const pageMap = new Map();
+      
+      if (pageIds.length > 0) {
+        const pages = await db
+          .select({
+            id: pagesClean.id,
+            title: sql<string>`COALESCE(
+              ${pagesRaw.meta}->>'title',
+              ${pagesRaw.meta}->>'post_title', 
+              ${pagesRaw.url}
+            )`,
+            url: pagesRaw.url
+          })
+          .from(pagesClean)
+          .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
+          .where(sql`${pagesClean.id} = ANY(${pageIds})`);
+
+        pages.forEach(p => pageMap.set(p.id, p));
+      }
+
+      // Map candidates with page info
+      const enrichedLinks = candidates.map(c => ({
+        id: c.id,
+        sourceUrl: c.sourceUrl,
+        targetUrl: c.targetUrl,
+        sourceTitle: pageMap.get(c.sourcePageId)?.title || c.sourceUrl,
+        targetTitle: pageMap.get(c.targetPageId)?.title || c.targetUrl,
+        anchorText: c.anchorText,
+        scenario: c.scenario,
+        originalSentence: c.originalSentence,
+        modifiedSentence: c.modifiedSentence,
+        isRejected: c.isRejected,
+        rejectionReason: c.rejectionReason
+      }));
+
+      res.json({ links: enrichedLinks });
+    } catch (error) {
+      console.error("Error fetching draft links:", error);
+      res.status(500).json({ error: "Failed to fetch draft links" });
+    }
+  });
+
+  // Update draft link sentence
+  app.patch("/api/draft-links/:linkId", authenticateToken, async (req: any, res) => {
+    try {
+      const { linkId } = req.params;
+      const { modifiedSentence } = req.body;
+
+      // Get link to verify ownership
+      const link = await db
+        .select({
+          runId: linkCandidates.runId
+        })
+        .from(linkCandidates)
+        .where(eq(linkCandidates.id, linkId))
+        .limit(1);
+
+      if (!link.length) {
+        return res.status(404).json({ error: "Link not found" });
+      }
+
+      // Get run to verify project ownership
+      const run = await db
+        .select({
+          projectId: generationRuns.projectId
+        })
+        .from(generationRuns)
+        .where(eq(generationRuns.runId, link[0].runId))
+        .limit(1);
+
+      if (!run.length) {
+        return res.status(404).json({ error: "Run not found" });
+      }
+
+      // Verify project belongs to user
+      const project = await storage.getProjectById(run[0].projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      // Update the sentence
+      await db
+        .update(linkCandidates)
+        .set({ modifiedSentence })
+        .where(eq(linkCandidates.id, linkId));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating draft link:", error);
+      res.status(500).json({ error: "Failed to update link" });
+    }
+  });
+
   // Start link generation with full SEO profile parameters
   app.post("/api/generate/start", authenticateToken, async (req: any, res) => {
     try {

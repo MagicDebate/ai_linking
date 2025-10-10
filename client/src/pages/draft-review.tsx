@@ -1,382 +1,295 @@
-import { useState, useEffect } from 'react';
-import { useRoute } from 'wouter';
-import Layout from '@/components/Layout';
-import { useQuery } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Filter, ExternalLink, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
-import { Link } from 'wouter';
+import { useRoute } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { Download, Edit2, X, Check, ArrowLeft } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Link } from "wouter";
 
-interface LinkCandidate {
+interface DraftLink {
   id: string;
   sourceUrl: string;
   targetUrl: string;
+  sourceTitle: string;
+  targetTitle: string;
   anchorText: string;
   scenario: string;
+  originalSentence: string | null;
+  modifiedSentence: string | null;
   isRejected: boolean;
-  rejectionReason?: string;
-  similarity?: number;
-  position: number;
-}
-
-interface DraftStats {
-  scenario: string;
-  total: number;
-  accepted: number;
-  rejected: number;
-}
-
-interface DraftData {
-  candidates: LinkCandidate[];
-  total: number;
-  stats: DraftStats[];
+  rejectionReason: string | null;
 }
 
 const SCENARIO_LABELS: Record<string, string> = {
-  orphan: 'Поднятие сирот',
-  head: 'Консолидация голов',
-  depth: 'Поднятие глубоких',
-  fresh: 'Продвижение свежих',
-  cross: 'Кросс-линковка',
-  money: 'Коммерческий роутинг'
-};
-
-const SCENARIO_COLORS: Record<string, string> = {
-  orphan: 'bg-red-100 text-red-800',
-  head: 'bg-blue-100 text-blue-800',
-  depth: 'bg-purple-100 text-purple-800',
-  fresh: 'bg-green-100 text-green-800',
-  cross: 'bg-yellow-100 text-yellow-800',
-  money: 'bg-orange-100 text-orange-800'
+  'orphan_fix': 'Поднятие сирот',
+  'head_consolidation': 'Консолидация голов',
+  'cluster_crosslink': 'Кросс-линковка',
+  'commercial_routing': 'Коммерческий роутинг',
+  'depth_lift': 'Поднятие глубоких',
+  'freshness_push': 'Продвижение свежих'
 };
 
 export default function DraftReview() {
   const [, params] = useRoute('/project/:projectId/draft/:runId');
-  const { projectId, runId } = params || {};
-  
-  const [selectedScenario, setSelectedScenario] = useState<string>('all');
-  const [selectedPage, setSelectedPage] = useState<string>('all');
-  const [currentPage, setCurrentPage] = useState(0);
-  const pageSize = 50;
+  const { projectId } = params || {};
+  const { toast } = useToast();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
-  // Fetch draft data
-  const { data: draftData, isLoading, error } = useQuery<DraftData>({
-    queryKey: ['/api/draft', runId, selectedScenario, selectedPage, currentPage],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        scenario: selectedScenario,
-        page: selectedPage,
-        limit: pageSize.toString(),
-        offset: (currentPage * pageSize).toString()
-      });
-      
-      const response = await fetch(`/api/draft/${runId}?${params}`, {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch draft data');
-      }
-      
-      return response.json();
-    },
-    enabled: !!runId
+  // Fetch draft links
+  const { data, isLoading } = useQuery<{ links: DraftLink[] }>({
+    queryKey: [`/api/projects/${projectId}/draft-links`],
+    enabled: !!projectId
   });
+
+  // Update link mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ linkId, modifiedSentence }: { linkId: string; modifiedSentence: string }) => {
+      return apiRequest("PATCH", `/api/draft-links/${linkId}`, { modifiedSentence });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/draft-links`] });
+      toast({
+        title: "Сохранено",
+        description: "Предложение успешно обновлено",
+      });
+      setEditingId(null);
+    },
+    onError: () => {
+      toast({
+        title: "Ошибка",
+        description: "Не удалось обновить предложение",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEdit = (link: DraftLink) => {
+    setEditingId(link.id);
+    setEditValue(link.modifiedSentence || link.originalSentence || "");
+  };
+
+  const handleSave = (linkId: string) => {
+    updateMutation.mutate({ linkId, modifiedSentence: editValue });
+  };
+
+  const handleCancel = () => {
+    setEditingId(null);
+    setEditValue("");
+  };
+
+  const exportToCSV = () => {
+    if (!data?.links) return;
+
+    const acceptedLinks = data.links.filter(l => !l.isRejected);
+    
+    const headers = [
+      "Статья (источник)",
+      "Статья (цель)",
+      "Анкор",
+      "Старое предложение",
+      "Новое предложение со ссылкой",
+      "Сценарий"
+    ];
+
+    const rows = acceptedLinks.map(link => [
+      link.sourceTitle,
+      link.targetTitle,
+      link.anchorText,
+      link.originalSentence || "",
+      link.modifiedSentence || link.originalSentence || "",
+      SCENARIO_LABELS[link.scenario] || link.scenario
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `draft-links-${projectId}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Экспорт завершен",
+      description: `Экспортировано ${acceptedLinks.length} ссылок`,
+    });
+  };
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-gray-600">Загрузка результатов генерации...</p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Загрузка черновика...</p>
         </div>
       </div>
     );
   }
 
-  if (error || !draftData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center space-y-4">
-          <AlertTriangle className="h-16 w-16 text-red-600 mx-auto" />
-          <h2 className="text-xl font-semibold text-gray-900">Ошибка загрузки</h2>
-          <p className="text-gray-600">Не удалось загрузить результаты генерации</p>
-          <Link href={`/project/${projectId}`}>
-            <Button variant="outline">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Вернуться к проекту
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const totalPages = Math.ceil(draftData.total / pageSize);
-  const acceptedTotal = draftData.stats.reduce((sum, stat) => sum + stat.accepted, 0);
-  const rejectedTotal = draftData.stats.reduce((sum, stat) => sum + stat.rejected, 0);
+  const acceptedLinks = data?.links?.filter(l => !l.isRejected) || [];
+  const rejectedLinks = data?.links?.filter(l => l.isRejected) || [];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-4">
-              <Link href={`/project/${projectId}`}>
-                <Button variant="outline" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Назад к проекту
-                </Button>
-              </Link>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Просмотр черновика
+      <div className="container mx-auto py-8 px-4">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <Link href={`/project/${projectId}`}>
+              <Button variant="outline" size="sm" data-testid="button-back">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Назад
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold" data-testid="heading-draft-review">
+                Проверка черновика
               </h1>
+              <p className="text-muted-foreground mt-2">
+                Принято: {acceptedLinks.length} | Отклонено: {rejectedLinks.length}
+              </p>
             </div>
-            <p className="text-gray-600">
-              Проверьте сгенерированные ссылки перед публикацией
-            </p>
           </div>
-          
-          <div className="flex items-center gap-2">
-            <Button variant="outline">
-              Экспорт CSV
-            </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              Опубликовать черновик
-            </Button>
-          </div>
+          <Button
+            onClick={exportToCSV}
+            disabled={acceptedLinks.length === 0}
+            data-testid="button-export-csv"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Экспорт в CSV
+          </Button>
         </div>
 
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Всего</p>
-                  <p className="text-2xl font-bold text-gray-900">{draftData.total}</p>
-                </div>
-                <Filter className="h-8 w-8 text-gray-400" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Принято</p>
-                  <p className="text-2xl font-bold text-green-600">{acceptedTotal}</p>
-                </div>
-                <CheckCircle className="h-8 w-8 text-green-400" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Отклонено</p>
-                  <p className="text-2xl font-bold text-red-600">{rejectedTotal}</p>
-                </div>
-                <XCircle className="h-8 w-8 text-red-400" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Качество</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {Math.round((acceptedTotal / draftData.total) * 100)}%
-                  </p>
-                </div>
-                <AlertTriangle className="h-8 w-8 text-blue-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Scenario Stats */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Статистика по сценариям</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {draftData.stats.map((stat) => (
-                <div key={stat.scenario} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge className={SCENARIO_COLORS[stat.scenario] || 'bg-gray-100 text-gray-800'}>
-                      {SCENARIO_LABELS[stat.scenario] || stat.scenario}
-                    </Badge>
-                    <span className="text-sm text-gray-500">{stat.total}</span>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-green-600">Принято: {stat.accepted}</span>
-                      <span className="text-red-600">Отклонено: {stat.rejected}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-green-500 h-2 rounded-full transition-all"
-                        style={{ width: `${(stat.accepted / stat.total) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Filters */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-wrap gap-4">
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-700">Сценарий:</label>
-                <Select value={selectedScenario} onValueChange={setSelectedScenario}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Все сценарии</SelectItem>
-                    {Object.entries(SCENARIO_LABELS).map(([key, label]) => (
-                      <SelectItem key={key} value={key}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-700">Страница:</label>
-                <Select value={selectedPage} onValueChange={setSelectedPage}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Все страницы</SelectItem>
-                    {/* TODO: Add unique pages from data */}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Link Candidates Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Кандидаты ссылок</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Card className="p-6">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Статус</TableHead>
-                  <TableHead>Сценарий</TableHead>
-                  <TableHead>Источник</TableHead>
-                  <TableHead>Цель</TableHead>
-                  <TableHead>Анкор</TableHead>
-                  <TableHead>Причина отклонения</TableHead>
+                  <TableHead className="w-[200px]">Статья</TableHead>
+                  <TableHead className="w-[200px]">Цель</TableHead>
+                  <TableHead className="w-[120px]">Анкор</TableHead>
+                  <TableHead className="w-[250px]">Старое предложение</TableHead>
+                  <TableHead className="w-[250px]">Новое предложение</TableHead>
+                  <TableHead className="w-[100px]">Сценарий</TableHead>
+                  <TableHead className="w-[100px] text-right">Действия</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {draftData.candidates.map((candidate) => (
-                  <TableRow key={candidate.id}>
-                    <TableCell>
-                      {candidate.isRejected ? (
-                        <Badge variant="destructive">Отклонено</Badge>
-                      ) : (
-                        <Badge variant="default" className="bg-green-100 text-green-800">Принято</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={SCENARIO_COLORS[candidate.scenario] || 'bg-gray-100 text-gray-800'}>
-                        {SCENARIO_LABELS[candidate.scenario] || candidate.scenario}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-xs truncate">
-                        <a 
-                          href={candidate.sourceUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                        >
-                          {candidate.sourceUrl}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-xs truncate">
-                        <a 
-                          href={candidate.targetUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                        >
-                          {candidate.targetUrl}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">{candidate.anchorText}</span>
-                    </TableCell>
-                    <TableCell>
-                      {candidate.rejectionReason && (
-                        <span className="text-sm text-red-600">
-                          {candidate.rejectionReason}
-                        </span>
-                      )}
+                {acceptedLinks.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      Нет принятых ссылок для отображения
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  acceptedLinks.map((link) => (
+                    <TableRow key={link.id} data-testid={`row-link-${link.id}`}>
+                      <TableCell className="font-medium truncate" title={link.sourceTitle}>
+                        {link.sourceTitle}
+                      </TableCell>
+                      <TableCell className="truncate" title={link.targetTitle}>
+                        {link.targetTitle}
+                      </TableCell>
+                      <TableCell className="font-medium text-primary">
+                        {link.anchorText}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {link.originalSentence || "—"}
+                      </TableCell>
+                      <TableCell>
+                        {editingId === link.id ? (
+                          <Input
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            className="w-full"
+                            data-testid={`input-edit-sentence-${link.id}`}
+                          />
+                        ) : (
+                          <span className="text-sm">
+                            {link.modifiedSentence || link.originalSentence || "—"}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs px-2 py-1 bg-secondary rounded-full">
+                          {SCENARIO_LABELS[link.scenario] || link.scenario}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {editingId === link.id ? (
+                          <div className="flex gap-1 justify-end">
+                            <Button
+                              size="sm"
+                              onClick={() => handleSave(link.id)}
+                              disabled={updateMutation.isPending}
+                              data-testid={`button-save-${link.id}`}
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={handleCancel}
+                              data-testid={`button-cancel-${link.id}`}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEdit(link)}
+                            data-testid={`button-edit-${link.id}`}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-gray-700">
-                  Показано {currentPage * pageSize + 1}-{Math.min((currentPage + 1) * pageSize, draftData.total)} из {draftData.total}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-                    disabled={currentPage === 0}
-                  >
-                    Назад
-                  </Button>
-                  <span className="text-sm text-gray-700">
-                    Страница {currentPage + 1} из {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
-                    disabled={currentPage === totalPages - 1}
-                  >
-                    Вперед
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
+          </div>
         </Card>
+
+        {rejectedLinks.length > 0 && (
+          <Card className="mt-6 p-6">
+            <CardHeader className="px-0 pt-0">
+              <CardTitle>Отклоненные ссылки ({rejectedLinks.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="px-0 pb-0">
+              <div className="space-y-2">
+                {rejectedLinks.map((link) => (
+                  <div key={link.id} className="p-3 bg-muted rounded-lg text-sm">
+                    <div className="font-medium">{link.sourceTitle} → {link.targetTitle}</div>
+                    <div className="text-muted-foreground mt-1">
+                      Причина: {link.rejectionReason}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
