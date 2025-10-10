@@ -329,10 +329,13 @@ export class LinkGenerator {
   private async executeOrphanFixScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
     // Получаем сиротские страницы
     const orphanPages = pages.filter(page => page.isOrphan);
+    console.log(`📋 ORPHAN FIX: Found ${orphanPages.length} orphan pages to process`);
 
+    let totalCandidates = 0;
     for (const orphanPage of orphanPages) {
       // Ищем похожие страницы через cosine similarity
       const similarPagesWithScores = await this.findSimilarPagesByCosineWithScores(orphanPage, pages, 5, 0.70);
+      console.log(`  ├─ ${orphanPage.url}: found ${similarPagesWithScores.length} similar pages (threshold: 0.70)`);
       
       for (const { page: similarPage, score } of similarPagesWithScores) {
         // НЕ генерируем анкор здесь - только после отбора топ-N!
@@ -343,9 +346,11 @@ export class LinkGenerator {
           scenario: 'orphan_fix',
           relevanceScore: score
         });
+        totalCandidates++;
       }
     }
 
+    console.log(`✅ ORPHAN FIX complete: ${totalCandidates} candidates added to pool\n`);
     return { generated: 0, rejected: 0 }; // Счетчики будут обновлены после финального отбора
   }
 
@@ -353,10 +358,18 @@ export class LinkGenerator {
   private async executeHeadConsolidationScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
     // Получаем hub страницы
     const hubPages = pages.filter(page => params.hubPages.includes(page.url));
+    console.log(`📋 HEAD CONSOLIDATION: Found ${hubPages.length} hub pages to process`);
 
+    if (hubPages.length === 0) {
+      console.log(`⚠️ HEAD CONSOLIDATION skipped: no hub pages configured\n`);
+      return { generated: 0, rejected: 0 };
+    }
+
+    let totalCandidates = 0;
     for (const hubPage of hubPages) {
       // Ищем похожие страницы через cosine similarity
       const similarPagesWithScores = await this.findSimilarPagesByCosineWithScores(hubPage, pages, 3, 0.78);
+      console.log(`  ├─ ${hubPage.url}: found ${similarPagesWithScores.length} similar pages (threshold: 0.78)`);
       
       for (const { page: similarPage, score } of similarPagesWithScores) {
         // НЕ генерируем анкор здесь - только после отбора топ-N!
@@ -367,18 +380,30 @@ export class LinkGenerator {
           scenario: 'head_consolidation',
           relevanceScore: score
         });
+        totalCandidates++;
       }
     }
 
+    console.log(`✅ HEAD CONSOLIDATION complete: ${totalCandidates} candidates added to pool\n`);
     return { generated: 0, rejected: 0 }; // Счетчики будут обновлены после финального отбора
   }
 
   // CLUSTER CROSS-LINK: создает взаимные ссылки внутри тематических кластеров
   private async executeClusterCrossLinkScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
+    console.log(`📋 CLUSTER CROSS-LINK: Processing ${pages.length} pages to find semantic clusters`);
+    
+    let totalCandidates = 0;
+    let processedPages = 0;
+    
     // Группируем страницы по семантической близости
     for (let i = 0; i < pages.length; i++) {
       const page1 = pages[i];
       const similarPagesWithScores = await this.findSimilarPagesByCosineWithScores(page1, pages, 3, 0.78);
+      
+      processedPages++;
+      if (processedPages % 5 === 0 || processedPages === pages.length) {
+        console.log(`  ├─ Progress: ${processedPages}/${pages.length} pages processed, ${totalCandidates} candidates so far`);
+      }
       
       for (const { page: page2, score } of similarPagesWithScores) {
         // НЕ генерируем анкор здесь - только после отбора топ-N!
@@ -389,9 +414,11 @@ export class LinkGenerator {
           scenario: 'cluster_cross_link',
           relevanceScore: score
         });
+        totalCandidates++;
       }
     }
 
+    console.log(`✅ CLUSTER CROSS-LINK complete: ${totalCandidates} candidates added to pool\n`);
     return { generated: 0, rejected: 0 }; // Счетчики будут обновлены после финального отбора
   }
 
@@ -399,11 +426,19 @@ export class LinkGenerator {
   private async executeCommercialRoutingScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
     // Получаем money страницы
     const moneyPages = pages.filter(page => params.priorityPages.includes(page.url));
+    console.log(`📋 COMMERCIAL ROUTING: Found ${moneyPages.length} priority/money pages to process`);
 
+    if (moneyPages.length === 0) {
+      console.log(`⚠️ COMMERCIAL ROUTING skipped: no priority pages configured\n`);
+      return { generated: 0, rejected: 0 };
+    }
+
+    let totalCandidates = 0;
     for (const moneyPage of moneyPages) {
       // Ищем релевантных доноров через cosine similarity (не всех страниц!)
       const potentialDonors = pages.filter(page => !params.priorityPages.includes(page.url));
       const relevantDonorsWithScores = await this.findSimilarPagesByCosineWithScores(moneyPage, potentialDonors, 5, 0.70);
+      console.log(`  ├─ ${moneyPage.url}: found ${relevantDonorsWithScores.length} relevant donors (threshold: 0.70)`);
       
       for (const { page: donorPage, score } of relevantDonorsWithScores) {
         // НЕ генерируем анкор здесь - только после отбора топ-N!
@@ -414,9 +449,11 @@ export class LinkGenerator {
           scenario: 'commercial_routing',
           relevanceScore: score
         });
+        totalCandidates++;
       }
     }
 
+    console.log(`✅ COMMERCIAL ROUTING complete: ${totalCandidates} candidates added to pool\n`);
     return { generated: 0, rejected: 0 }; // Счетчики будут обновлены после финального отбора
   }
 
@@ -424,11 +461,19 @@ export class LinkGenerator {
   private async executeDepthLiftScenario(runId: string, pages: any[], params: GenerationParams): Promise<{ generated: number, rejected: number }> {
     // Получаем глубокие страницы
     const deepPages = pages.filter(page => page.clickDepth >= params.scenarios.depthLift.minDepth);
+    console.log(`📋 DEPTH LIFT: Found ${deepPages.length} deep pages (depth >= ${params.scenarios.depthLift.minDepth})`);
 
+    if (deepPages.length === 0) {
+      console.log(`⚠️ DEPTH LIFT skipped: no pages with depth >= ${params.scenarios.depthLift.minDepth}\n`);
+      return { generated: 0, rejected: 0 };
+    }
+
+    let totalCandidates = 0;
     for (const deepPage of deepPages) {
       // Ищем похожие страницы с меньшей глубиной
       const shallowPages = pages.filter(page => page.clickDepth < params.scenarios.depthLift.minDepth);
       const similarPagesWithScores = await this.findSimilarPagesByCosineWithScores(deepPage, shallowPages, 3, 0.70);
+      console.log(`  ├─ ${deepPage.url}: found ${similarPagesWithScores.length} shallow donors (threshold: 0.70)`);
       
       for (const { page: similarPage, score } of similarPagesWithScores) {
         // НЕ генерируем анкор здесь - только после отбора топ-N!
@@ -439,8 +484,11 @@ export class LinkGenerator {
           scenario: 'depth_lift',
           relevanceScore: score
         });
+        totalCandidates++;
       }
     }
+
+    console.log(`✅ DEPTH LIFT complete: ${totalCandidates} candidates added to pool\n`);
 
     return { generated: 0, rejected: 0 }; // Счетчики будут обновлены после финального отбора
   }
@@ -456,11 +504,20 @@ export class LinkGenerator {
       const daysSincePublished = (Date.now() - publishedAt.getTime()) / (1000 * 60 * 60 * 24);
       return daysSincePublished <= daysFresh;
     });
-      
+    
+    console.log(`📋 FRESHNESS PUSH: Found ${freshPages.length} fresh pages (published within ${daysFresh} days)`);
+
+    if (freshPages.length === 0) {
+      console.log(`⚠️ FRESHNESS PUSH skipped: no fresh pages within ${daysFresh} days\n`);
+      return { generated: 0, rejected: 0 };
+    }
+
+    let totalCandidates = 0;
     for (const freshPage of freshPages) {
       // Ищем релевантных доноров через cosine similarity
       const potentialDonors = pages.filter(page => page.id !== freshPage.id);
       const relevantDonorsWithScores = await this.findSimilarPagesByCosineWithScores(freshPage, potentialDonors, linksPerDonor, 0.65);
+      console.log(`  ├─ ${freshPage.url}: found ${relevantDonorsWithScores.length} relevant donors (threshold: 0.65)`);
       
       // Получаем timestamp свежести
       const freshnessTimestamp = new Date(freshPage.publishedAt || freshPage.createdAt).getTime();
@@ -475,9 +532,11 @@ export class LinkGenerator {
           relevanceScore: score,
           freshness: freshnessTimestamp
         });
+        totalCandidates++;
       }
     }
 
+    console.log(`✅ FRESHNESS PUSH complete: ${totalCandidates} candidates added to pool\n`);
     return { generated: 0, rejected: 0 }; // Счетчики будут обновлены после финального отбора
   }
 
