@@ -556,6 +556,9 @@ export class LinkGenerator {
     }
 
     const similarities: Array<{ page: any, score: number }> = [];
+    let totalBlocksFound = 0;
+    let pagesMatched = 0;
+    let pagesNotFound = 0;
 
     // Для каждого блока исходной страницы ищем похожие блоки
     for (const sourceBlock of sourceBlocks) {
@@ -565,6 +568,8 @@ export class LinkGenerator {
         10, // topK
         threshold
       );
+
+      totalBlocksFound += similarBlocks.length;
 
       // Группируем результаты по страницам
       for (const similarBlock of similarBlocks) {
@@ -576,8 +581,11 @@ export class LinkGenerator {
           .limit(1);
         
         if (targetBlock.length > 0) {
-          const targetPage = allPages.find(p => p.id === targetBlock[0].pageId);
+          const targetPageId = targetBlock[0].pageId;
+          const targetPage = allPages.find(p => p.id === targetPageId);
+          
           if (targetPage && targetPage.id !== sourcePage.id) {
+            pagesMatched++;
             const existing = similarities.find(s => s.page.id === targetPage.id);
             if (existing) {
               existing.score = Math.max(existing.score, similarBlock.pageScore);
@@ -587,10 +595,15 @@ export class LinkGenerator {
                 score: similarBlock.pageScore
               });
             }
+          } else if (!targetPage) {
+            pagesNotFound++;
           }
         }
       }
     }
+
+    console.log(`  ├─ Blocks analysis: ${totalBlocksFound} similar blocks found → ${pagesMatched} page matches, ${pagesNotFound} pages not in allPages`);
+    console.log(`  ├─ Unique pages found: ${similarities.length}`);
 
     // Сортируем по score и берем top limit
     return similarities
