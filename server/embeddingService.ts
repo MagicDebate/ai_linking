@@ -1,8 +1,11 @@
 import { db } from './db';
-import { embeddings, embeddingCache, blocks, pagesClean } from '@shared/schema';
+import { embeddings, embeddingCache, blocks, pagesClean, pagesRaw } from '@shared/schema';
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import { embeddingQueue } from './queue';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Интерфейсы для работы с эмбеддингами
 interface BlockData {
@@ -171,7 +174,9 @@ export class EmbeddingService {
     // Удаляем старые записи если кэш переполнен
     if (this.lruCache.size >= this.maxCacheSize) {
       const firstKey = this.lruCache.keys().next().value;
-      this.lruCache.delete(firstKey);
+      if (firstKey) {
+        this.lruCache.delete(firstKey);
+      }
     }
     
     this.lruCache.set(textHash, vector);
@@ -192,21 +197,30 @@ export class EmbeddingService {
   }
 
   /**
-   * Генерация эмбеддинга для блока текста
-   * PLACEHOLDER: В реальной реализации здесь будет вызов модели
+   * Генерация эмбеддинга для блока текста через OpenAI API
    */
   private async generateEmbedding(text: string): Promise<number[]> {
-    // PLACEHOLDER: Заменяем на реальную модель (например, S-BERT MiniLM)
-    // const model = await loadModel();
-    // const embedding = await model.embed(text);
-    // return embedding;
-    
-    // Временная заглушка - создаем случайный вектор
-    const vector = Array.from({ length: 384 }, () => Math.random() * 2 - 1);
-    
-    // Нормализуем вектор
-    const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
-    return vector.map(val => val / magnitude);
+    try {
+      // Используем OpenAI text-embedding-3-small (размерность 1536)
+      const response = await openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: text,
+        encoding_format: 'float'
+      });
+
+      const vector = response.data[0].embedding;
+      
+      // Опционально: уменьшаем размерность до 384 для совместимости с БД
+      // если нужно полное качество - используйте все 1536
+      const reducedVector = vector.slice(0, 384);
+      
+      // Нормализуем вектор
+      const magnitude = Math.sqrt(reducedVector.reduce((sum, val) => sum + val * val, 0));
+      return reducedVector.map(val => val / magnitude);
+    } catch (error) {
+      console.error('❌ OpenAI embedding generation failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -409,17 +423,73 @@ export class EmbeddingService {
   }
 
   /**
-   * Вычисление structural bonus
-   * PLACEHOLDER: Упрощенная реализация
+   * Вычисление structural bonus на основе метаданных страниц
    */
   private async calculateStructuralBonus(sourceBlockId: string, targetBlockId: string): Promise<number> {
-    // В реальной реализации здесь будет проверка:
-    // - Общий (под)префикс: +0.02
-    // - Общий язык: +0.02  
-    // - Целевая = hub/money: +0.02
-    
-    // Пока возвращаем случайное значение
-    return Math.random() * 0.06; // 0-0.06
+    try {
+      // Получаем URL обеих страниц через блоки
+      const sourceData = await db
+        .select({ 
+          url: pagesRaw.url,
+          meta: pagesRaw.meta 
+        })
+        .from(blocks)
+        .innerJoin(pagesRaw, eq(blocks.pageId, pagesRaw.id))
+        .where(eq(blocks.id, sourceBlockId))
+        .limit(1);
+
+      const targetData = await db
+        .select({ 
+          url: pagesRaw.url,
+          meta: pagesRaw.meta 
+        })
+        .from(blocks)
+        .innerJoin(pagesRaw, eq(blocks.pageId, pagesRaw.id))
+        .where(eq(blocks.id, targetBlockId))
+        .limit(1);
+
+      if (!sourceData.length || !targetData.length) return 0;
+
+      let bonus = 0;
+
+      // 1. Общий префикс URL (+0.02)
+      const sourceDomain = new URL(sourceData[0].url).hostname;
+      const targetDomain = new URL(targetData[0].url).hostname;
+      if (sourceDomain === targetDomain) {
+        bonus += 0.02;
+      }
+
+      // 2. Общий язык (+0.02) - проверяем через мета или домен
+      const sourceMeta = sourceData[0].meta as any;
+      const targetMeta = targetData[0].meta as any;
+      const sourceLanguage = sourceMeta?.language || this.detectLanguageFromDomain(sourceDomain);
+      const targetLanguage = targetMeta?.language || this.detectLanguageFromDomain(targetDomain);
+      if (sourceLanguage === targetLanguage) {
+        bonus += 0.02;
+      }
+
+      // 3. Целевая страница = hub/money (+0.02)
+      const isHub = targetMeta?.isHub || false;
+      const isMoney = targetMeta?.isMoney || false;
+      if (isHub || isMoney) {
+        bonus += 0.02;
+      }
+
+      return bonus;
+    } catch (error) {
+      console.error('Error calculating structural bonus:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Определение языка по домену (fallback)
+   */
+  private detectLanguageFromDomain(domain: string): string {
+    if (domain.endsWith('.ru') || domain.includes('.ru/')) return 'ru';
+    if (domain.endsWith('.ua')) return 'ua';
+    if (domain.endsWith('.com') || domain.endsWith('.org')) return 'en';
+    return 'unknown';
   }
 
   /**
@@ -433,8 +503,9 @@ export class EmbeddingService {
       batchSize: this.batchConfig.batchSize
     });
 
-    console.log(`📋 Queued embedding job ${job.id} for ${blockIds.length} blocks`);
-    return job.id;
+    const jobId = job.id || 'unknown';
+    console.log(`📋 Queued embedding job ${jobId} for ${blockIds.length} blocks`);
+    return jobId;
   }
 
   /**

@@ -742,60 +742,6 @@ export class LinkGenerator {
     return { selected, rejected };
   }
 
-  // Попытка создать ссылку с проверкой всех политик
-  private async tryCreateLink(runId: string, sourcePage: any, targetPage: any, scenario: string, params: GenerationParams): Promise<{ created: boolean, reason?: string, anchor?: string }> {
-    try {
-      // 1. Базовые проверки
-      if (sourcePage.id === targetPage.id) {
-        return { created: false, reason: 'Self-link not allowed' };
-      }
-
-      // 2. Проверка дубликатов
-      if (params.policies.removeDuplicates) {
-        const isDuplicate = await this.isDuplicateLink(sourcePage.url, targetPage.url);
-        if (isDuplicate) {
-          this.stats.duplicatesRemoved++;
-          return { created: false, reason: 'Duplicate link removed' };
-        }
-      }
-
-      // 3. Проверка каннибализации
-      const isCannibal = await this.checkCannibalization(sourcePage.url, targetPage.url, params);
-      if (isCannibal) {
-        return { created: false, reason: 'Cannibalization blocked' };
-      }
-
-      // 4. Генерация анкора
-      const anchorText = await this.generateAnchorText(sourcePage, targetPage, params);
-      
-      // 5. Проверка стоп-листа
-      if (this.isStopAnchor(anchorText, params.stopAnchors)) {
-        this.stats.stopAnchorsApplied++;
-        return { created: false, reason: 'Anchor in stop list' };
-      }
-
-      // 6. Создание ссылки в БД
-      await db.insert(linkCandidates).values({
-        runId: runId,
-        sourcePageId: sourcePage.id,
-        targetPageId: targetPage.id,
-        sourceUrl: sourcePage.url,
-        targetUrl: targetPage.url,
-        anchorText: anchorText,
-        scenario: scenario,
-        position: 0, // Position will be calculated during HTML insertion
-        isRejected: false,
-        rejectionReason: null
-      });
-
-      return { created: true, anchor: anchorText };
-
-    } catch (error) {
-      console.error('Error creating link:', error);
-      return { created: false, reason: 'Database error' };
-    }
-  }
-
   // Обновление прогресса генерации
   private async updateProgress(runId: string, phase: string, percent: number, generated: number, rejected: number) {
     await db
@@ -811,6 +757,21 @@ export class LinkGenerator {
 
   // Загрузка страниц проекта
   private async loadPages(): Promise<any[]> {
+    // Получаем последний jobId для этого проекта
+    const latestJob = await db
+      .select({ jobId: importJobs.jobId })
+      .from(importJobs)
+      .where(eq(importJobs.projectId, this.projectId))
+      .orderBy(desc(importJobs.startedAt))
+      .limit(1);
+
+    if (!latestJob.length) {
+      console.warn(`⚠️ No import jobs found for project ${this.projectId}`);
+      return [];
+    }
+
+    const jobId = latestJob[0].jobId;
+
     const pages = await db
       .select({
         id: pagesClean.id,
@@ -827,15 +788,35 @@ export class LinkGenerator {
       .from(pagesClean)
       .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
       .leftJoin(graphMeta, eq(pagesClean.id, graphMeta.pageId))
-      .where(eq(pagesRaw.jobId, 'default-job')); // Упрощенно
+      .where(eq(pagesRaw.jobId, jobId));
 
     return pages;
   }
 
   // Обработка политики старых ссылок
   private async handleOldLinksPolicy(policy: string, runId: string): Promise<void> {
-    // PLACEHOLDER: Реализация политики старых ссылок
-    console.log(`📋 Applying old links policy: ${policy}`);
+    if (policy === 'audit') {
+      // Audit - только проверка, не изменяем существующие ссылки
+      console.log(`📋 Audit mode: analyzing links without modifications`);
+      return;
+    }
+
+    if (policy === 'regenerate') {
+      // Regenerate - удаляем все старые ссылки для этого запуска и создаем новые
+      const deletedCount = await db
+        .delete(linkCandidates)
+        .where(eq(linkCandidates.runId, runId));
+      console.log(`📋 Regenerated links: deleted ${deletedCount} old links`);
+      return;
+    }
+
+    if (policy === 'enrich') {
+      // Enrich - оставляем старые и добавляем новые
+      console.log(`📋 Enriching: keeping existing links and adding new ones`);
+      return;
+    }
+
+    console.warn(`⚠️ Unknown old links policy: ${policy}, defaulting to 'enrich'`);
   }
 
   // Проверка дубликатов ссылок
@@ -854,24 +835,94 @@ export class LinkGenerator {
     return existing.length > 0;
   }
 
-  // Проверка каннибализации
+  // Проверка каннибализации через реальную семантическую схожесть
   private async checkCannibalization(sourceUrl: string, targetUrl: string, params: GenerationParams): Promise<boolean> {
-    if (params.cannibalization.enabled) {
+    if (!params.cannibalization.enabled) {
+      return false;
+    }
+
+    try {
       const threshold = { low: 0.3, medium: 0.5, high: 0.7 }[params.cannibalization.level];
-      const similarity = 0.4; // Заглушка
       
+      // Получаем средние эмбеддинги для обеих страниц через блоки
+      const sourceBlocks = await db
+        .select({ vector: embeddings.vector })
+        .from(blocks)
+        .innerJoin(pagesRaw, eq(blocks.pageId, pagesRaw.id))
+        .innerJoin(embeddings, eq(blocks.id, embeddings.blockId))
+        .where(eq(pagesRaw.url, sourceUrl))
+        .limit(5); // Берем первые 5 блоков для оценки
+
+      const targetBlocks = await db
+        .select({ vector: embeddings.vector })
+        .from(blocks)
+        .innerJoin(pagesRaw, eq(blocks.pageId, pagesRaw.id))
+        .innerJoin(embeddings, eq(blocks.id, embeddings.blockId))
+        .where(eq(pagesRaw.url, targetUrl))
+        .limit(5);
+
+      if (!sourceBlocks.length || !targetBlocks.length) {
+        return false; // Нет данных для сравнения
+      }
+
+      // Усредняем векторы для каждой страницы
+      const avgSourceVector = this.averageVectors(sourceBlocks.map(b => b.vector as number[]));
+      const avgTargetVector = this.averageVectors(targetBlocks.map(b => b.vector as number[]));
+
+      // Вычисляем cosine similarity
+      const similarity = this.cosineSimilarity(avgSourceVector, avgTargetVector);
+
       if (similarity > threshold) {
         this.stats.cannibalBlocks++;
         return true;
       }
+
+      return false;
+    } catch (error) {
+      console.error('Error checking cannibalization:', error);
+      return false; // В случае ошибки не блокируем
     }
-    return false;
   }
 
-  // Генерация текста анкора
-  private async generateAnchorText(sourcePage: any, targetPage: any, params: GenerationParams): Promise<string> {
-    // PLACEHOLDER: Реализация генерации анкора
-    return `Ссылка на ${targetPage.title || targetPage.url}`;
+  // Усреднение векторов
+  private averageVectors(vectors: number[][]): number[] {
+    if (vectors.length === 0) return [];
+    const dim = vectors[0].length;
+    const avgVector = new Array(dim).fill(0);
+    
+    for (const vector of vectors) {
+      for (let i = 0; i < dim; i++) {
+        avgVector[i] += vector[i];
+      }
+    }
+    
+    for (let i = 0; i < dim; i++) {
+      avgVector[i] /= vectors.length;
+    }
+    
+    return avgVector;
+  }
+
+  // Cosine similarity
+  private cosineSimilarity(vectorA: number[], vectorB: number[]): number {
+    if (vectorA.length !== vectorB.length) return 0;
+    
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    
+    for (let i = 0; i < vectorA.length; i++) {
+      dotProduct += vectorA[i] * vectorB[i];
+      normA += vectorA[i] * vectorA[i];
+      normB += vectorB[i] * vectorB[i];
+    }
+    
+    normA = Math.sqrt(normA);
+    normB = Math.sqrt(normB);
+    
+    if (normA === 0 || normB === 0) return 0;
+    
+    return dotProduct / (normA * normB);
   }
 
   // Проверка стоп-листа анкоров
