@@ -69,6 +69,8 @@ interface LinkCandidate {
   scenario: string;
   relevanceScore: number; // cosine similarity или другая метрика
   freshness?: number; // timestamp для freshness push
+  originalSentence?: string; // Исходное предложение (для natural anchor)
+  modifiedSentence?: string; // Переписанное предложение (для OpenAI rewrite)
 }
 
 // Приоритеты сценариев (больше = важнее)
@@ -243,6 +245,8 @@ export class LinkGenerator {
             anchorText: candidate.anchorText,
             scenario: candidate.scenario,
             position: 0, // Will be calculated during HTML insertion
+            originalSentence: candidate.originalSentence || null,
+            modifiedSentence: candidate.modifiedSentence || null,
             isRejected: false,
             rejectionReason: null
           });
@@ -260,6 +264,8 @@ export class LinkGenerator {
             anchorText: candidate.anchorText,
             scenario: candidate.scenario,
             position: 0,
+            originalSentence: candidate.originalSentence || null,
+            modifiedSentence: candidate.modifiedSentence || null,
             isRejected: true,
             rejectionReason: reason
           });
@@ -620,7 +626,7 @@ export class LinkGenerator {
   }
 
   // Поиск естественного анкора в контенте исходной страницы
-  private async findNaturalAnchor(sourcePage: any, targetPage: any): Promise<string | null> {
+  private async findNaturalAnchor(sourcePage: any, targetPage: any): Promise<{ anchor: string | null, sentence: string }> {
     try {
       // Получаем контент исходной страницы
       const sourceContent = await db
@@ -631,7 +637,9 @@ export class LinkGenerator {
         .where(eq(pagesRaw.url, sourcePage.url))
         .limit(1);
 
-      if (sourceContent.length === 0 || !sourceContent[0].content) return null;
+      if (sourceContent.length === 0 || !sourceContent[0].content) {
+        return { anchor: null, sentence: '' };
+      }
 
       const content = sourceContent[0].content;
       // БЕЗОПАСНОЕ извлечение title (может быть строкой или объектом)
@@ -639,7 +647,9 @@ export class LinkGenerator {
         ? targetPage.title 
         : (targetPage.title?.title || targetPage.title?.rendered || '');
       
-      if (!targetTitle) return null;
+      if (!targetTitle) {
+        return { anchor: null, sentence: '' };
+      }
       
       const targetKeywords = targetTitle.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
 
@@ -658,20 +668,23 @@ export class LinkGenerator {
           const naturalAnchor = words.slice(0, anchorLength).join(' ');
           
           if (naturalAnchor.length > 10 && naturalAnchor.length < 100) {
-            return naturalAnchor.trim();
+            return { 
+              anchor: naturalAnchor.trim(),
+              sentence: sentence.trim()
+            };
           }
         }
       }
 
-      return null;
+      return { anchor: null, sentence: '' };
     } catch (error) {
       console.error('Error finding natural anchor:', error);
-      return null;
+      return { anchor: null, sentence: '' };
     }
   }
 
   // Рерайт предложения через OpenAI для встраивания анкора
-  private async rewriteSentenceWithOpenAI(sourcePage: any, targetPage: any, params: GenerationParams): Promise<{ anchor: string, modifiedSentence: string }> {
+  private async rewriteSentenceWithOpenAI(sourcePage: any, targetPage: any, params: GenerationParams): Promise<{ anchor: string, modifiedSentence: string, originalSentence: string }> {
     try {
       // Получаем контент исходной страницы
       const sourceContent = await db
@@ -683,7 +696,11 @@ export class LinkGenerator {
         .limit(1);
 
       if (sourceContent.length === 0) {
-        return { anchor: targetPage.title || 'читать далее', modifiedSentence: '' };
+        return { 
+          anchor: targetPage.title || 'читать далее', 
+          modifiedSentence: '',
+          originalSentence: ''
+        };
       }
 
       const content = sourceContent[0].content;
@@ -717,14 +734,16 @@ export class LinkGenerator {
       const result = JSON.parse(response.choices[0].message.content || '{}');
       return {
         anchor: result.anchor || targetTitle,
-        modifiedSentence: result.sentence || randomSentence
+        modifiedSentence: result.sentence || randomSentence,
+        originalSentence: randomSentence
       };
     } catch (error) {
       console.error('OpenAI rewrite error:', error);
       // Fallback к простому анкору
       return {
         anchor: targetPage.title || 'узнать больше',
-        modifiedSentence: ''
+        modifiedSentence: '',
+        originalSentence: ''
       };
     }
   }
@@ -796,13 +815,16 @@ export class LinkGenerator {
         const candidate = ranked[i];
         
         // Генерация анкора: сначала ищем естественный, потом рерайт через OpenAI
-        let anchor = await this.findNaturalAnchor(candidate.sourcePage, candidate.targetPage);
+        const naturalResult = await this.findNaturalAnchor(candidate.sourcePage, candidate.targetPage);
+        let anchor = naturalResult.anchor;
+        let originalSentence = naturalResult.sentence;
         let modifiedSentence = '';
         
         if (!anchor) {
           const result = await this.rewriteSentenceWithOpenAI(candidate.sourcePage, candidate.targetPage, params);
           anchor = result.anchor;
           modifiedSentence = result.modifiedSentence;
+          originalSentence = result.originalSentence || '';
         }
 
         // БЕЗОПАСНАЯ проверка: anchor должен быть строкой
@@ -817,6 +839,8 @@ export class LinkGenerator {
         }
 
         candidate.anchorText = anchor;
+        candidate.originalSentence = originalSentence;
+        candidate.modifiedSentence = modifiedSentence;
         selected.push(candidate);
       } else {
         this.stats.quotaExceeded++;

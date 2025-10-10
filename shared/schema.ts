@@ -226,7 +226,10 @@ export const linkCandidates = pgTable("link_candidates", {
   cssClass: text("css_class"),
   relAttribute: text("rel_attribute"),
   targetAttribute: text("target_attribute"),
-  modifiedSentence: text("modified_sentence"), // Для хранения переписанного предложения
+  
+  // Sentence context for natural link insertion
+  originalSentence: text("original_sentence"), // Исходное предложение до вставки ссылки
+  modifiedSentence: text("modified_sentence"), // Переписанное предложение со ссылкой
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
