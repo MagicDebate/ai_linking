@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Layout from "@/components/Layout";
@@ -176,6 +176,7 @@ const PRESETS = {
 export default function ProjectUnifiedSpec() {
   const [, params] = useRoute("/project/:id");
   const projectId = params?.id;
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1649,9 +1650,9 @@ export default function ProjectUnifiedSpec() {
                       Назад к настройкам
                     </Button>
                     
-                    {generationStatus?.status === 'draft' && (
+                    {generationStatus?.status === 'draft' && generationRunId && (
                       <Button 
-                        onClick={() => setCurrentStep(6)}
+                        onClick={() => setLocation(`/project/${projectId}/draft/${generationRunId}`)}
                         className="bg-green-600 hover:bg-green-700"
                         data-testid="button-view-draft"
                       >
