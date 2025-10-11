@@ -222,6 +222,15 @@ export class LinkGenerator {
       
       await this.updateProgress(runId, 'selecting best links', 80, 0, 0);
       
+      // ОПТИМИЗАЦИЯ: загружаем все существующие ссылки ОДИН РАЗ
+      const existingLinks = await db
+        .select({ sourceUrl: linkCandidates.sourceUrl, targetUrl: linkCandidates.targetUrl })
+        .from(linkCandidates)
+        .where(eq(linkCandidates.runId, runId));
+      
+      const existingLinksSet = new Set(existingLinks.map(l => `${l.sourceUrl}→${l.targetUrl}`));
+      console.log(`📋 Loaded ${existingLinksSet.size} existing links for duplicate check`);
+      
       totalGenerated = 0;
       totalRejected = 0;
       
@@ -232,7 +241,8 @@ export class LinkGenerator {
           candidates,
           params.maxLinks,
           params,
-          runId
+          runId,
+          existingLinksSet
         );
 
         // Вставляем выбранные ссылки в БД
@@ -755,7 +765,8 @@ export class LinkGenerator {
     candidates: LinkCandidate[],
     maxLinks: number,
     params: GenerationParams,
-    runId: string
+    runId: string,
+    existingLinksSet: Set<string>
   ): Promise<{ selected: LinkCandidate[], rejected: Array<{candidate: LinkCandidate, reason: string}> }> {
     const selected: LinkCandidate[] = [];
     const rejected: Array<{candidate: LinkCandidate, reason: string}> = [];
@@ -769,9 +780,10 @@ export class LinkGenerator {
         continue;
       }
 
-      // Проверка дубликатов
+      // Проверка дубликатов (ОПТИМИЗИРОВАНО: используем Set вместо БД)
       if (params.policies.removeDuplicates) {
-        const isDuplicate = await this.isDuplicateLink(candidate.sourcePage.url, candidate.targetPage.url, runId);
+        const linkKey = `${candidate.sourcePage.url}→${candidate.targetPage.url}`;
+        const isDuplicate = existingLinksSet.has(linkKey);
         if (isDuplicate) {
           this.stats.duplicatesRemoved++;
           rejected.push({ candidate, reason: 'Duplicate link removed' });
@@ -844,6 +856,12 @@ export class LinkGenerator {
         candidate.originalSentence = originalSentence;
         candidate.modifiedSentence = modifiedSentence;
         selected.push(candidate);
+        
+        // Добавляем в Set ТОЛЬКО выбранные ссылки
+        if (params.policies.removeDuplicates) {
+          const linkKey = `${candidate.sourcePage.url}→${candidate.targetPage.url}`;
+          existingLinksSet.add(linkKey);
+        }
       } else {
         this.stats.quotaExceeded++;
         rejected.push({ candidate: ranked[i], reason: 'Quota exceeded (maxLinks)' });
