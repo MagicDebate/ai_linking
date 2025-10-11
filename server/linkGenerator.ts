@@ -231,7 +231,8 @@ export class LinkGenerator {
           donorId,
           candidates,
           params.maxLinks,
-          params
+          params,
+          runId
         );
 
         // Вставляем выбранные ссылки в БД
@@ -753,7 +754,8 @@ export class LinkGenerator {
     donorId: string,
     candidates: LinkCandidate[],
     maxLinks: number,
-    params: GenerationParams
+    params: GenerationParams,
+    runId: string
   ): Promise<{ selected: LinkCandidate[], rejected: Array<{candidate: LinkCandidate, reason: string}> }> {
     const selected: LinkCandidate[] = [];
     const rejected: Array<{candidate: LinkCandidate, reason: string}> = [];
@@ -769,7 +771,7 @@ export class LinkGenerator {
 
       // Проверка дубликатов
       if (params.policies.removeDuplicates) {
-        const isDuplicate = await this.isDuplicateLink(candidate.sourcePage.url, candidate.targetPage.url);
+        const isDuplicate = await this.isDuplicateLink(candidate.sourcePage.url, candidate.targetPage.url, runId);
         if (isDuplicate) {
           this.stats.duplicatesRemoved++;
           rejected.push({ candidate, reason: 'Duplicate link removed' });
@@ -929,13 +931,14 @@ export class LinkGenerator {
     console.warn(`⚠️ Unknown old links policy: ${policy}, defaulting to 'enrich'`);
   }
 
-  // Проверка дубликатов ссылок
-  private async isDuplicateLink(sourceUrl: string, targetUrl: string): Promise<boolean> {
+  // Проверка дубликатов ссылок (только внутри текущей генерации)
+  private async isDuplicateLink(sourceUrl: string, targetUrl: string, runId: string): Promise<boolean> {
     const existing = await db
       .select()
       .from(linkCandidates)
       .where(
         and(
+          eq(linkCandidates.runId, runId),
           eq(linkCandidates.sourceUrl, sourceUrl),
           eq(linkCandidates.targetUrl, targetUrl)
         )
