@@ -12,6 +12,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 interface GenerationParams {
   // Лимиты
   maxLinks: number;
+  minDistance: number; // Минимальное расстояние между ссылками в словах (50-500)
   exactAnchorPercent: number;
   
   // Сценарии ON/OFF + настройки
@@ -733,6 +734,58 @@ JSON: {"anchor": "текст", "sentence": "предложение с [ANCHOR]а
   }
 
 
+  // Проверка минимального расстояния между ссылками
+  // Использует explicit позиции (не indexOf который находит первое совпадение)
+  private checkLinkDistance(
+    content: string, 
+    selectedPositions: Array<{start: number, end: number}>, 
+    newSentence: string, 
+    minDistance: number
+  ): { allowed: boolean; position?: {start: number, end: number} } {
+    // Если нет выбранных ссылок - разрешаем
+    if (selectedPositions.length === 0) {
+      // Найти позицию нового предложения
+      const newStart = content.indexOf(newSentence);
+      if (newStart < 0) {
+        // Предложение не найдено - отклоняем (нельзя проверить расстояние)
+        console.log(`⚠️ New sentence not found in content, cannot verify distance`);
+        return { allowed: false };
+      }
+      return { 
+        allowed: true, 
+        position: { start: newStart, end: newStart + newSentence.length } 
+      };
+    }
+    
+    // Найти позицию нового предложения
+    const newStart = content.indexOf(newSentence);
+    if (newStart < 0) {
+      console.log(`⚠️ New sentence not found in content, cannot verify distance`);
+      return { allowed: false };
+    }
+    
+    const newEnd = newStart + newSentence.length;
+    
+    // Проверить расстояние до каждой существующей ссылки
+    for (const selectedPos of selectedPositions) {
+      const textBetween = content.substring(
+        Math.min(selectedPos.end, newStart),
+        Math.max(selectedPos.start, newEnd)
+      );
+      const wordCount = textBetween.trim().split(/\s+/).length;
+      
+      if (wordCount < minDistance) {
+        console.log(`⚠️ Link too close: ${wordCount} words (min: ${minDistance})`);
+        return { allowed: false };
+      }
+    }
+    
+    return { 
+      allowed: true, 
+      position: { start: newStart, end: newEnd } 
+    };
+  }
+
   // Отбор лучших ссылок для одного донора с учетом maxLinks
   private async selectLinksForDonor(
     donorId: string,
@@ -743,6 +796,7 @@ JSON: {"anchor": "текст", "sentence": "предложение с [ANCHOR]а
     existingLinksSet: Set<string>
   ): Promise<{ selected: LinkCandidate[], rejected: Array<{candidate: LinkCandidate, reason: string}> }> {
     const selected: LinkCandidate[] = [];
+    const selectedPositions: Array<{start: number, end: number}> = []; // Explicit позиции для проверки расстояния
     const rejected: Array<{candidate: LinkCandidate, reason: string}> = [];
 
     // Фильтрация по политикам (дубликаты, каннибализация, стоп-анкоры)
@@ -834,6 +888,33 @@ JSON: {"anchor": "текст", "sentence": "предложение с [ANCHOR]а
         continue;
       }
 
+      // Проверка минимального расстояния между ссылками
+      const sourceContent = candidate.sourcePage.content || '';
+      
+      // CRITICAL: если нет originalSentence - пропускаем проверку расстояния
+      // (лучше вставить ссылку чем отклонить из-за невозможности проверить)
+      if (!originalSentence) {
+        console.log(`⚠️ No originalSentence, skipping distance check for this link`);
+      } else {
+        const distanceCheck = this.checkLinkDistance(
+          sourceContent, 
+          selectedPositions, 
+          originalSentence, 
+          params.minDistance
+        );
+        
+        if (!distanceCheck.allowed) {
+          rejected.push({ candidate, reason: `Link too close or sentence not found (minDistance: ${params.minDistance} words)` });
+          console.log(`⚠️ Skipping link: distance check failed`);
+          continue;
+        }
+        
+        // Сохраняем позицию для проверки расстояния следующих ссылок
+        if (distanceCheck.position) {
+          selectedPositions.push(distanceCheck.position);
+        }
+      }
+
       // Всё ОК - добавляем ссылку!
       candidate.anchorText = anchor;
       candidate.originalSentence = originalSentence;
@@ -842,11 +923,9 @@ JSON: {"anchor": "текст", "sentence": "предложение с [ANCHOR]а
       
       console.log(`✅ Link selected: "${anchor}" (${candidate.scenario})`);
       
-      // Добавляем в Set ТОЛЬКО выбранные ссылки
-      if (params.policies.removeDuplicates) {
-        const linkKey = `${candidate.sourcePage.url}→${candidate.targetPage.url}`;
-        existingLinksSet.add(linkKey);
-      }
+      // Добавляем в Set ВСЕГДА - блокируем дубликаты source→target
+      const linkKey = `${candidate.sourcePage.url}→${candidate.targetPage.url}`;
+      existingLinksSet.add(linkKey);
     }
     
     // Отклоняем остальные по квоте

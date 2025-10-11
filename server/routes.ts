@@ -1119,7 +1119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const generationParams = {
         // Basic limits
         maxLinks: seoProfile.maxLinks || 3,
-        minGap: seoProfile.minGap || 100,
+        minDistance: seoProfile.minDistance || seoProfile.minGap || 100, // Минимальное расстояние между ссылками в словах
         exactAnchorPercent: seoProfile.exactAnchorPercent || 20,
         
         // Lists
@@ -1626,6 +1626,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filePath = importRecord.filePath;
       const fieldMapping = importRecord.fieldMapping ? JSON.parse(importRecord.fieldMapping) : {};
       
+      // Check if filePath exists
+      if (!filePath) {
+        return res.status(404).json({ error: 'File path not found in import record' });
+      }
+      
       // Read original file
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ error: 'Original file not found' });
@@ -1772,6 +1777,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Prepare generation parameters with proper typing
       const generationParams = {
         maxLinks: 3,
+        minDistance: 100, // Минимальное расстояние между ссылками в словах
         exactAnchorPercent: 20,
         priorityPages: [],
         hubPages: [],
