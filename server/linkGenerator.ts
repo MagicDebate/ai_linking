@@ -65,6 +65,7 @@ interface GenerationParams {
 interface LinkCandidate {
   sourcePage: any;
   targetPage: any;
+  sourceBlockId?: string; // ID блока, откуда идет ссылка (для проверки дубликатов в блоке)
   anchorText: string;
   scenario: string;
   relevanceScore: number; // cosine similarity или другая метрика
@@ -754,14 +755,12 @@ JSON: {"anchor": "текст", "sentence": "предложение с [ANCHOR]а
       }
 
       // Проверка дубликатов (ОПТИМИЗИРОВАНО: используем Set вместо БД)
-      if (params.policies.removeDuplicates) {
-        const linkKey = `${candidate.sourcePage.url}→${candidate.targetPage.url}`;
-        const isDuplicate = existingLinksSet.has(linkKey);
-        if (isDuplicate) {
-          this.stats.duplicatesRemoved++;
-          rejected.push({ candidate, reason: 'Duplicate link removed' });
-          continue;
-        }
+      const linkKey = `${candidate.sourcePage.url}→${candidate.targetPage.url}`;
+      const isDuplicate = existingLinksSet.has(linkKey);
+      if (isDuplicate) {
+        this.stats.duplicatesRemoved++;
+        rejected.push({ candidate, reason: 'Duplicate link: same source→target already exists' });
+        continue;
       }
 
       // Проверка каннибализации
@@ -802,14 +801,21 @@ JSON: {"anchor": "текст", "sentence": "предложение с [ANCHOR]а
       
       // Генерация анкора через OpenAI (дешевая модель gpt-4o-mini)
       const result = await this.generateAnchorWithOpenAI(candidate.sourcePage, candidate.targetPage, params);
-      const anchor = result.anchor;
+      let anchor = result.anchor;
       const modifiedSentence = result.modifiedSentence;
       const originalSentence = result.originalSentence;
 
       // КРИТИЧНО: Если не удалось создать нормальный анкор - ПРОПУСКАЕМ эту ссылку!
+      // Дополнительная валидация - если anchor это объект, приводим к строке или отклоняем
+      if (typeof anchor === 'object' && anchor !== null) {
+        console.log(`⚠️ OpenAI returned object instead of string:`, anchor);
+        rejected.push({ candidate, reason: 'Anchor is object, not string' });
+        continue;
+      }
+      
       if (!anchor || typeof anchor !== 'string' || anchor.length < 2) {
         rejected.push({ candidate, reason: 'Failed to generate natural anchor' });
-        console.log(`⚠️ Skipping link: no natural anchor could be generated`);
+        console.log(`⚠️ Skipping link: no natural anchor could be generated (type: ${typeof anchor})`);
         continue;
       }
 

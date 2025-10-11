@@ -1431,6 +1431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const cyrillicAnchor = convertTranslitToCyrillic(link.anchorText);
         console.log('🔗 Converted to cyrillic:', cyrillicAnchor);
         
+        // Build HTML with default internal link class
         const anchorHtml = `<a href="${link.targetUrl}" class="internal-link">${cyrillicAnchor}</a>`;
         
         // Try multiple matching strategies
@@ -1477,40 +1478,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        // Strategy 4: Try exact word replacement in modified sentence
+        // Strategy 4: Try to use modified sentence with [ANCHOR] markers
         if (!matched && link.modifiedSentence) {
-          console.log('🔗 Trying to find exact text to replace with modified sentence');
+          console.log('🔗 Trying to use modified sentence with [ANCHOR] markers');
           
-          // Extract the anchor phrase from modified sentence and find it in content
-          if (link.modifiedSentence.includes(cyrillicAnchor)) {
-            // Try to find a similar sentence structure in the original content
-            const modifiedWords = link.modifiedSentence.toLowerCase().split(' ');
-            const contentSentences = modifiedContent.split(/[.!?]+/);
+          // Check if modifiedSentence has [ANCHOR]...[/ANCHOR] markers
+          const anchorMatch = link.modifiedSentence.match(/\[ANCHOR\](.*?)\[\/ANCHOR\]/);
+          if (anchorMatch) {
+            const markedAnchor = anchorMatch[1];
+            console.log('🔗 Found [ANCHOR] markers with text:', markedAnchor);
             
-            for (let sentence of contentSentences) {
-              sentence = sentence.trim();
-              if (sentence.length < 10) continue;
+            // Replace markers with actual HTML link  
+            const sentenceWithLink = link.modifiedSentence.replace(/\[ANCHOR\](.*?)\[\/ANCHOR\]/, anchorHtml);
+            
+            // Extract clean text from modifiedSentence for matching (without markers)
+            const cleanModifiedText = link.modifiedSentence.replace(/\[ANCHOR\]|\[\/ANCHOR\]/g, '');
+            
+            // Try direct text replacement first
+            if (modifiedContent.includes(cleanModifiedText)) {
+              console.log('🔗 Found exact match, replacing directly');
+              modifiedContent = modifiedContent.replace(cleanModifiedText, sentenceWithLink);
+              matched = true;
+              console.log('🔗 Successfully inserted link via Strategy 4');
+            } else {
+              // Advanced: Try to match text with inline HTML by constructing a flexible regex
+              // Extract words from the clean sentence
+              const words = cleanModifiedText.split(/\s+/).filter(w => w.length > 0);
               
-              const sentenceWords = sentence.toLowerCase().split(' ');
-              
-              // Check if at least 60% of words match
-              const matchCount = modifiedWords.filter(word => 
-                sentenceWords.some(sWord => sWord.includes(word) || word.includes(sWord))
-              ).length;
-              
-              const matchPercent = matchCount / Math.min(modifiedWords.length, sentenceWords.length);
-              
-              if (matchPercent > 0.6) {
-                console.log('🔗 Found similar sentence to replace:', sentence.substring(0, 50) + '...');
+              if (words.length >= 3) {
+                // Build regex that allows HTML tags between words
+                const regexPattern = words
+                  .map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) // Escape special chars
+                  .join('(?:<[^>]*>|\\s)+'); // Allow tags or spaces between words
                 
-                // Create link within the modified sentence
-                const modifiedSentenceWithLink = link.modifiedSentence.replace(cyrillicAnchor, anchorHtml);
+                const regex = new RegExp(regexPattern, 'i');
+                const htmlMatch = modifiedContent.match(regex);
                 
-                // Replace the original sentence with our modified one
-                modifiedContent = modifiedContent.replace(sentence, modifiedSentenceWithLink);
-                matched = true;
-                console.log('🔗 Successfully replaced similar sentence');
-                break;
+                if (htmlMatch) {
+                  console.log('🔗 Found match with inline HTML:', htmlMatch[0].substring(0, 50) + '...');
+                  // Replace the matched segment (which includes HTML) with the sentence with link
+                  modifiedContent = modifiedContent.replace(htmlMatch[0], sentenceWithLink);
+                  matched = true;
+                  console.log('🔗 Successfully inserted link via Strategy 4 (with HTML handling)');
+                } else {
+                  console.log('🔗 Strategy 4 skipped - no match found even with flexible HTML matching');
+                }
+              } else {
+                console.log('🔗 Strategy 4 skipped - sentence too short for HTML matching');
               }
             }
           }
@@ -1582,6 +1596,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching page content:', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Export original CSV with updated content (links inserted)
+  app.get("/api/projects/:projectId/export-csv", authenticateToken, async (req: any, res) => {
+    try {
+      const projectId = req.params.projectId;
+      
+      // Verify project ownership
+      const project = await storage.getProjectById(projectId);
+      if (!project || project.userId !== req.user.id) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      // Get latest import for this project
+      const latestImport = await db
+        .select()
+        .from(imports)
+        .where(eq(imports.projectId, projectId))
+        .orderBy(desc(imports.createdAt))
+        .limit(1);
+      
+      if (!latestImport.length) {
+        return res.status(404).json({ error: 'No import found for this project' });
+      }
+      
+      const importRecord = latestImport[0];
+      const filePath = importRecord.filePath;
+      const fieldMapping = importRecord.fieldMapping ? JSON.parse(importRecord.fieldMapping) : {};
+      
+      // Read original file
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'Original file not found' });
+      }
+      
+      const fileBuffer = fs.readFileSync(filePath);
+      const parsed = parseCSVWithEncoding(fileBuffer);
+      
+      if (parsed.length === 0) {
+        return res.status(400).json({ error: 'Empty CSV file' });
+      }
+      
+      const headers = parsed[0];
+      const dataRows = parsed.slice(1);
+      
+      // Find content column index
+      const contentField = fieldMapping.content || 'Content';
+      const urlField = fieldMapping.url || 'URL';
+      const contentIndex = headers.indexOf(contentField);
+      const urlIndex = headers.indexOf(urlField);
+      
+      if (contentIndex === -1 || urlIndex === -1) {
+        return res.status(400).json({ error: 'Content or URL field not found in CSV' });
+      }
+      
+      // Process each row: insert links into content
+      const updatedRows = await Promise.all(
+        dataRows.map(async (row) => {
+          const url = row[urlIndex];
+          const content = row[contentIndex];
+          
+          if (!url || !content) {
+            return row; // Skip if no URL or content
+          }
+          
+          // Insert anchors into content
+          const updatedContent = await insertAnchorsIntoContent(content, url, projectId);
+          
+          // Create new row with updated content
+          const newRow = [...row];
+          newRow[contentIndex] = updatedContent;
+          return newRow;
+        })
+      );
+      
+      // Build CSV
+      const csvLines = [
+        headers.join(','),
+        ...updatedRows.map(row => 
+          row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(',')
+        )
+      ];
+      
+      const csvContent = csvLines.join('\n');
+      
+      // Send as file download
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="export-${project.name}-with-links.csv"`);
+      res.send('\uFEFF' + csvContent); // BOM for Excel UTF-8 support
+      
+    } catch (error) {
+      console.error('CSV export error:', error);
+      res.status(500).json({ error: 'Export failed' });
     }
   });
 

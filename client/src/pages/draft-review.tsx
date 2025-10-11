@@ -89,48 +89,39 @@ export default function DraftReview() {
     setEditValue("");
   };
 
-  const exportToCSV = () => {
-    if (!data?.links) return;
-
-    const acceptedLinks = data.links.filter(l => !l.isRejected);
+  const exportToCSV = async () => {
+    if (!projectId) return;
     
-    const headers = [
-      "Статья (источник)",
-      "Статья (цель)",
-      "Анкор",
-      "Старое предложение",
-      "Новое предложение со ссылкой",
-      "Сценарий"
-    ];
-
-    const rows = acceptedLinks.map(link => [
-      link.sourceTitle,
-      link.targetTitle,
-      link.anchorText,
-      link.originalSentence || "",
-      link.modifiedSentence || link.originalSentence || "",
-      SCENARIO_LABELS[link.scenario] || link.scenario
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(","))
-    ].join("\n");
-
-    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `draft-links-${projectId}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast({
-      title: "Экспорт завершен",
-      description: `Экспортировано ${acceptedLinks.length} ссылок`,
-    });
+    try {
+      const response = await fetch(`/api/projects/${projectId}/export-csv`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `export-with-links-${projectId}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Экспорт завершен",
+        description: "Оригинальный CSV с вставленными ссылками готов",
+      });
+    } catch (error) {
+      toast({
+        title: "Ошибка",
+        description: "Не удалось экспортировать CSV",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {
