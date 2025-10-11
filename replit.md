@@ -33,6 +33,12 @@ This is a comprehensive SaaS SEO service platform that automates internal linkin
   - **SEO-optimized prompts**: System role as "SEO-специалист", explicit blocking of prepositions (в, на, с, к, по, от, для, же, ли, бы) and generic phrases
   - **Structured output**: Returns sentences with [ANCHOR]text[/ANCHOR] markers for precise link insertion
   - **Smart selection**: AI either picks existing phrases from content OR rewrites sentences naturally; returns null if impossible
+- **SIMPLE BLOCK-BASED SPACING (Oct 11, 2025)** - Replaced complex distance calculation with elegant block-based spacing:
+  - **One block = one link maximum**: Content split into sentence blocks, each can hold at most one link
+  - **Duplicate prevention**: Always blocks same source→target pairs (removed conditional check)
+  - **Smart block detection**: Searches by anchor first, fallback to originalSentence for OpenAI rewrites
+  - **Reliable enforcement**: Rejects links when block cannot be determined (no bypass loopholes)
+  - **CSV export fixed**: Handles null filePath and returns original structure with updated content
 
 # User Preferences
 
