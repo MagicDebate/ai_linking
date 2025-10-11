@@ -26,6 +26,13 @@ This is a comprehensive SaaS SEO service platform that automates internal linkin
   - **Generic fallback elimination**: Removed all "подробнее", "читать далее", "узнать больше" fallbacks
   - **Skip logic**: Links skipped entirely if natural anchor cannot be generated (maintains content quality)
   - **Enhanced OpenAI prompts**: Explicitly requires 2-4 word natural anchors or null response, prevents generic outputs
+- **FULL OPENAI INTEGRATION (Oct 11, 2025)** - Unified anchor generation through OpenAI gpt-4o-mini model. All anchors now validated by AI:
+  - **Single source of truth**: Removed findNaturalAnchor and rewriteSentenceWithOpenAI, replaced with generateAnchorWithOpenAI
+  - **Token optimization**: 1500 char content limit, max_completion_tokens: 200, temperature: 0.3 for cost efficiency
+  - **HTML cleaning**: Automatic strip of HTML tags before processing to prevent tag leakage in anchors
+  - **SEO-optimized prompts**: System role as "SEO-специалист", explicit blocking of prepositions (в, на, с, к, по, от, для, же, ли, бы) and generic phrases
+  - **Structured output**: Returns sentences with [ANCHOR]text[/ANCHOR] markers for precise link insertion
+  - **Smart selection**: AI either picks existing phrases from content OR rewrites sentences naturally; returns null if impossible
 
 # User Preferences
 
