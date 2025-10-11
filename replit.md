@@ -20,6 +20,12 @@ This is a comprehensive SaaS SEO service platform that automates internal linkin
 - **COMPLETE SPEC COMPLIANCE REFACTOR (Aug 7, 2025)** - Completely rebuilt project setup interface to match exact ТЗ requirements. Removed all non-spec features and implemented precise 7-step workflow: CSV upload+mapping → SEO profile with presets → import progress → scope configuration → generation progress → draft review → publishing. Interface now follows exact specification with proper preset system, scenario configuration, and step progression.
 - **FULL PARAMETER INTEGRATION (Aug 7, 2025)** - Synchronized data model between UI and backend. All SEO profile parameters (stopAnchors, priorityPages, hubPages, cannibalization settings, link policies, HTML attributes) now properly passed to LinkGenerator. Implemented comprehensive parameter validation, policy handling, and real-time statistics logging. Priority Pages visible only when Commercial Routing ON, Hub Pages only when Head Consolidation ON as per specification.
 - **PERFECT SCENARIO COMPLIANCE (Aug 7, 2025)** - Completely rebuilt LinkGenerator with true scenario isolation per technical specification. Each scenario (Orphan Fix, Head Consolidation, Cluster Cross-Link, Commercial Routing, Depth Lift with minDepth, Freshness Push with daysFresh+linksPerDonor) now works as independent logical block. When scenario OFF = completely skipped, no partial processing. Matches exact ТЗ requirements.
+- **NATURAL ANCHOR QUALITY ENHANCEMENT (Oct 11, 2025)** - Completely rewrote anchor generation logic to produce high-quality, SEO-compliant anchors. Key improvements:
+  - **Smart phrase extraction**: findNaturalAnchor now scans 2-4 word windows AROUND target keywords (not just first words of sentences)
+  - **Quality validation**: Anchors must be 10-50 chars, include keywords, not start with prepositions
+  - **Generic fallback elimination**: Removed all "подробнее", "читать далее", "узнать больше" fallbacks
+  - **Skip logic**: Links skipped entirely if natural anchor cannot be generated (maintains content quality)
+  - **Enhanced OpenAI prompts**: Explicitly requires 2-4 word natural anchors or null response, prevents generic outputs
 
 # User Preferences
 
