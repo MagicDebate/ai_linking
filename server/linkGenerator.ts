@@ -636,8 +636,8 @@ export class LinkGenerator {
     return results.map(r => r.page);
   }
 
-  // Поиск естественного анкора в контенте исходной страницы
-  private async findNaturalAnchor(sourcePage: any, targetPage: any): Promise<{ anchor: string | null, sentence: string }> {
+  // Генерация анкора и предложения через OpenAI (дешевая модель для валидации)
+  private async generateAnchorWithOpenAI(sourcePage: any, targetPage: any, params: GenerationParams): Promise<{ anchor: string, modifiedSentence: string, originalSentence: string }> {
     try {
       // Получаем контент исходной страницы
       const sourceContent = await db
@@ -649,172 +649,83 @@ export class LinkGenerator {
         .limit(1);
 
       if (sourceContent.length === 0 || !sourceContent[0].content) {
-        return { anchor: null, sentence: '' };
-      }
-
-      const content = sourceContent[0].content;
-      // БЕЗОПАСНОЕ извлечение title (может быть строкой или объектом)
-      const targetTitle = typeof targetPage.title === 'string' 
-        ? targetPage.title 
-        : (targetPage.title?.title || targetPage.title?.rendered || '');
-      
-      if (!targetTitle) {
-        return { anchor: null, sentence: '' };
-      }
-      
-      // Извлекаем ключевые слова из заголовка целевой страницы (минимум 3 символа)
-      const targetKeywords = targetTitle.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
-
-      // Ищем предложения, содержащие ключевые слова целевой страницы
-      const sentences = content.split(/[.!?]\s+/).filter(s => s.length > 20);
-      
-      for (const sentence of sentences) {
-        const lowerSentence = sentence.toLowerCase();
-        const words = sentence.split(/\s+/);
-        
-        // Ищем позиции ключевых слов в предложении
-        for (let i = 0; i < words.length; i++) {
-          const word = words[i].toLowerCase();
-          
-          // Проверяем, содержит ли слово какое-то из ключевых слов целевой страницы
-          const matchingKeyword = targetKeywords.find((kw: string) => word.includes(kw) || kw.includes(word));
-          
-          if (matchingKeyword) {
-            // Извлекаем фразу 2-4 слова ВОКРУГ найденного ключевого слова
-            for (let len = 2; len <= 4; len++) {
-              // Пробуем разные позиции начала фразы
-              for (let start = Math.max(0, i - len + 1); start <= i && start + len <= words.length; start++) {
-                const phraseWords = words.slice(start, start + len);
-                const phrase = phraseWords.join(' ').trim();
-                
-                // Проверяем качество фразы:
-                // 1. Длина 10-50 символов
-                // 2. Не начинается с предлога/союза
-                // 3. Содержит ключевое слово
-                const phraseLower = phrase.toLowerCase();
-                const startsWithBadWord = /^(и|или|но|а|в|на|с|к|по|для|от|до|из|у|о|про|при|через)\s/i.test(phrase);
-                
-                if (phrase.length >= 10 && 
-                    phrase.length <= 50 && 
-                    !startsWithBadWord &&
-                    phraseLower.includes(matchingKeyword)) {
-                  
-                  console.log(`✅ Natural anchor found: "${phrase}" in sentence: "${sentence.substring(0, 100)}..."`);
-                  return { 
-                    anchor: phrase,
-                    sentence: sentence.trim()
-                  };
-                }
-              }
-            }
-          }
-        }
-      }
-
-      console.log(`⚠️ No natural anchor found for ${targetPage.url}`);
-      return { anchor: null, sentence: '' };
-    } catch (error) {
-      console.error('Error finding natural anchor:', error);
-      return { anchor: null, sentence: '' };
-    }
-  }
-
-  // Рерайт предложения через OpenAI для встраивания анкора
-  private async rewriteSentenceWithOpenAI(sourcePage: any, targetPage: any, params: GenerationParams): Promise<{ anchor: string, modifiedSentence: string, originalSentence: string }> {
-    try {
-      // Получаем контент исходной страницы
-      const sourceContent = await db
-        .select({
-          content: sql<string>`COALESCE(${pagesRaw.meta}->>'content', ${pagesRaw.meta}->>'post_content', ${pagesRaw.rawHtml}, '')`
-        })
-        .from(pagesRaw)
-        .where(eq(pagesRaw.url, sourcePage.url))
-        .limit(1);
-
-      if (sourceContent.length === 0) {
-        console.log('⚠️ OpenAI rewrite: no content found');
-        return { 
-          anchor: '', 
-          modifiedSentence: '',
-          originalSentence: ''
-        };
-      }
-
-      const content = sourceContent[0].content;
-      const sentences = content.split(/[.!?]\s+/).filter((s: string) => s.length > 20 && s.length < 300);
-      
-      if (sentences.length === 0) {
-        console.log('⚠️ OpenAI rewrite: no suitable sentences found');
         return { anchor: '', modifiedSentence: '', originalSentence: '' };
       }
-      
-      const randomSentence = sentences[Math.floor(Math.random() * Math.min(10, sentences.length))];
 
+      const content = sourceContent[0].content;
       const targetTitle = targetPage.title || targetPage.url;
+      
+      // Извлекаем чистый текст без HTML
+      const cleanContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      
+      // Берем первые 1500 символов для экономии токенов
+      const contentSnippet = cleanContent.substring(0, 1500);
+      
       const exactPercent = params.exactAnchorPercent || 20;
       const useExact = Math.random() * 100 < exactPercent;
 
       const prompt = useExact
-        ? `Перепиши это предложение так, чтобы естественно встроить фразу "${targetTitle}".
+        ? `Контент: ${contentSnippet}
 
-ТРЕБОВАНИЯ:
-- Анкор: ТОЛЬКО "${targetTitle}" (точное совпадение)
-- Анкор должен быть 2-4 слова
-- Предложение должно читаться естественно
-- Если невозможно естественно встроить - верни null
+Тема ссылки: "${targetTitle}"
 
-Исходное предложение: "${randomSentence}"
+Задача: выбери существующую фразу ИЛИ перепиши предложение, чтобы встроить точный анкор "${targetTitle}".
 
-Верни JSON: {"anchor": "анкор 2-4 слова", "sentence": "переписанное предложение"} или {"anchor": null, "sentence": null}`
-        : `Перепиши это предложение, чтобы естественно встроить ссылку на тему "${targetTitle}".
+Требования:
+- Анкор: ТОЧНО "${targetTitle}"
+- Анкор 2-4 слова, БЕЗ предлогов/частиц в начале
+- Предложение читается естественно
+- Если невозможно - верни null
 
-ТРЕБОВАНИЯ:
-- Анкор: 2-4 слова, релевантные теме "${targetTitle}" (НЕ точное совпадение!)
-- Анкор должен органично читаться в контексте
-- Избегай: "подробнее", "читать далее", "узнать больше" и подобные generic-фразы
-- Если невозможно естественно встроить - верни null
+JSON: {"anchor": "текст анкора", "sentence": "предложение с [ANCHOR]анкор[/ANCHOR]"} или null`
+        : `Контент: ${contentSnippet}
 
-Исходное предложение: "${randomSentence}"
+Тема ссылки: "${targetTitle}"
 
-Верни JSON: {"anchor": "анкор 2-4 слова", "sentence": "переписанное предложение"} или {"anchor": null, "sentence": null}`;
+Задача: выбери подходящую фразу ИЛИ перепиши предложение для естественной ссылки.
+
+Требования:
+- Анкор 2-4 слова, релевантен "${targetTitle}"
+- БЕЗ предлогов (в, на, с, к, по, от, для, же, ли, бы и т.д.)
+- БЕЗ generic ("подробнее", "узнать", "читать")
+- Предложение с [ANCHOR]анкор[/ANCHOR]
+- Если невозможно - верни null
+
+JSON: {"anchor": "текст", "sentence": "предложение с [ANCHOR]анкор[/ANCHOR]"} или null`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+        model: "gpt-4o-mini", // Дешевая модель для валидации
         messages: [
-          { role: "system", content: "Ты SEO-эксперт по внутренней перелинковке. Создаёшь ТОЛЬКО естественные анкоры 2-4 слова. Если не можешь - возвращай null." },
+          { role: "system", content: "SEO-специалист. Создаёшь ТОЛЬКО качественные анкоры 2-4 слова. Если невозможно - возвращай null." },
           { role: "user", content: prompt }
         ],
         response_format: { type: "json_object" },
-        max_completion_tokens: 300
+        max_completion_tokens: 200, // Экономия токенов
+        temperature: 0.3 // Более предсказуемый результат
       });
 
       const result = JSON.parse(response.choices[0].message.content || '{}');
       
-      // Если OpenAI вернул null или пустой результат - не создаём анкор
-      if (!result.anchor || result.anchor === 'null' || result.anchor === null) {
-        console.log(`⚠️ OpenAI couldn't create natural anchor for "${targetTitle}"`);
-        return {
-          anchor: '',
-          modifiedSentence: '',
-          originalSentence: randomSentence
-        };
+      if (!result || !result.anchor || !result.sentence) {
+        console.log(`⚠️ OpenAI couldn't create anchor for "${targetTitle}"`);
+        return { anchor: '', modifiedSentence: '', originalSentence: '' };
       }
       
+      // Извлекаем оригинальное предложение из контента
+      const sentences = cleanContent.split(/[.!?]\s+/).filter(s => s.length > 20);
+      const originalSentence = sentences[0] || '';
+      
       return {
-        anchor: result.anchor || '',
-        modifiedSentence: result.sentence || '',
-        originalSentence: randomSentence
+        anchor: result.anchor.trim(),
+        modifiedSentence: result.sentence.trim(),
+        originalSentence
       };
     } catch (error) {
-      console.error('OpenAI rewrite error:', error);
-      // НЕ создаём fallback-анкор - пусть ссылка будет пропущена
-      return {
-        anchor: '',
-        modifiedSentence: '',
-        originalSentence: ''
-      };
+      console.error('OpenAI anchor generation error:', error);
+      return { anchor: '', modifiedSentence: '', originalSentence: '' };
     }
   }
+
 
   // Отбор лучших ссылок для одного донора с учетом maxLinks
   private async selectLinksForDonor(
@@ -884,19 +795,11 @@ export class LinkGenerator {
     for (let i = 0; i < ranked.length && selected.length < maxLinks; i++) {
       const candidate = ranked[i];
       
-      // Генерация анкора: сначала ищем естественный, потом рерайт через OpenAI
-      const naturalResult = await this.findNaturalAnchor(candidate.sourcePage, candidate.targetPage);
-      let anchor = naturalResult.anchor;
-      let originalSentence = naturalResult.sentence;
-      let modifiedSentence = '';
-      
-      if (!anchor) {
-        // Пытаемся переписать через OpenAI
-        const result = await this.rewriteSentenceWithOpenAI(candidate.sourcePage, candidate.targetPage, params);
-        anchor = result.anchor;
-        modifiedSentence = result.modifiedSentence;
-        originalSentence = result.originalSentence || '';
-      }
+      // Генерация анкора через OpenAI (дешевая модель gpt-4o-mini)
+      const result = await this.generateAnchorWithOpenAI(candidate.sourcePage, candidate.targetPage, params);
+      const anchor = result.anchor;
+      const modifiedSentence = result.modifiedSentence;
+      const originalSentence = result.originalSentence;
 
       // КРИТИЧНО: Если не удалось создать нормальный анкор - ПРОПУСКАЕМ эту ссылку!
       if (!anchor || typeof anchor !== 'string' || anchor.length < 2) {
