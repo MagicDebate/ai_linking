@@ -48,7 +48,7 @@ export default function DraftReview() {
   const [editValue, setEditValue] = useState("");
 
   // Fetch draft links
-  const { data, isLoading } = useQuery<{ links: DraftLink[] }>({
+  const { data, isLoading, error } = useQuery<{ links: DraftLink[] }>({
     queryKey: [`/api/projects/${projectId}/draft-links`],
     enabled: !!projectId
   });
@@ -144,8 +144,55 @@ export default function DraftReview() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center max-w-md">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-4">
+            <h2 className="text-xl font-semibold text-red-800 mb-2">Ошибка загрузки черновика</h2>
+            <p className="text-red-600">{error instanceof Error ? error.message : 'Не удалось загрузить черновик'}</p>
+          </div>
+          <Link href={`/project/${projectId}`}>
+            <Button>Вернуться к проекту</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const acceptedLinks = data?.links?.filter(l => !l.isRejected) || [];
   const rejectedLinks = data?.links?.filter(l => l.isRejected) || [];
+
+  // Show empty state if no links
+  if (data?.links && data.links.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="container mx-auto py-8 px-4">
+          <div className="flex items-center gap-4 mb-6">
+            <Link href={`/project/${projectId}`}>
+              <Button variant="outline" size="sm" data-testid="button-back">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Назад к проекту
+              </Button>
+            </Link>
+          </div>
+          <div className="flex flex-col items-center justify-center min-h-[60vh]">
+            <div className="text-center max-w-md">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-8">
+                <h2 className="text-2xl font-semibold text-blue-900 mb-3">Черновик пуст</h2>
+                <p className="text-blue-700 mb-4">
+                  Нет сгенерированных ссылок для проверки. Возможно, генерация ещё не завершена или все ссылки были отклонены.
+                </p>
+                <Link href={`/project/${projectId}`}>
+                  <Button>Вернуться к проекту</Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
