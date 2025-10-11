@@ -706,8 +706,13 @@ JSON: {"anchor": "текст", "sentence": "предложение с [ANCHOR]а
 
       const result = JSON.parse(response.choices[0].message.content || '{}');
       
-      if (!result || !result.anchor || !result.sentence) {
-        console.log(`⚠️ OpenAI couldn't create anchor for "${targetTitle}"`);
+      // Валидация: anchor и sentence должны быть строками
+      if (!result || 
+          typeof result.anchor !== 'string' || 
+          typeof result.sentence !== 'string' ||
+          !result.anchor.trim() || 
+          !result.sentence.trim()) {
+        console.log(`⚠️ OpenAI returned invalid format for "${targetTitle}":`, result);
         return { anchor: '', modifiedSentence: '', originalSentence: '' };
       }
       
