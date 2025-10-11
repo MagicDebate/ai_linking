@@ -662,31 +662,56 @@ export class LinkGenerator {
         return { anchor: null, sentence: '' };
       }
       
+      // Извлекаем ключевые слова из заголовка целевой страницы (минимум 3 символа)
       const targetKeywords = targetTitle.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
 
       // Ищем предложения, содержащие ключевые слова целевой страницы
-      const sentences = content.split(/[.!?]\s+/);
+      const sentences = content.split(/[.!?]\s+/).filter(s => s.length > 20);
       
       for (const sentence of sentences) {
         const lowerSentence = sentence.toLowerCase();
-        const matchCount = targetKeywords.filter((kw: string) => lowerSentence.includes(kw)).length;
+        const words = sentence.split(/\s+/);
         
-        // Если найдено 2+ ключевых слова, извлекаем фразу
-        if (matchCount >= 2) {
-          const words = sentence.split(/\s+/);
-          // Берем 3-7 слов как естественный анкор
-          const anchorLength = Math.min(7, Math.max(3, words.length / 2));
-          const naturalAnchor = words.slice(0, anchorLength).join(' ');
+        // Ищем позиции ключевых слов в предложении
+        for (let i = 0; i < words.length; i++) {
+          const word = words[i].toLowerCase();
           
-          if (naturalAnchor.length > 10 && naturalAnchor.length < 100) {
-            return { 
-              anchor: naturalAnchor.trim(),
-              sentence: sentence.trim()
-            };
+          // Проверяем, содержит ли слово какое-то из ключевых слов целевой страницы
+          const matchingKeyword = targetKeywords.find((kw: string) => word.includes(kw) || kw.includes(word));
+          
+          if (matchingKeyword) {
+            // Извлекаем фразу 2-4 слова ВОКРУГ найденного ключевого слова
+            for (let len = 2; len <= 4; len++) {
+              // Пробуем разные позиции начала фразы
+              for (let start = Math.max(0, i - len + 1); start <= i && start + len <= words.length; start++) {
+                const phraseWords = words.slice(start, start + len);
+                const phrase = phraseWords.join(' ').trim();
+                
+                // Проверяем качество фразы:
+                // 1. Длина 10-50 символов
+                // 2. Не начинается с предлога/союза
+                // 3. Содержит ключевое слово
+                const phraseLower = phrase.toLowerCase();
+                const startsWithBadWord = /^(и|или|но|а|в|на|с|к|по|для|от|до|из|у|о|про|при|через)\s/i.test(phrase);
+                
+                if (phrase.length >= 10 && 
+                    phrase.length <= 50 && 
+                    !startsWithBadWord &&
+                    phraseLower.includes(matchingKeyword)) {
+                  
+                  console.log(`✅ Natural anchor found: "${phrase}" in sentence: "${sentence.substring(0, 100)}..."`);
+                  return { 
+                    anchor: phrase,
+                    sentence: sentence.trim()
+                  };
+                }
+              }
+            }
           }
         }
       }
 
+      console.log(`⚠️ No natural anchor found for ${targetPage.url}`);
       return { anchor: null, sentence: '' };
     } catch (error) {
       console.error('Error finding natural anchor:', error);
@@ -707,52 +732,84 @@ export class LinkGenerator {
         .limit(1);
 
       if (sourceContent.length === 0) {
+        console.log('⚠️ OpenAI rewrite: no content found');
         return { 
-          anchor: targetPage.title || 'читать далее', 
+          anchor: '', 
           modifiedSentence: '',
           originalSentence: ''
         };
       }
 
       const content = sourceContent[0].content;
-      const sentences = content.split(/[.!?]\s+/).filter((s: string) => s.length > 20);
-      const randomSentence = sentences[Math.floor(Math.random() * Math.min(10, sentences.length))] || content.substring(0, 200);
+      const sentences = content.split(/[.!?]\s+/).filter((s: string) => s.length > 20 && s.length < 300);
+      
+      if (sentences.length === 0) {
+        console.log('⚠️ OpenAI rewrite: no suitable sentences found');
+        return { anchor: '', modifiedSentence: '', originalSentence: '' };
+      }
+      
+      const randomSentence = sentences[Math.floor(Math.random() * Math.min(10, sentences.length))];
 
       const targetTitle = targetPage.title || targetPage.url;
       const exactPercent = params.exactAnchorPercent || 20;
       const useExact = Math.random() * 100 < exactPercent;
 
       const prompt = useExact
-        ? `Перепиши следующее предложение так, чтобы в него естественно встроилась фраза "${targetTitle}". Верни JSON:
-        {"anchor": "точная фраза для анкора", "sentence": "переписанное предложение с вставленной фразой"}
-        
-        Исходное предложение: "${randomSentence}"`
-        : `Перепиши следующее предложение так, чтобы в него естественно встроилась ссылка на тему "${targetTitle}". Создай подходящий анкорный текст (не точное совпадение). Верни JSON:
-        {"anchor": "анкорный текст", "sentence": "переписанное предложение"}
-        
-        Исходное предложение: "${randomSentence}"`;
+        ? `Перепиши это предложение так, чтобы естественно встроить фразу "${targetTitle}".
+
+ТРЕБОВАНИЯ:
+- Анкор: ТОЛЬКО "${targetTitle}" (точное совпадение)
+- Анкор должен быть 2-4 слова
+- Предложение должно читаться естественно
+- Если невозможно естественно встроить - верни null
+
+Исходное предложение: "${randomSentence}"
+
+Верни JSON: {"anchor": "анкор 2-4 слова", "sentence": "переписанное предложение"} или {"anchor": null, "sentence": null}`
+        : `Перепиши это предложение, чтобы естественно встроить ссылку на тему "${targetTitle}".
+
+ТРЕБОВАНИЯ:
+- Анкор: 2-4 слова, релевантные теме "${targetTitle}" (НЕ точное совпадение!)
+- Анкор должен органично читаться в контексте
+- Избегай: "подробнее", "читать далее", "узнать больше" и подобные generic-фразы
+- Если невозможно естественно встроить - верни null
+
+Исходное предложение: "${randomSentence}"
+
+Верни JSON: {"anchor": "анкор 2-4 слова", "sentence": "переписанное предложение"} или {"anchor": null, "sentence": null}`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
         messages: [
-          { role: "system", content: "Ты SEO-эксперт. Создаешь естественные анкорные тексты для внутренних ссылок." },
+          { role: "system", content: "Ты SEO-эксперт по внутренней перелинковке. Создаёшь ТОЛЬКО естественные анкоры 2-4 слова. Если не можешь - возвращай null." },
           { role: "user", content: prompt }
         ],
         response_format: { type: "json_object" },
-        max_completion_tokens: 256
+        max_completion_tokens: 300
       });
 
       const result = JSON.parse(response.choices[0].message.content || '{}');
+      
+      // Если OpenAI вернул null или пустой результат - не создаём анкор
+      if (!result.anchor || result.anchor === 'null' || result.anchor === null) {
+        console.log(`⚠️ OpenAI couldn't create natural anchor for "${targetTitle}"`);
+        return {
+          anchor: '',
+          modifiedSentence: '',
+          originalSentence: randomSentence
+        };
+      }
+      
       return {
-        anchor: result.anchor || targetTitle,
-        modifiedSentence: result.sentence || randomSentence,
+        anchor: result.anchor || '',
+        modifiedSentence: result.sentence || '',
         originalSentence: randomSentence
       };
     } catch (error) {
       console.error('OpenAI rewrite error:', error);
-      // Fallback к простому анкору
+      // НЕ создаём fallback-анкор - пусть ссылка будет пропущена
       return {
-        anchor: targetPage.title || 'узнать больше',
+        anchor: '',
         modifiedSentence: '',
         originalSentence: ''
       };
@@ -824,48 +881,64 @@ export class LinkGenerator {
     });
 
     // Выбираем топ-N и ГЕНЕРИРУЕМ АНКОРЫ ТОЛЬКО ДЛЯ НИХ (экономия токенов!)
-    for (let i = 0; i < ranked.length; i++) {
-      if (i < maxLinks) {
-        const candidate = ranked[i];
-        
-        // Генерация анкора: сначала ищем естественный, потом рерайт через OpenAI
-        const naturalResult = await this.findNaturalAnchor(candidate.sourcePage, candidate.targetPage);
-        let anchor = naturalResult.anchor;
-        let originalSentence = naturalResult.sentence;
-        let modifiedSentence = '';
-        
-        if (!anchor) {
-          const result = await this.rewriteSentenceWithOpenAI(candidate.sourcePage, candidate.targetPage, params);
-          anchor = result.anchor;
-          modifiedSentence = result.modifiedSentence;
-          originalSentence = result.originalSentence || '';
-        }
-
-        // БЕЗОПАСНАЯ проверка: anchor должен быть строкой
-        if (!anchor || typeof anchor !== 'string') {
-          anchor = 'подробнее'; // Fallback если генерация провалилась
-        }
-
-        // Проверка стоп-листа ПОСЛЕ генерации
-        if (this.isStopAnchor(anchor, params.stopAnchors)) {
-          this.stats.stopAnchorsApplied++;
-          anchor = 'подробнее'; // Generic fallback
-        }
-
-        candidate.anchorText = anchor;
-        candidate.originalSentence = originalSentence;
-        candidate.modifiedSentence = modifiedSentence;
-        selected.push(candidate);
-        
-        // Добавляем в Set ТОЛЬКО выбранные ссылки
-        if (params.policies.removeDuplicates) {
-          const linkKey = `${candidate.sourcePage.url}→${candidate.targetPage.url}`;
-          existingLinksSet.add(linkKey);
-        }
-      } else {
-        this.stats.quotaExceeded++;
-        rejected.push({ candidate: ranked[i], reason: 'Quota exceeded (maxLinks)' });
+    for (let i = 0; i < ranked.length && selected.length < maxLinks; i++) {
+      const candidate = ranked[i];
+      
+      // Генерация анкора: сначала ищем естественный, потом рерайт через OpenAI
+      const naturalResult = await this.findNaturalAnchor(candidate.sourcePage, candidate.targetPage);
+      let anchor = naturalResult.anchor;
+      let originalSentence = naturalResult.sentence;
+      let modifiedSentence = '';
+      
+      if (!anchor) {
+        // Пытаемся переписать через OpenAI
+        const result = await this.rewriteSentenceWithOpenAI(candidate.sourcePage, candidate.targetPage, params);
+        anchor = result.anchor;
+        modifiedSentence = result.modifiedSentence;
+        originalSentence = result.originalSentence || '';
       }
+
+      // КРИТИЧНО: Если не удалось создать нормальный анкор - ПРОПУСКАЕМ эту ссылку!
+      if (!anchor || typeof anchor !== 'string' || anchor.length < 2) {
+        rejected.push({ candidate, reason: 'Failed to generate natural anchor' });
+        console.log(`⚠️ Skipping link: no natural anchor could be generated`);
+        continue;
+      }
+
+      // Проверка стоп-листа ПОСЛЕ генерации
+      if (this.isStopAnchor(anchor, params.stopAnchors)) {
+        this.stats.stopAnchorsApplied++;
+        rejected.push({ candidate, reason: 'Anchor in stop-list, no alternative found' });
+        console.log(`⚠️ Skipping link: anchor "${anchor}" in stop-list`);
+        continue;
+      }
+
+      // Проверка длины анкора (2-50 символов для естественности)
+      if (anchor.length > 50) {
+        rejected.push({ candidate, reason: 'Anchor too long (>50 chars)' });
+        console.log(`⚠️ Skipping link: anchor too long "${anchor.substring(0, 30)}..."`);
+        continue;
+      }
+
+      // Всё ОК - добавляем ссылку!
+      candidate.anchorText = anchor;
+      candidate.originalSentence = originalSentence;
+      candidate.modifiedSentence = modifiedSentence;
+      selected.push(candidate);
+      
+      console.log(`✅ Link selected: "${anchor}" (${candidate.scenario})`);
+      
+      // Добавляем в Set ТОЛЬКО выбранные ссылки
+      if (params.policies.removeDuplicates) {
+        const linkKey = `${candidate.sourcePage.url}→${candidate.targetPage.url}`;
+        existingLinksSet.add(linkKey);
+      }
+    }
+    
+    // Отклоняем остальные по квоте
+    for (let i = ranked.length; i < candidates.length; i++) {
+      this.stats.quotaExceeded++;
+      rejected.push({ candidate: ranked[i], reason: 'Quota exceeded (maxLinks)' });
     }
 
     return { selected, rejected };
