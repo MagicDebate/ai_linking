@@ -16,7 +16,7 @@ import {
 import { registerUserSchema, loginUserSchema, insertProjectSchema, fieldMappingSchema, linkingRulesSchema, pagesClean, blocks, embeddings, edges, graphMeta, pagesRaw, generationRuns, linkCandidates, projectImportConfigs, insertProjectImportConfigSchema, importJobs, imports } from "@shared/schema";
 import { LinkGenerator } from "./linkGenerator.js";
 import { progressStreamManager } from "./progressStream";
-import { sql, eq, and, desc } from "drizzle-orm";
+import { sql, eq, and, desc, inArray } from "drizzle-orm";
 import { db } from "./db"; 
 import { DatabaseStorage } from "./storage";
 import multer from "multer";
@@ -1011,7 +1011,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
           .from(pagesClean)
           .innerJoin(pagesRaw, eq(pagesClean.pageRawId, pagesRaw.id))
-          .where(sql`${pagesClean.id} = ANY(${pageIds})`);
+          .where(inArray(pagesClean.id, pageIds));
 
         pages.forEach(p => pageMap.set(p.id, p));
       }
