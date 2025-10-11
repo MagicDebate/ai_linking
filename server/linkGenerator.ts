@@ -734,56 +734,29 @@ JSON: {"anchor": "текст", "sentence": "предложение с [ANCHOR]а
   }
 
 
-  // Проверка минимального расстояния между ссылками
-  // Использует explicit позиции (не indexOf который находит первое совпадение)
-  private checkLinkDistance(
-    content: string, 
-    selectedPositions: Array<{start: number, end: number}>, 
-    newSentence: string, 
-    minDistance: number
-  ): { allowed: boolean; position?: {start: number, end: number} } {
-    // Если нет выбранных ссылок - разрешаем
-    if (selectedPositions.length === 0) {
-      // Найти позицию нового предложения
-      const newStart = content.indexOf(newSentence);
-      if (newStart < 0) {
-        // Предложение не найдено - отклоняем (нельзя проверить расстояние)
-        console.log(`⚠️ New sentence not found in content, cannot verify distance`);
-        return { allowed: false };
-      }
-      return { 
-        allowed: true, 
-        position: { start: newStart, end: newStart + newSentence.length } 
+  // Простая проверка: один блок = максимум одна ссылка
+  // Разбиваем контент на блоки и отслеживаем использованные
+  private extractContentBlocks(content: string): { text: string; position: number }[] {
+    // Убираем HTML теги
+    const cleanContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    // Разбиваем на предложения (блоки)
+    const sentences = cleanContent.split(/[.!?]\s+/).filter(s => s.length > 20);
+    
+    let currentPosition = 0;
+    return sentences.map(sentence => {
+      const block = {
+        text: sentence,
+        position: currentPosition
       };
-    }
-    
-    // Найти позицию нового предложения
-    const newStart = content.indexOf(newSentence);
-    if (newStart < 0) {
-      console.log(`⚠️ New sentence not found in content, cannot verify distance`);
-      return { allowed: false };
-    }
-    
-    const newEnd = newStart + newSentence.length;
-    
-    // Проверить расстояние до каждой существующей ссылки
-    for (const selectedPos of selectedPositions) {
-      const textBetween = content.substring(
-        Math.min(selectedPos.end, newStart),
-        Math.max(selectedPos.start, newEnd)
-      );
-      const wordCount = textBetween.trim().split(/\s+/).length;
-      
-      if (wordCount < minDistance) {
-        console.log(`⚠️ Link too close: ${wordCount} words (min: ${minDistance})`);
-        return { allowed: false };
-      }
-    }
-    
-    return { 
-      allowed: true, 
-      position: { start: newStart, end: newEnd } 
-    };
+      currentPosition += sentence.length;
+      return block;
+    });
+  }
+
+  // Находим индекс блока в котором находится anchor
+  private findBlockIndex(blocks: { text: string; position: number }[], anchor: string): number {
+    return blocks.findIndex(block => block.text.includes(anchor));
   }
 
   // Отбор лучших ссылок для одного донора с учетом maxLinks
@@ -796,8 +769,12 @@ JSON: {"anchor": "текст", "sentence": "предложение с [ANCHOR]а
     existingLinksSet: Set<string>
   ): Promise<{ selected: LinkCandidate[], rejected: Array<{candidate: LinkCandidate, reason: string}> }> {
     const selected: LinkCandidate[] = [];
-    const selectedPositions: Array<{start: number, end: number}> = []; // Explicit позиции для проверки расстояния
+    const usedBlockIndices = new Set<number>(); // Отслеживаем использованные блоки
     const rejected: Array<{candidate: LinkCandidate, reason: string}> = [];
+    
+    // Получаем контент донора и разбиваем на блоки
+    const donorContent = candidates[0]?.sourcePage?.content || '';
+    const contentBlocks = this.extractContentBlocks(donorContent);
 
     // Фильтрация по политикам (дубликаты, каннибализация, стоп-анкоры)
     const filtered: LinkCandidate[] = [];
@@ -888,32 +865,33 @@ JSON: {"anchor": "текст", "sentence": "предложение с [ANCHOR]а
         continue;
       }
 
-      // Проверка минимального расстояния между ссылками
-      const sourceContent = candidate.sourcePage.content || '';
+      // Простая проверка: один блок = максимум одна ссылка
+      // Сначала ищем по anchor (естественный анкор)
+      let blockIndex = this.findBlockIndex(contentBlocks, anchor);
       
-      // CRITICAL: если нет originalSentence - пропускаем проверку расстояния
-      // (лучше вставить ссылку чем отклонить из-за невозможности проверить)
-      if (!originalSentence) {
-        console.log(`⚠️ No originalSentence, skipping distance check for this link`);
-      } else {
-        const distanceCheck = this.checkLinkDistance(
-          sourceContent, 
-          selectedPositions, 
-          originalSentence, 
-          params.minDistance
-        );
-        
-        if (!distanceCheck.allowed) {
-          rejected.push({ candidate, reason: `Link too close or sentence not found (minDistance: ${params.minDistance} words)` });
-          console.log(`⚠️ Skipping link: distance check failed`);
-          continue;
-        }
-        
-        // Сохраняем позицию для проверки расстояния следующих ссылок
-        if (distanceCheck.position) {
-          selectedPositions.push(distanceCheck.position);
-        }
+      // Если не найден - ищем по originalSentence (анкор был переписан OpenAI)
+      if (blockIndex < 0 && originalSentence) {
+        blockIndex = this.findBlockIndex(contentBlocks, originalSentence);
+        console.log(`📝 Anchor not found, searching by originalSentence → block ${blockIndex}`);
       }
+      
+      // Если все еще не найден - отклоняем (не можем определить блок)
+      if (blockIndex < 0) {
+        rejected.push({ candidate, reason: `Cannot determine content block for spacing check` });
+        console.log(`⚠️ Skipping link: cannot find block for this anchor/sentence`);
+        continue;
+      }
+      
+      // Проверяем - не использован ли уже этот блок?
+      if (usedBlockIndices.has(blockIndex)) {
+        rejected.push({ candidate, reason: `Block already used (one block = one link max)` });
+        console.log(`⚠️ Skipping link: block ${blockIndex} already has a link`);
+        continue;
+      }
+      
+      // Помечаем блок как использованный
+      usedBlockIndices.add(blockIndex);
+      console.log(`✓ Block ${blockIndex} marked as used`);
 
       // Всё ОК - добавляем ссылку!
       candidate.anchorText = anchor;
