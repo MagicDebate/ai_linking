@@ -866,19 +866,25 @@ JSON: {"anchor": "текст", "sentence": "предложение с [ANCHOR]а
       }
 
       // Простая проверка: один блок = максимум одна ссылка
-      // Сначала ищем по anchor (естественный анкор)
+      // Ищем блок где находится anchor (сам якорный текст)
       let blockIndex = this.findBlockIndex(contentBlocks, anchor);
+      console.log(`🔍 Searching for anchor "${anchor}" in ${contentBlocks.length} blocks → index ${blockIndex}`);
       
-      // Если не найден - ищем по originalSentence (анкор был переписан OpenAI)
-      if (blockIndex < 0 && originalSentence) {
-        blockIndex = this.findBlockIndex(contentBlocks, originalSentence);
-        console.log(`📝 Anchor not found, searching by originalSentence → block ${blockIndex}`);
+      // Если не найден - пытаемся найти по ключевым словам
+      if (blockIndex < 0) {
+        // Извлекаем ключевые слова из anchor (убираем предлоги и короткие слова)
+        const keywords = anchor.split(/\s+/).filter(w => w.length > 3);
+        if (keywords.length > 0) {
+          const mainKeyword = keywords[0]; // Берем первое значимое слово
+          blockIndex = this.findBlockIndex(contentBlocks, mainKeyword);
+          console.log(`📝 Anchor not found, searching by keyword "${mainKeyword}" → block ${blockIndex}`);
+        }
       }
       
       // Если все еще не найден - отклоняем (не можем определить блок)
       if (blockIndex < 0) {
-        rejected.push({ candidate, reason: `Cannot determine content block for spacing check` });
-        console.log(`⚠️ Skipping link: cannot find block for this anchor/sentence`);
+        rejected.push({ candidate, reason: `Cannot find content block containing anchor "${anchor}"` });
+        console.log(`⚠️ Skipping link: cannot find block for anchor "${anchor}"`);
         continue;
       }
       
