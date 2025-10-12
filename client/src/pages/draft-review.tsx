@@ -77,6 +77,8 @@ export default function DraftReview() {
 
   const handleEdit = (link: DraftLink) => {
     setEditingId(link.id);
+    // НЕ очищаем маркеры при редактировании - они нужны для Strategy 4
+    // Пользователь должен видеть где будет ссылка: [ANCHOR]текст[/ANCHOR]
     setEditValue(link.modifiedSentence || link.originalSentence || "");
   };
 
@@ -87,6 +89,34 @@ export default function DraftReview() {
   const handleCancel = () => {
     setEditingId(null);
     setEditValue("");
+  };
+
+  // Безопасный рендеринг предложения с маркерами [ANCHOR]
+  const renderSentenceWithAnchor = (sentence: string): React.ReactNode => {
+    if (!sentence || sentence === "—") return <>{sentence}</>;
+    
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    const anchorRegex = /\[ANCHOR\](.*?)\[\/ANCHOR\]/g;
+    let match;
+    
+    while ((match = anchorRegex.exec(sentence)) !== null) {
+      // Добавить текст до маркера
+      if (match.index > lastIndex) {
+        parts.push(sentence.substring(lastIndex, match.index));
+      }
+      // Добавить анкор жирным шрифтом
+      parts.push(<strong key={match.index} className="text-primary">{match[1]}</strong>);
+      lastIndex = match.index + match[0].length;
+    }
+    
+    // Добавить оставшийся текст
+    if (lastIndex < sentence.length) {
+      parts.push(sentence.substring(lastIndex));
+    }
+    
+    // Всегда возвращаем fragment для consistent React node
+    return <>{parts.length > 0 ? parts : sentence}</>;
   };
 
   const exportToCSV = async () => {
@@ -261,7 +291,7 @@ export default function DraftReview() {
                           />
                         ) : (
                           <span className="text-sm">
-                            {link.modifiedSentence || link.originalSentence || "—"}
+                            {renderSentenceWithAnchor(link.modifiedSentence || link.originalSentence || "—")}
                           </span>
                         )}
                       </TableCell>
